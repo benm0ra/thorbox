@@ -46,7 +46,7 @@ class InputRouter(private val state: AppState) {
 
     // ================= NAV cursor: reach every on-screen control without touching =================
     /** NAV mode: D-pad moves a focus ring over buttons, A presses, L1/R1 switch screen, B exits. */
-    val navMode = mutableStateOf(false)
+    val navMode = androidx.compose.runtime.mutableStateOf(false)
     /** 0 = top screen (SESSION role), 1 = bottom screen (DECK role). */
     val navScreen = androidx.compose.runtime.mutableIntStateOf(0)
     private val navSinks = arrayOfNulls<(KeyEvent) -> Boolean>(2)
