@@ -94,6 +94,16 @@ class CrashActivity : Activity() {
                 }
             })
             addView(Button(context).apply {
+                text = "Save to Downloads"
+                setOnClickListener {
+                    val btn = this
+                    Thread {
+                        val name = LogExport.saveToDownloads(context, "Thorbox-crash", report)
+                        btn.post { btn.text = if (name != null) "Saved ✓" else "Save failed" }
+                    }.start()
+                }
+            })
+            addView(Button(context).apply {
                 text = "Restart"
                 setOnClickListener {
                     CrashReporter.clear(context)

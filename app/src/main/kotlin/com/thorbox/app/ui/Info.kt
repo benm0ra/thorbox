@@ -155,6 +155,8 @@ object Glossary {
         "UNDO" to "Undo the last pattern change.",
         // ---- FX ----
         "LATCH" to "Then tap an effect to keep it on without holding it.",
+        "SAVE LOG" to "Save the app's recent log as a text file in Downloads, to send with a bug report.",
+        "SHARE LOG" to "Send the app's recent log to another app (email, chat, Drive).",
         "TILT" to "Lean the Thor to steer the effect you're holding. Shake to roll the dice.",
         "RPT" to "Note repeat: hold this, then hold a pad or key to retrigger it in time.",
     )

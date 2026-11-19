@@ -29,11 +29,21 @@ import kotlin.math.sqrt
 class TiltController(private val app: AppState, context: Context) : SensorEventListener {
     val enabled = mutableStateOf(false)
     private val sm = context.getSystemService(SensorManager::class.java)
+    private val dm = context.getSystemService(android.hardware.display.DisplayManager::class.java)
+
+    /** Sensor axes are in the device's natural orientation; turn them into screen left/right, toward/away. */
+    private fun screenAxes(x: Float, y: Float): Pair<Float, Float> =
+        when (dm?.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.rotation ?: android.view.Surface.ROTATION_0) {
+            android.view.Surface.ROTATION_90 -> -y to x
+            android.view.Surface.ROTATION_180 -> -x to -y
+            android.view.Surface.ROTATION_270 -> y to -x
+            else -> x to y
+        }
     private val gravity = sm?.getDefaultSensor(Sensor.TYPE_GRAVITY)
     private val accel = sm?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION) ?: sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     val available get() = gravity != null || accel != null
 
-    private var running = false
+    private var runningFlag = false
     private var foreground = false
     private val g = FloatArray(3)            // latest gravity
     private var roll = 0f; private var pitch = 0f
@@ -42,6 +52,14 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
     // shake detection
     private var lastPeak = 0L; private var lastDice = 0L; private var peaks = 0
     private val lowG = FloatArray(3)
+
+    // Live readouts for the diagnostics panel / bubble level (plain fields, read in draw).
+    var rollDeg = 0f; private set
+    var pitchDeg = 0f; private set
+    var events = 0L; private set
+    var lastShake = 0f; private set
+    val running get() = runningFlag
+    fun sensorSummary(): String = "gravity=${gravity?.name ?: "none"} · motion=${accel?.name ?: "none"}"
 
     /** "x, y" tilt offsets currently applied to held effects (read by the FX deck glyphs). */
     var dx = 0f; private set
@@ -52,12 +70,14 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
 
     private fun sync() {
         val want = enabled.value && foreground && sm != null
-        if (want == running) return
-        running = want
+        if (want == runningFlag) return
+        runningFlag = want
         if (want) {
-            gravity?.let { sm!!.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-            accel?.let { sm!!.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+            val okG = gravity?.let { sm!!.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) } ?: false
+            val okA = accel?.let { sm!!.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) } ?: false
+            android.util.Log.i("ThorboxTilt", "start: ${sensorSummary()} registered gravity=$okG motion=$okA")
         } else {
+            android.util.Log.i("ThorboxTilt", "stop (events so far: $events)")
             sm?.unregisterListener(this)
             dx = 0f; dy = 0f
             app.groove.setTilt(0f, 0f)
@@ -65,11 +85,13 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
     }
 
     override fun onSensorChanged(e: SensorEvent) {
+        events++
         when (e.sensor.type) {
             Sensor.TYPE_GRAVITY -> {
                 g[0] = e.values[0]; g[1] = e.values[1]; g[2] = e.values[2]
                 val n = sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).coerceAtLeast(0.1f)
-                roll = asin((g[0] / n).coerceIn(-1f, 1f)); pitch = asin((g[1] / n).coerceIn(-1f, 1f))
+                val (sx, sy) = screenAxes(g[0], g[1])
+                roll = asin((sx / n).coerceIn(-1f, 1f)); pitch = asin((sy / n).coerceIn(-1f, 1f))
             }
             Sensor.TYPE_LINEAR_ACCELERATION -> shake(e.values[0], e.values[1], e.values[2])
             Sensor.TYPE_ACCELEROMETER -> {
@@ -77,7 +99,8 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
                 for (i in 0..2) lowG[i] += (e.values[i] - lowG[i]) * 0.1f
                 if (gravity == null) {
                     val n = sqrt(lowG[0] * lowG[0] + lowG[1] * lowG[1] + lowG[2] * lowG[2]).coerceAtLeast(0.1f)
-                    roll = asin((lowG[0] / n).coerceIn(-1f, 1f)); pitch = asin((lowG[1] / n).coerceIn(-1f, 1f))
+                    val (sx, sy) = screenAxes(lowG[0], lowG[1])
+                    roll = asin((sx / n).coerceIn(-1f, 1f)); pitch = asin((sy / n).coerceIn(-1f, 1f))
                 }
                 shake(e.values[0] - lowG[0], e.values[1] - lowG[1], e.values[2] - lowG[2])
             }
@@ -87,11 +110,13 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
 
     private fun shake(x: Float, y: Float, z: Float) {
         val m = sqrt(x * x + y * y + z * z)
+        lastShake = maxOf(m, lastShake * 0.97f)
         val now = SystemClock.uptimeMillis()
         if (m < SHAKE_MS2) return
         if (now - lastPeak < 90) return                    // same jolt
         peaks = if (now - lastPeak < 450) peaks + 1 else 1
         lastPeak = now
+        android.util.Log.d("ThorboxTilt", "shake peak %.1f m/s² (#$peaks)".format(m))
         if (peaks >= 2 && now - lastDice > 1200) { lastDice = now; peaks = 0; dice() }   // sensor callbacks arrive on the main looper (registered there)
     }
 
@@ -107,7 +132,8 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
 
     /** Per UI frame: steer held effects. */
     fun onFrame() {
-        if (!running) return
+        if (!runningFlag) return
+        rollDeg = Math.toDegrees(roll.toDouble()).toFloat(); pitchDeg = Math.toDegrees(pitch.toDouble()).toFloat()
         val held = app.groove.fxHeld.intValue
         if (held != 0 && heldBefore == 0) { baseRoll = roll; basePitch = pitch }   // neutral = pose at engage
         heldBefore = held
