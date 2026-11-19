@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -67,7 +69,8 @@ fun DiagnosticsPanel(state: AppState, modifier: Modifier = Modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 tel.frame.longValue
-                Line("last input", state.lastInput.value)
+                val last by state.lastInput.collectAsState()
+                Line("last input", last)
                 Line("tilt", when { !t.available -> "no motion sensor"; !t.enabled.value -> "off (FX deck → TILT)"; !t.running -> "on, not started"; else -> "running" })
                 Line("sensors", t.sensorSummary())
                 Line("events", t.events.toString())
