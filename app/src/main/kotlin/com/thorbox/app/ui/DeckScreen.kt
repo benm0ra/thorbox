@@ -46,6 +46,7 @@ import kotlin.math.roundToInt
 fun DeckScreen(state: AppState) {
     val deck = state.deck.value
     AuroraBackground(state) {
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DeckTabs(deck, state::selectDeck, Modifier.glass(state, 12.dp).padding(4.dp))
         when (deck) {
@@ -55,6 +56,8 @@ fun DeckScreen(state: AppState) {
             Deck.FX -> FxDeck(state, Modifier.weight(1f).fillMaxWidth())
             else -> { Pad16Deck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
         }
+    }
+    NavBadge(state, 1)
     }
     }
 }

@@ -48,10 +48,26 @@ class MainActivity : ComponentActivity() {
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
+        registerNavTargets()
         applyLaunchExtras(intent)
         // Only after setContent: before it the window has no DecorView, and asking for its insets
         // controller crashes (NPE inside PhoneWindow) on Android 13.
         hideSystemBars()
+    }
+
+    /**
+     * NAV cursor targets. This window always serves its own role; with no second screen showing it
+     * serves both (top + bottom are squeezed in here). NAV keys skip our router (super = framework).
+     */
+    private fun composeRoot(): android.view.View? = findViewById<android.view.ViewGroup>(android.R.id.content)?.getChildAt(0)
+    private fun registerNavTargets() {
+        val sink: (KeyEvent) -> Boolean = { ev -> super.dispatchKeyEvent(ev) }
+        val focus: () -> Unit = { composeRoot()?.let { it.isFocusableInTouchMode = true; it.requestFocus() } }
+        val mine = screens.activityRole().ordinal
+        state.input.registerNav(mine, sink, focus)
+        lifecycleScope.launch {
+            screens.secondShowing.collect { second -> if (!second) state.input.registerNav(1 - mine, sink, focus) }
+        }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); applyLaunchExtras(intent) }

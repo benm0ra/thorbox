@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,13 +43,17 @@ fun HwButton(
     hPad: Dp = 12.dp,
     onClick: () -> Unit,
 ) {
+    // In NAV mode, landing on a button explains it (same info line as touching it).
+    val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    androidx.compose.runtime.LaunchedEffect(focused) { if (focused) Info.show(text) }
     Box(
         modifier
             .heightIn(min = minHeight)
             .widthIn(min = 44.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (active) accent else Tb.Raised)
-            .clickable(enabled = enabled) { Info.show(text); onClick() }
+            .clickable(interactionSource = src, indication = androidx.compose.foundation.LocalIndication.current, enabled = enabled) { Info.show(text); onClick() }
             .padding(horizontal = hPad),
         contentAlignment = Alignment.Center,
     ) {

@@ -17,8 +17,10 @@ import kotlin.math.sign
  * NAVIGATION (works everywhere). SELECT is SHIFT: hold it to see this map on screen.
  *   SHIFT + D-pad ←/→  top screen view (SMP · SYN · SEQ · MIX · VIZ)
  *   SHIFT + D-pad ↑/↓  bottom deck (PADS · KEYS · STEP · FX)
- *   SHIFT + L1 / R1    tempo −1 / +1 BPM        SHIFT + A  tap tempo
- *   SHIFT + X metronome · SHIFT + Y glass look · SHIFT + B diagnostics · SHIFT + L3 theme
+ *   SHIFT + A          NAV cursor on/off: D-pad moves a ring over every on-screen control, A presses,
+ *                      L1/R1 = top/bottom screen, B leaves NAV. Touch-free access to everything.
+ *   SHIFT + L1 / R1    tempo −1 / +1 BPM        SHIFT + X  tap tempo
+ *   SHIFT + Y metronome · SHIFT + B diagnostics · SHIFT + L3 theme · SHIFT + R3 glass look
  *   SELECT tapped on its own = record.  B = back (leave the visualizer, close the step editor).
  *
  * PLAYING (depends on the top view):
@@ -42,6 +44,37 @@ class InputRouter(private val state: AppState) {
     private val axes = FloatArray(4)          // LX, LY, RX, RY after deadzone
     private var heldRoot: IntArray? = null
 
+    // ================= NAV cursor: reach every on-screen control without touching =================
+    /** NAV mode: D-pad moves a focus ring over buttons, A presses, L1/R1 switch screen, B exits. */
+    val navMode = mutableStateOf(false)
+    /** 0 = top screen (SESSION role), 1 = bottom screen (DECK role). */
+    val navScreen = androidx.compose.runtime.mutableIntStateOf(0)
+    private val navSinks = arrayOfNulls<(KeyEvent) -> Boolean>(2)
+    private val navFocus = arrayOfNulls<() -> Unit>(2)
+    /** A window registers where NAV key events for a screen role go (and how to give it focus). */
+    fun registerNav(role: Int, sink: (KeyEvent) -> Boolean, focus: () -> Unit) { navSinks[role] = sink; navFocus[role] = focus }
+    fun unregisterNav(role: Int) { navSinks[role] = null; navFocus[role] = null }
+    fun setNav(on: Boolean) {
+        navMode.value = on
+        if (on) navFocus[navScreen.intValue]?.invoke()
+        state.lastInput.value = if (on) "NAV ON" else "NAV OFF"
+    }
+    private fun navKey(e: KeyEvent, first: Boolean, up: Boolean): Boolean {
+        fun send(code: Int) = navSinks[navScreen.intValue]?.invoke(KeyEvent(e.downTime, e.eventTime, e.action, code, e.repeatCount)) ?: false
+        when (e.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> send(e.keyCode)
+            KeyEvent.KEYCODE_BUTTON_A -> send(KeyEvent.KEYCODE_DPAD_CENTER)
+            KeyEvent.KEYCODE_BUTTON_B -> if (first) setNav(false)
+            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
+                val target = if (e.keyCode == KeyEvent.KEYCODE_BUTTON_L1) 0 else 1
+                if (navSinks[target] != null) { navScreen.intValue = target; navFocus[target]?.invoke() }
+            }
+            KeyEvent.KEYCODE_BUTTON_START -> if (first) state.groove.togglePlay()
+            else -> Unit
+        }
+        return true
+    }
+
     /** SELECT is held (the on-screen control map shows after a short hold). */
     val shiftHeld = androidx.compose.runtime.mutableStateOf(false)
     private var shiftUsed = false             // a combo fired, so releasing SELECT doesn't toggle record
@@ -63,9 +96,10 @@ class InputRouter(private val state: AppState) {
             }
             KeyEvent.KEYCODE_BUTTON_L1 -> if (down) g.nudgeBpm(-1f)
             KeyEvent.KEYCODE_BUTTON_R1 -> if (down) g.nudgeBpm(+1f)
-            KeyEvent.KEYCODE_BUTTON_A -> if (first) g.tapTempo(android.os.SystemClock.uptimeMillis())
-            KeyEvent.KEYCODE_BUTTON_X -> if (first) g.toggleMetronome()
-            KeyEvent.KEYCODE_BUTTON_Y -> if (first) state.cycleGlass()
+            KeyEvent.KEYCODE_BUTTON_A -> if (first) setNav(!navMode.value)
+            KeyEvent.KEYCODE_BUTTON_X -> if (first) g.tapTempo(android.os.SystemClock.uptimeMillis())
+            KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.toggleMetronome()
+            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) state.cycleGlass()
             KeyEvent.KEYCODE_BUTTON_B -> if (first) state.showDiagnostics.value = !state.showDiagnostics.value
             KeyEvent.KEYCODE_BUTTON_START -> if (first) g.togglePlay()
             KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) state.cycleTheme()
@@ -116,6 +150,7 @@ class InputRouter(private val state: AppState) {
         // Only key-downs go through SHIFT, so a key that was already held (a pad, L1 repeat) still
         // gets its release when SELECT is pressed in between.
         if (shiftHeld.value && down && shiftKey(e, down, first)) return true
+        if (navMode.value) return navKey(e, first, up)
 
         // Global keys
         when (e.keyCode) {

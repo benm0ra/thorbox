@@ -43,6 +43,9 @@ class RolePresentation(
             setContent { ThorboxTheme { RoleContent(role, state) } }
         }
         setContentView(view)
+        // NAV cursor: key events for this screen's role are delivered straight to its Compose view.
+        view.isFocusable = true; view.isFocusableInTouchMode = true
+        state.input.registerNav(role.ordinal, { ev -> view.dispatchKeyEvent(ev) }, { view.requestFocus() })
         window?.let { w ->
             w.decorView.setViewTreeLifecycleOwner(activity)
             w.decorView.setViewTreeViewModelStoreOwner(activity)
@@ -54,6 +57,8 @@ class RolePresentation(
             }
         }
     }
+
+    override fun onStop() { super.onStop(); state.input.unregisterNav(role.ordinal) }
 
     // Key focus follows the last-touched display, so gamepad input can land here.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =

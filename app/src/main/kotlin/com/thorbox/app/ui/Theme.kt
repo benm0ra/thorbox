@@ -156,7 +156,10 @@ fun ThorboxTheme(content: @Composable () -> Unit) {
             bodyLarge = t.bodyLarge.m(), bodyMedium = t.bodyMedium.m(), bodySmall = t.bodySmall.m(),
             labelLarge = t.labelLarge.m(), labelMedium = t.labelMedium.m(), labelSmall = t.labelSmall.m())
     } else Typography()
-    MaterialTheme(colorScheme = scheme, typography = type, content = content)
+    MaterialTheme(colorScheme = scheme, typography = type) {
+        // Our own press/focus indication (FocusRing.kt): the NAV cursor's ring on every clickable.
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalIndication provides FocusRingIndication, content = content)
+    }
 }
 
 /** CRT scanlines over a whole screen (TERMINAL / CYBERPUNK). Its own layer: drawn once, never per frame. */

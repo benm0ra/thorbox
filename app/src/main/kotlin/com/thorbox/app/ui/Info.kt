@@ -201,3 +201,18 @@ fun BoxScope.InfoLine() {
         Text("?", color = if (Info.enabled.value) Tb.Key else Tb.Dim, fontWeight = FontWeight.Black, fontSize = 13.sp)
     }
 }
+
+/** Shown while the NAV cursor is on: what the buttons do right now, and which screen they drive. */
+@Composable
+fun BoxScope.NavBadge(state: com.thorbox.app.AppState, thisScreen: Int) {
+    val inp = state.input
+    if (!inp.navMode.value) return
+    val here = inp.navScreen.intValue == thisScreen
+    Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).clip(RoundedCornerShape(14.dp))
+        .background(if (here) Tb.Key else Tb.Raised).padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(if (here) "NAV  ·  D-pad move  ·  A press  ·  ${if (thisScreen == 0) "R1 bottom screen" else "L1 top screen"}  ·  B done"
+             else "NAV is on the ${if (thisScreen == 0) "bottom" else "top"} screen  (${if (thisScreen == 0) "L1" else "R1"} to come here)",
+            color = if (here) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 0.5.sp)
+    }
+}

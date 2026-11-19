@@ -78,13 +78,14 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 
 | SELECT + | |
 |---|---|
-| **D-pad ←/→** | top-screen view: SMP · SYN · SEQ · MIX · VIZ |
-| **D-pad ↑/↓** | bottom deck: PADS · KEYS · STEP · FX |
+| **A** | **NAV cursor** on/off. The D-pad moves a ring over *every* on-screen control, A presses, L1/R1 switch between the top and bottom screens, and B leaves NAV. |
+| **D-pad ←/→** | top-screen view: SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL |
+| **D-pad ↑/↓** | bottom deck: PADS · KEYS · DRUMS · STEP · FX |
 | **L1 / R1** | tempo −1 / +1 BPM (hold to keep going) |
-| **A** | tap tempo |
-| **X** | metronome |
-| **Y** | glass look (full · subtle · off) |
-| **B** | diagnostics overlay |
+| **X** | tap tempo |
+| **Y** | metronome |
+| **B** | diagnostics (live sensors, SAVE LOG to Downloads) |
+| **L3 / R3** | cycle theme / glass look |
 | *(tap SELECT alone)* | record |
 
 **B** is Back: it leaves the visualizer and closes the step editor. It never quits the app.
@@ -105,7 +106,7 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 **Synth presets:** L3 = next preset · R3 = DICE a new sound.
 
 **SEQ view:** D-pad moves the step cursor and edits the current lane · A toggles a step · X dice · Y undo.
-**MIX view:** D-pad selects the strip and nudges ±1 dB · A mute · Y solo · L-stick Y volume · R-stick X pan.
+**MIXER:** D-pad selects a strip and nudges it ±1 dB · A mute · Y solo · X opens that track · L-stick Y volume · R-stick X pan. **+ TRACK** adds a sampler, synth or drum track (up to 8). **⋯** on a strip opens PUMP (sidechain), clear and remove.
 
 Switching the bottom deck tab (PADS ↔ KEYS) switches the top view (SMP ↔ SYN) too. The rail on the top screen does the reverse.
 

@@ -83,6 +83,7 @@ fun TopScreen(state: AppState) {
         }
     }
     InfoLine()             // plain-words explanation of whatever you just touched
+    NavBadge(state, 0)
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
     if (state.showThemes.value) ThemePicker(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls
