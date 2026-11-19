@@ -84,6 +84,7 @@ fun TopScreen(state: AppState) {
     }
     InfoLine()             // plain-words explanation of whatever you just touched
     NavBadge(state, 0)
+    if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
     if (state.showThemes.value) ThemePicker(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls
@@ -116,6 +117,7 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
     Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("SAMPLES", style = Tb.Label, modifier = Modifier.weight(1f))
+            HwButton("MIC", minHeight = 36.dp, fontSize = 12, accent = Tb.Warn) { state.openMic() }
             HwButton("FOLDER", minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
         }
         when {

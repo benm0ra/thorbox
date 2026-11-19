@@ -66,6 +66,8 @@ object Glossary {
         "■" to "Stop.",
         "●" to "Record. Whatever you play on pads or keys is written into the pattern.",
         // ---- sampler ----
+        "MIC" to "Record from the Thor's microphone (foley, vocals, field sounds) straight onto the pads.",
+        "REC" to "Start / stop recording. Stopping saves the WAV and chops it onto this sampler track.",
         "FOLDER" to "Pick the folder on your device where your samples live.",
         "CHOOSE SAMPLES FOLDER" to "Pick the folder on your device where your samples live.",
         "KEY MATCH" to "Re-pitch the sample into your song's key (the smallest move that fits).",
@@ -154,6 +156,7 @@ object Glossary {
         "DENSITY" to "How busy the dice makes the pattern.",
         "UNDO" to "Undo the last pattern change.",
         // ---- FX ----
+        "MIDI" to "Export all tracks as a .mid file in Downloads: drag it into Ableton (drums map to a Drum Rack).",
         "ADD TRACK" to "Add a track: pick a sampler, a synth or a drum machine. Up to 8 tracks.",
         "OPEN TRACK" to "Open this track in its editor (sampler, synth or drums).",
         "TRACK MENU" to "Track options: PUMP sidechain, clear the pattern, remove the track.",

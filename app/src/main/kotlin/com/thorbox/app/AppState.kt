@@ -404,6 +404,41 @@ class AppState(private val app: Application) {
         return t
     }
 
+    /**
+     * Export every track's pattern as one multi-track .mid in Downloads (drag it into Ableton).
+     * Synth tracks keep their notes; sampler pads are C1 upward (MPC/Drum Rack layout); drum
+     * tracks go to channel 10 with General MIDI notes so a Drum Rack maps them instantly.
+     */
+    fun exportMidi(loops: Int = 4) {
+        val tracksNow = tracks.value
+        val clips = groove.clips.value
+        val out = ArrayList<com.thorbox.model.MidiWriter.Track>(); val lengths = ArrayList<Int>()
+        var synthCh = 0
+        tracksNow.forEachIndexed { t, info ->
+            if (info.kind == com.thorbox.model.TrackKind.EMPTY) return@forEachIndexed
+            val c = clips[t]
+            val voices = if (info.kind == com.thorbox.model.TrackKind.DRUMS) drumsFor(t).kit.value.voices else null
+            val notes = c.notes.map { e ->
+                val note = when (info.kind) {
+                    com.thorbox.model.TrackKind.DRUMS -> voices?.getOrNull(e.note)?.let { com.thorbox.model.MidiWriter.gmDrum(it.model, it.decayMs) } ?: (36 + e.note)
+                    com.thorbox.model.TrackKind.SAMPLER -> 36 + e.note
+                    else -> e.note
+                }
+                com.thorbox.model.MidiWriter.Note(e.tick, e.lengthTicks, note, (e.velocity * 127f).toInt())
+            }
+            val ch = if (info.kind == com.thorbox.model.TrackKind.DRUMS) 9 else (synthCh++).let { if (it >= 9) it + 1 else it }
+            out += com.thorbox.model.MidiWriter.Track(info.name, ch, notes); lengths += c.lengthTicks
+        }
+        val bytes = com.thorbox.model.MidiWriter.write(out, groove.groove.value.bpm, loops, lengths)
+        scope.launch {
+            val name = withContext(Dispatchers.IO) { LogExport.saveBytes(app, "Thorbox", "mid", "audio/midi", bytes) }
+            lastInput.value = if (name != null) "Saved Downloads/$name" else "MIDI export failed"
+            com.thorbox.app.ui.Info.title.value = "MIDI"
+            com.thorbox.app.ui.Info.body.value = if (name != null) "Saved to Downloads: $name (${out.size} tracks, $loops× loop). Drag it into Ableton." else "Couldn't save the MIDI file."
+            com.thorbox.app.ui.Info.stamp.intValue++
+        }
+    }
+
     /** True if [t] can be removed: there must stay at least one track of each instrument kind. */
     fun canRemoveTrack(t: Int): Boolean {
         val k = trackKind(t)
@@ -510,6 +545,27 @@ class AppState(private val app: Application) {
     // ================= Loading =================
 
     fun requestFolder() { folderPickRequests.tryEmit(Unit) }
+
+    // ---- Mic / field recording ----
+    val mic = MicRecorder(app)
+    val micPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val showMic = mutableStateOf(false)
+    private fun hasMic() = androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.RECORD_AUDIO) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+    /** MIC button: open the recorder (asks for the mic permission the first time). */
+    fun openMic() { if (hasMic()) showMic.value = true else micPermissionRequests.tryEmit(Unit) }
+    fun onMicPermission(granted: Boolean) { if (granted) showMic.value = true else _error.value = "Mic permission denied: allow it in Settings → Apps → Thorbox" }
+    fun toggleMicRecording() {
+        if (mic.recording.value) { mic.stop(); return }
+        if (!hasMic()) { micPermissionRequests.tryEmit(Unit); return }
+        mic.start { uri, name ->
+            if (uri == null) { _error.value = name; return@start }
+            // Into the sampler track you're on, auto-chopped, like any other sample.
+            if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) load(uri, name)
+            showMic.value = false
+            lastInput.value = "Saved Music/Thorbox/Field Recordings/$name"
+        }
+    }
     fun load(item: LibraryItem) {
         if (item.sizeBytes > MAX_FILE_BYTES) { _error.value = "${item.name} is larger than 1 GB"; return }
         load(item.uri, item.name)

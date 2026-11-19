@@ -81,14 +81,17 @@ fun MixScreen(state: AppState) {
                 pump = if (ch.scSource >= 0 && ch.scAmount > 0f) ch.scAmount else 0f, scIdx = i,
             )
         }
+        Column(Modifier.width(56.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (tracks.any { it.kind == com.thorbox.model.TrackKind.EMPTY }) {
-            Box(Modifier.width(56.dp).fillMaxHeight().clip(RoundedCornerShape(14.dp)).border(2.dp, Tb.Line, RoundedCornerShape(14.dp))
+            Box(Modifier.width(56.dp).weight(1f).clip(RoundedCornerShape(14.dp)).border(2.dp, Tb.Line, RoundedCornerShape(14.dp))
                 .clickable { Info.show("ADD TRACK"); adding = true }, contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+", color = Tb.Text, fontSize = 34.sp, fontWeight = FontWeight.Black)
                     Text("TRACK", color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                 }
             }
+        }
+        HwButton("MIDI", Modifier.fillMaxWidth(), minHeight = 52.dp, fontSize = 11, hPad = 2.dp, accent = Tb.Tempo) { state.exportMidi() }
         }
         Strip(
             state, name = "MASTER", color = Tb.EncWhite, selected = g.mixSelected.intValue == MASTER_STRIP,

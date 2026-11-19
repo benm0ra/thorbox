@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The only permission Thorbox asks for, and only when you tap MIC (field recording). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- PRIVACY: this app requests NO permissions. In particular there is no INTERNET permission,
          so it cannot send anything off the device. File access is per-folder via the system picker. -->
 

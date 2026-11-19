@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private lateinit var screens: DualScreenController
     private val state get() = appState
+    private val askMic = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok -> state.onMicPermission(ok) }
 
     private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { state.setLibraryRoot(it) }
@@ -37,6 +38,11 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 state.folderPickRequests.collect { pickFolder.launch(null) }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                state.micPermissionRequests.collect { askMic.launch(android.Manifest.permission.RECORD_AUDIO) }
             }
         }
         if (state.library.root.value != null && state.library.items.value.isEmpty()) state.rescanLibrary()
