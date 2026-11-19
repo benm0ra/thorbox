@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
      * serves both (top + bottom are squeezed in here). NAV keys skip our router (super = framework).
      */
     private fun composeRoot(): android.view.View? = findViewById<android.view.ViewGroup>(android.R.id.content)?.getChildAt(0)
+    @android.annotation.SuppressLint("RestrictedApi")   // same false positive as dispatchKeyEvent below
     private fun registerNavTargets() {
         val sink: (KeyEvent) -> Boolean = { ev -> super.dispatchKeyEvent(ev) }
         val focus: () -> Unit = { composeRoot()?.let { it.isFocusableInTouchMode = true; it.requestFocus() } }
