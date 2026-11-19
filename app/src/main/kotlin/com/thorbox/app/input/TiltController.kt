@@ -92,7 +92,7 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
         if (now - lastPeak < 90) return                    // same jolt
         peaks = if (now - lastPeak < 450) peaks + 1 else 1
         lastPeak = now
-        if (peaks >= 2 && now - lastDice > 1200) { lastDice = now; peaks = 0; dice()   // sensor callbacks arrive on the main looper (registered there) }
+        if (peaks >= 2 && now - lastDice > 1200) { lastDice = now; peaks = 0; dice() }   // sensor callbacks arrive on the main looper (registered there)
     }
 
     private fun dice() {
