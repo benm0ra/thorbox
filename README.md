@@ -62,6 +62,14 @@ Each page has **one hero animation** driven by the live engine (telemetry plus a
 While you turn an encoder, its name and value fill the corner of the hero. Double-tap an encoder to reset it.
 Animations read state only in the draw phase and reuse all buffers. A 120 Hz frame never recomposes or allocates.
 
+## Sounds
+
+- **Synth presets.** 33 factory sounds in 7 families: 808, BASS, LEAD, KEYS, PLUCK, PAD and WEIRD. Tap the name to browse, or use ◀ ▶. SAVE stores your own presets on the device. Long-press one of YOUR presets to delete it.
+- **DICE / MUTATE (OP-XY style).** DICE rolls a brand-new playable sound within the selected family. MUTATE nudges the current one. ↶ undoes either.
+- **808 voice.** The PITCH page has a pitch envelope (the boom) and per-oscillator octaves. The VOICE page has glide, mono legato (slides), drive and noise.
+- **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a TR-style grid, DICE BEAT, kit save/load and per-sound dice. BIT the drummer plays along, in each sound's colour.
+- **Punch-in FX.** Every FX pad has a live glyph that shows what the effect is doing. **TILT** (FX deck) lets you lean the Thor to steer held effects, and shake it to dice.
+
 ## Controls
 
 Everything can be driven from the Thor's buttons. **Hold SELECT** to see this map on screen.
@@ -92,6 +100,9 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 | **START** | play/stop | same |
 | **L1 (hold)** | note repeat | note repeat |
 | **L2 / R2** | analog filter / stutter punch-in | same |
+
+**DRM view (drum synth):** D-pad ←/→ step · ↑/↓ sound · A toggle step · R1 hold = play the sound · sticks = the 4 encoders · X dice beat · Y undo · L3 next kit · R3 dice kit.
+**Synth presets:** L3 = next preset · R3 = DICE a new sound.
 
 **SEQ view:** D-pad moves the step cursor and edits the current lane · A toggles a step · X dice · Y undo.
 **MIX view:** D-pad selects the strip and nudges ±1 dB · A mute · Y solo · L-stick Y volume · R-stick X pan.
