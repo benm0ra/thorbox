@@ -16,7 +16,7 @@ android {
                 arguments += listOf("-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
             }
         }
-        ndk { abiFilters += listOf("arm64-v8a") } // Thor is arm64 only. One ABI also keeps builds fast.
+        ndk { abiFilters += ((findProperty("thorbox.abis") as String?)?.split(",") ?: listOf("arm64-v8a")) } // Thor is arm64 only. One ABI also keeps builds fast.
         consumerProguardFiles("consumer-rules.pro")
     }
 

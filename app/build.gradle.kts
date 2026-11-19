@@ -19,7 +19,7 @@ android {
         // so every new build installs over the previous one.
         versionCode = (System.getenv("THORBOX_VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("THORBOX_VERSION_NAME") ?: "0.0.0-dev"
-        ndk { abiFilters += listOf("arm64-v8a") }
+        ndk { abiFilters += ((findProperty("thorbox.abis") as String?)?.split(",") ?: listOf("arm64-v8a")) }
     }
     // Release signing comes from keystore.properties (git-ignored), or from environment variables in CI.
     // Without either, release builds are left unsigned rather than silently using the public debug key.
