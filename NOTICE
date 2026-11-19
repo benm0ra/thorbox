@@ -1,0 +1,22 @@
+Thorbox
+Copyright (C) 2026 The Thorbox contributors
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. See LICENSE.
+
+This product includes third-party software:
+
+  Oboe (com.google.oboe:oboe) - Copyright The Android Open Source Project
+    Licensed under the Apache License, Version 2.0 - third_party/licenses/Apache-2.0.txt
+    https://github.com/google/oboe
+
+  AndroidX / Jetpack Compose / Kotlin / kotlinx.coroutines / kotlinx.serialization
+    Licensed under the Apache License, Version 2.0 - third_party/licenses/Apache-2.0.txt
+
+Apache-2.0 is compatible with GPL-3.0; the combined work is distributed under GPL-3.0-or-later.
+
+Trademarks: "AYN" and "Thor" are trademarks of their respective owner. "Teenage Engineering",
+"OP-1", "Koala Sampler", "Ableton" and "Live" belong to their respective owners. This project is
+an independent work, is not affiliated with or endorsed by any of them, and contains none of their
+code or assets. Design references describe general inspiration only.

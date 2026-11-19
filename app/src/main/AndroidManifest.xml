@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- PRIVACY: this app requests NO permissions. In particular there is no INTERNET permission,
+         so it cannot send anything off the device. File access is per-folder via the system picker. -->
+
+    <uses-feature android:name="android.hardware.audio.low_latency" android:required="false" />
+    <uses-feature android:name="android.hardware.audio.pro" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
+    <application
+        android:name=".ThorboxApp"
+        android:label="Thorbox"
+        android:icon="@android:drawable/ic_media_play"
+        android:theme="@style/Theme.Thorbox"
+        android:hardwareAccelerated="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="false"
+        android:hasFragileUserData="false">
+
+        <!-- configChanges: plugging a controller or folding the lid must NOT recreate the Activity
+             (that would tear down the Presentation and the UI state mid-performance). -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density|uiMode|touchscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Fallback host for the second screen, used only if the panel refuses Presentation windows. -->
+        <activity
+            android:name=".dual.SecondScreenActivity"
+            android:exported="false"
+            android:taskAffinity="com.thorbox.app.second"
+            android:excludeFromRecents="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density|uiMode|touchscreen" />
+    </application>
+</manifest>
