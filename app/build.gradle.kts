@@ -75,5 +75,5 @@ dependencies {
     // Installs the baseline profiles that Compose and AndroidX ship, so sideloaded builds start fast
     // and scroll without first-run jank (Play does this automatically; sideloads need this).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 }
