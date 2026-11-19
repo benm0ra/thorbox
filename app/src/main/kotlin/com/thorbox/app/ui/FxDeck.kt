@@ -45,6 +45,7 @@ private val FX_PADS = listOf(
     FxPad(NativeEngine.Fx.VINYL, "VINYL", "wow", "dust", 2),
     FxPad(NativeEngine.Fx.REVERSE, "REVERSE", "length", "—", 4),
     FxPad(NativeEngine.Fx.GATE, "GATE", "rate", "duty", 3),
+    FxPad(NativeEngine.Fx.HAZE, "HAZE", "size", "tone", 7),
 )
 
 /**
@@ -64,10 +65,11 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 14.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
     val hintStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
-    val cols = 2; val rows = 4                            // 7 effects + PANIC
+    val cols = 3; val rows = 3                            // 8 effects + PANIC
     val xy = remember { FloatArray(NativeEngine.Fx.COUNT * 2) { 0.5f } }      // last XY per effect (drives its glyph)
     val since = remember { FloatArray(NativeEngine.Fx.COUNT) { -10f } }       // clock time each effect engaged
     val wasOn = remember { BooleanArray(NativeEngine.Fx.COUNT) }
+    val offAt = remember { FloatArray(NativeEngine.Fx.COUNT) { -1000f } }
 
     fun cell(x: Float, y: Float): Int {
         val c = (x / dims[0].coerceAtLeast(1) * cols).toInt().coerceIn(0, cols - 1)
@@ -136,6 +138,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 val p = FX_PADS[k]
                 val on = active and (1 shl p.id) != 0
                 if (on && !wasOn[p.id]) since[p.id] = tel.timeSec
+                if (!on && wasOn[p.id]) offAt[p.id] = tel.timeSec
                 wasOn[p.id] = on
                 // A punch-in "pop": the pad swells a touch for 120 ms as it engages.
                 val pop = if (on) kotlin.math.exp(-(tel.timeSec - since[p.id]) * 18f) else 0f
@@ -143,7 +146,9 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 // Glyph lives top-right, clear of the name (top-left) and the XY hint (bottom).
                 val gArea = Offset(o.x + s.width * 0.54f, o.y + 6.dp.toPx())
                 val gSize = Size(s.width * 0.42f, (s.height - 30.dp.toPx()).coerceAtLeast(12.dp.toPx()))
-                fxGlyph(p.id, gArea, gSize, on, if (on) g.fxEffX(p.id) else xy[2 * p.id], if (on) g.fxEffY(p.id) else xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
+                if (p.id == NativeEngine.Fx.HAZE) noirScene(gArea, gSize, tel.timeSec, if (on) tel.timeSec - since[p.id] else -1f,
+                    tel.timeSec - offAt[p.id], g.fxEffX(p.id), g.fxEffY(p.id), state.viz.bass, Tb.Pads[7], full = false)
+                else fxGlyph(p.id, gArea, gSize, on, if (on) g.fxEffX(p.id) else xy[2 * p.id], if (on) g.fxEffY(p.id) else xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
                     g.transport[0], state.viz.bass, if (on) Tb.Black else p.color)
                 if (latched and (1 shl p.id) != 0) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
                 drawText(tm, p.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), if (on) nameStyle.copy(color = Tb.Black) else nameStyle)

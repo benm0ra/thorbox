@@ -453,6 +453,7 @@ class GrooveController(private val app: AppState) {
         if (fxLatched.intValue and bit == 0 && fxHeld.intValue and bit == 0) NativeEngine.fxOff(id)
     }
     fun fxActiveMask(): Int = transport[12].toInt()
+    fun fxHeldOrLatched(id: Int) = (fxHeld.intValue or fxLatched.intValue or autoFx) and (1 shl id) != 0
 
     // ================= mixer =================
 

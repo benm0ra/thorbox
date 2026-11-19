@@ -19,7 +19,7 @@ namespace fx {
 
 constexpr float kPi = 3.14159265358979f;
 
-enum Id : int { Stutter = 0, Filter, TapeStop, Crush, Vinyl, Reverse, Gate, kCount };
+enum Id : int { Stutter = 0, Filter, TapeStop, Crush, Vinyl, Reverse, Gate, Haze, kCount };
 
 // Tempo-synced divisions, in quarter notes: x picks one (left = long, right = short).
 inline float divisionBeats(float x) {
@@ -32,7 +32,13 @@ public:
     static constexpr int kRingBits = 19;                 // 524288 frames ≈ 10.9 s at 48 kHz
     static constexpr int kRing = 1 << kRingBits;
 
-    MasterFx() : mRingL(kRing, 0.f), mRingR(kRing, 0.f) {}
+    MasterFx() : mRingL(kRing, 0.f), mRingR(kRing, 0.f) {
+        // HAZE reverb lines (Freeverb-style tunings, scaled for up to 96 kHz). Allocated once, here.
+        for (int c = 0; c < 2; ++c) {
+            for (int k = 0; k < kCombs; ++k) mComb[c][k].assign((size_t)((kCombLen[k] + c * 23) * 2), 0.f);
+            for (int k = 0; k < kAps; ++k) mAp[c][k].assign((size_t)((kApLen[k] + c * 23) * 2), 0.f);
+        }
+    }
 
     void engage(int id, float x, float y) {
         if (id < 0 || id >= kCount) return;
@@ -51,6 +57,7 @@ public:
     void release(int id) { if (id >= 0 && id < kCount) mSlot[id].on = false; }
     void releaseAll() { for (auto& s : mSlot) s.on = false; }
     uint32_t activeMask() const { uint32_t m = 0; for (int i = 0; i < kCount; ++i) if (mSlot[i].wet > 1e-3f || mSlot[i].on) m |= 1u << i; return m; }
+    float hazeTail() const { return mHazeTail; }
 
     // In-place stereo processing of n frames (interleaved).
     void process(float* io, int n, float sr, float bpm, double tick0 = 0.0, double tps = 0.0) {
@@ -58,7 +65,7 @@ public:
         const double beat = 60.0 / std::max(30.f, bpm) * sr;          // samples per quarter note
 
         // Fast path: everything dry and fully faded out → only feed the ring.
-        bool any = false;
+        bool any = mHazeTail > 1e-5f;                              // a reverb tail keeps ringing after release
         for (auto& s : mSlot) any |= s.on || s.wet > 1e-4f;
         if (!any) {
             for (int i = 0; i < n; ++i) { push(io[2 * i], io[2 * i + 1]); }
@@ -77,6 +84,7 @@ public:
         const int hold = 1 + (int)(cr.y * cr.y * 40.f);              // downsample ×1 … ×41
         Slot& vy = mSlot[Vinyl];
         Slot& gt = mSlot[Gate];
+        Slot& hz = mSlot[Haze];
         const double gtTicks = divisionBeats(0.3f + 0.7f * gt.x) * 960.0;   // locked to the song position
         const float duty = 0.15f + 0.7f * (1.f - gt.y);
 
@@ -145,6 +153,44 @@ public:
                 if (rand01() < (0.0002f + 0.003f * vy.y) * (48000.f / sr)) mCrackle = (rand01() * 2.f - 1.f) * (0.15f + 0.35f * vy.y);
                 wl += mCrackle; wr += mCrackle * 0.8f; mCrackle *= 0.55f;
                 l += (wl - l) * vy.wet; r += (wr - r) * vy.wet;
+            }
+
+            // ---- HAZE: a smoky reverb wash. X = size (decay), Y = tone (dark ↔ bright); wet ducks the dry a little.
+            fade(hz, xf);
+            if (hz.wet > 0.f || mHazeTail > 1e-5f) {
+                const float fb = 0.70f + 0.27f * hz.x;                  // comb feedback: room → hall → forever
+                const float damp = 0.55f - 0.45f * hz.y;               // high-frequency loss inside the tank
+                const float in = (l + r) * 0.5f * (hz.on ? 1.f : 0.f) * 0.18f;
+                float out[2];
+                for (int c = 0; c < 2; ++c) {
+                    float acc = 0.f;
+                    for (int k = 0; k < kCombs; ++k) {
+                        std::vector<float>& buf = mComb[c][k];
+                        const size_t len = std::min(buf.size(), (size_t)((kCombLen[k] + c * 23) * sr / 44100.f));
+                        size_t& p = mCombPos[c][k]; if (p >= len) p = 0;
+                        const float y = buf[p];
+                        mCombLp[c][k] = y * (1.f - damp) + mCombLp[c][k] * damp;
+                        buf[p] = in + mCombLp[c][k] * fb;
+                        if (++p >= len) p = 0;
+                        acc += y;
+                    }
+                    for (int k = 0; k < kAps; ++k) {
+                        std::vector<float>& buf = mAp[c][k];
+                        const size_t len = std::min(buf.size(), (size_t)((kApLen[k] + c * 23) * sr / 44100.f));
+                        size_t& p = mApPos[c][k]; if (p >= len) p = 0;
+                        const float b = buf[p];
+                        buf[p] = acc + b * 0.5f;
+                        acc = b - acc;
+                        if (++p >= len) p = 0;
+                    }
+                    out[c] = acc;
+                }
+                mHazeTail = std::max(std::fabs(out[0]), std::fabs(out[1])) + mHazeTail * 0.9995f;
+                if (mHazeTail > 1.f) mHazeTail = 1.f;
+                const float wet = 0.9f;
+                const float duck = 1.f - 0.35f * hz.wet;
+                l = l * duck + out[0] * wet; r = r * duck + out[1] * wet;
+                if (!hz.on && mHazeTail < 1e-5f) { mHazeTail = 0.f; }
             }
 
             // ---- trance gate ----
@@ -216,6 +262,14 @@ private:
     float mWowPh = 0, mFlutPh = 0, mVinLp[2] = {0, 0}, mCrackle = 0;
     float mGateEnv = 1.f;
     uint32_t mRng = 0xBADC0DEu;
+
+    static constexpr int kCombs = 6, kAps = 3;
+    static constexpr int kCombLen[kCombs] = {1116, 1188, 1277, 1356, 1422, 1491};
+    static constexpr int kApLen[kAps] = {556, 441, 341};
+    std::vector<float> mComb[2][kCombs], mAp[2][kAps];
+    size_t mCombPos[2][kCombs] = {}, mApPos[2][kAps] = {};
+    float mCombLp[2][kCombs] = {};
+    float mHazeTail = 0.f;
 };
 
 } // namespace fx

@@ -123,7 +123,7 @@ object NativeEngine {
     fun setChannel(strip: Int, param: Int, value: Float) = nativeSetChannel(strip, param, value)
 
     // ---- Punch-in FX ----
-    object Fx { const val STUTTER = 0; const val FILTER = 1; const val TAPE_STOP = 2; const val CRUSH = 3; const val VINYL = 4; const val REVERSE = 5; const val GATE = 6; const val COUNT = 7 }
+    object Fx { const val STUTTER = 0; const val FILTER = 1; const val TAPE_STOP = 2; const val CRUSH = 3; const val VINYL = 4; const val REVERSE = 5; const val GATE = 6; const val HAZE = 7; const val COUNT = 8 }
     fun fxOn(id: Int, x: Float, y: Float) = nativeFxOn(id, x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
     fun fxMove(id: Int, x: Float, y: Float) = nativeFxMove(id, x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
     fun fxOff(id: Int) = nativeFxOff(id)

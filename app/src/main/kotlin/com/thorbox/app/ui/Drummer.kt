@@ -157,8 +157,11 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             kick(st, voices, now, kickK)
 
             // ---- arms + sticks (in front of everything) ----
-            arm(st.left, 182f, 146f + bodyY, now, mirror = false)
-            arm(st.right, 218f, 146f + bodyY, now, mirror = true)
+            // Between hits, the sticks ride the beat (left on the beat, right on the off-beat): he's always grooving.
+            val beatL = if (playing) -7f * (1f - abs(sin(PI.toFloat() * beatPhase))) else 0f
+            val beatR = if (playing) -7f * (1f - abs(sin(PI.toFloat() * ((beatPhase + 0.5f) % 1f)))) else 0f
+            arm(st.left, 182f, 146f + bodyY, now, mirror = false, groove = beatL)
+            arm(st.right, 218f, 146f + bodyY, now, mirror = true, groove = beatR)
             shaker(st, voices, now)
         }
     }
@@ -281,16 +284,19 @@ private fun DrawScope.shaker(st: DrummerState, v: List<com.thorbox.model.DrumVoi
 
 private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boolean) {
     val cx = 200f; val cy = 96f + y
-    // antenna (ZAP lights it up with a little bolt)
+    // The cap hops a little on the kick and on big accents, then settles (it's fitted, it doesn't fly off).
+    val hop = 4f * env(now - st.pieceHit[Piece.KICK.ordinal], 20f) + (if (now < st.grinUntil) 2f else 0f)
+    val capTop = cy - 52f - hop
+    // antenna pokes through the cap's top button (ZAP lights it up with a little bolt)
     val zap = env(now - st.pieceHit[Piece.ANTENNA.ordinal], 7f)
     val ac = if (zap > 0.02f) Tb.Pads[st.pieceSlot[Piece.ANTENNA.ordinal] % Tb.Pads.size] else Tb.Text
-    drawLine(Tb.Text, Offset(cx, cy - 34f), Offset(cx, cy - 50f), 3f)
-    drawCircle(ac, 5f + 5f * zap, Offset(cx, cy - 53f))
+    drawLine(Tb.Text, Offset(cx, capTop), Offset(cx, capTop - 12f), 3f)
+    drawCircle(ac, 5f + 5f * zap, Offset(cx, capTop - 15f))
     if (zap > 0.05f) {
         val a = zap
-        drawLine(ac.copy(alpha = a), Offset(cx + 8f, cy - 60f), Offset(cx + 18f, cy - 68f), 3f, cap = StrokeCap.Round)
-        drawLine(ac.copy(alpha = a), Offset(cx - 8f, cy - 60f), Offset(cx - 18f, cy - 68f), 3f, cap = StrokeCap.Round)
-        drawLine(ac.copy(alpha = a), Offset(cx, cy - 64f), Offset(cx, cy - 76f), 3f, cap = StrokeCap.Round)
+        drawLine(ac.copy(alpha = a), Offset(cx + 8f, capTop - 22f), Offset(cx + 18f, capTop - 30f), 3f, cap = StrokeCap.Round)
+        drawLine(ac.copy(alpha = a), Offset(cx - 8f, capTop - 22f), Offset(cx - 18f, capTop - 30f), 3f, cap = StrokeCap.Round)
+        drawLine(ac.copy(alpha = a), Offset(cx, capTop - 26f), Offset(cx, capTop - 38f), 3f, cap = StrokeCap.Round)
     }
     // head block + screen face
     drawRoundRect(Tb.Text, Offset(cx - 36f, cy - 34f), Size(72f, 64f), CornerRadius(18f))
@@ -325,18 +331,19 @@ private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boole
             for (ex in floatArrayOf(cx - 12f, cx + 12f)) drawRoundRect(ec, Offset(ex - 4f + glance, cy - 11f), Size(8f, 12f), CornerRadius(4f))
         }
     }
+    fittedCap(cx, cy, capTop, hop)
     // mouth: a tiny line that opens with the kick
     val m = env(now - st.pieceHit[Piece.KICK.ordinal], 16f)
     drawRoundRect(Tb.Text, Offset(cx - 6f, cy + 6f), Size(12f, 2.5f + 4f * m), CornerRadius(2f))
 }
 
 /** Shoulder → elbow → hand, then the stick. The hand springs from the strike point back to rest. */
-private fun DrawScope.arm(h: Hand, sx: Float, sy: Float, now: Float, mirror: Boolean) {
+private fun DrawScope.arm(h: Hand, sx: Float, sy: Float, now: Float, mirror: Boolean, groove: Float = 0f) {
     val dt = now - h.at
     // 0 at the strike, overshooting slightly past rest, settling by ~0.22 s
     val k = if (dt < 0f) 1f else min(1f, dt / 0.22f).let { x -> 1f + 1.7f * (x - 1f) * (x - 1f) * (x - 1f) + 0.7f * (x - 1f) * (x - 1f) }
     val hx = h.fromX + (h.restX - h.fromX) * k
-    val hy = h.fromY + (h.restY - h.fromY) * k
+    val hy = h.fromY + (h.restY + groove - h.fromY) * k
     // elbow: bend outward, perpendicular to shoulder→hand
     val dx = hx - sx; val dy = hy - sy
     val len = max(1f, sqrt(dx * dx + dy * dy))
@@ -357,4 +364,37 @@ private fun DrawScope.arm(h: Hand, sx: Float, sy: Float, now: Float, mirror: Boo
 private fun lerp(a: Color, b: Color, t: Float): Color {
     val k = t.coerceIn(0f, 1f)
     return Color(a.red + (b.red - a.red) * k, a.green + (b.green - a.green) * k, a.blue + (b.blue - a.blue) * k, a.alpha + (b.alpha - a.alpha) * k)
+}
+
+private val CAP = Color(0xFF14213D)            // classic navy fitted
+private val CAP_SHADE = Color(0xFF0C152A)
+private val STICKER = Color(0xFFE0B03A)
+
+/**
+ * BIT's fitted cap: navy crown with panel seams, a top button, an original interlocking "TB"
+ * monogram (ours, not a team's) and the gold size sticker left on the brim, the way it should be.
+ */
+private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float) {
+    val base = cy - 22f - hop * 0.5f
+    // crown: a dome sitting over the top of the head block
+    drawArc(CAP, 180f, 180f, true, Offset(cx - 39f, capTop), Size(78f, (base - capTop) * 2f))
+    drawRect(CAP, Offset(cx - 39f, base - 6f), Size(78f, 8f))
+    // panel seams + top button
+    drawLine(CAP_SHADE, Offset(cx, capTop + 2f), Offset(cx, base), 1.5f)
+    drawLine(CAP_SHADE, Offset(cx - 14f, capTop + 6f), Offset(cx - 22f, base), 1.5f)
+    drawLine(CAP_SHADE, Offset(cx + 14f, capTop + 6f), Offset(cx + 22f, base), 1.5f)
+    drawCircle(CAP_SHADE, 3.5f, Offset(cx, capTop + 1f))
+    // monogram: a T laid over a B, in white stitching
+    val mx = cx; val my = capTop + (base - capTop) * 0.55f
+    val ink = Color(0xFFF4F4F5)
+    drawLine(ink, Offset(mx - 7f, my - 8f), Offset(mx + 7f, my - 8f), 2.6f, cap = StrokeCap.Round)          // T bar
+    drawLine(ink, Offset(mx, my - 8f), Offset(mx, my + 8f), 2.6f, cap = StrokeCap.Round)                    // T stem / B spine
+    drawArc(ink, -90f, 180f, false, Offset(mx - 4f, my - 7f), Size(10f, 8f), style = Stroke(2.2f))          // B upper bowl
+    drawArc(ink, -90f, 180f, false, Offset(mx - 4f, my), Size(12f, 8f), style = Stroke(2.2f))               // B lower bowl
+    // brim: flat and forward, slightly darker underside
+    drawOval(CAP_SHADE, Offset(cx - 44f, base - 4f), Size(88f, 14f))
+    drawOval(CAP, Offset(cx - 44f, base - 6f), Size(88f, 12f))
+    // the sticker, never peeled
+    drawCircle(STICKER, 4.5f, Offset(cx + 24f, base))
+    drawCircle(Color(0xFFC0C0C8), 1.8f, Offset(cx + 24f, base))
 }

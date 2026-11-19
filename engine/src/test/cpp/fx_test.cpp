@@ -82,6 +82,18 @@ int main() {
     { MasterFx f; run(f, 9600); f.engage(Vinyl, 1.f, 1.f); run(f, 2400); std::vector<float> d; auto out = run(f, 48000, &d);
       CHECK(diff(out, d) / out.size() > 1e-3 && finite(out), "vinyl audibly colours the signal"); }
 
+    { MasterFx f; run(f, 9600); f.engage(Haze, 0.9f, 0.5f); std::vector<float> d; auto wet = run(f, 48000, &d);
+      CHECK(diff(wet, d) / wet.size() > 1e-3 && finite(wet), "haze adds a reverb wash");
+      f.release(Haze);
+      // Feed silence after release: the tail must ring on, then die away.
+      std::vector<float> io(2 * 24000, 0.f); f.process(io.data(), 24000, 48000.f, 120.f);
+      double tail = 0; for (int i = 0; i < 4800; ++i) tail += std::fabs(io[2 * i]);
+      CHECK(tail > 1.0 && f.hazeTail() > 0.f, "haze tail rings after release (%.2f)", tail);
+      for (int k = 0; k < 60; ++k) f.process(io.data(), 24000, 48000.f, 120.f), std::fill(io.begin(), io.end(), 0.f);
+      f.process(io.data(), 24000, 48000.f, 120.f);
+      double late = 0; for (float v : io) late += std::fabs(v);
+      CHECK(late < 1e-2 && finite(io), "haze tail eventually decays to silence (%.2e)", late); }
+
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

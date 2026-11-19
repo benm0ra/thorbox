@@ -84,6 +84,7 @@ fun TopScreen(state: AppState) {
     }
     InfoLine()             // plain-words explanation of whatever you just touched
     NavBadge(state, 0)
+    HazeFilm(state)        // HAZE's pixel film, while it's on
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
     if (state.showThemes.value) ThemePicker(state, Modifier.padding(10.dp))

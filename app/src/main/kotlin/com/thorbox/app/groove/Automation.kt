@@ -83,4 +83,4 @@ class Automation {
     }
 }
 
-val FX_NAMES = listOf("STUTTER", "FILTER", "TAPE STOP", "CRUSH", "VINYL", "REVERSE", "GATE")
+val FX_NAMES = listOf("STUTTER", "FILTER", "TAPE STOP", "CRUSH", "VINYL", "REVERSE", "GATE", "HAZE")

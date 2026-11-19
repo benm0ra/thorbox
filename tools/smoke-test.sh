@@ -52,6 +52,10 @@ tour() {
   for k in SYNTH DRUMS SAMPLER SYNTH DRUMS; do adb shell am start -n $PKG/.MainActivity --es add $k >/dev/null; sleep 1; done
   for v in MIX SYNTH DRUM SEQ SAMPLER; do adb shell am start -n $PKG/.MainActivity --es view $v --ez play true >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-8tracks-$v.png" || true; done
+  # HAZE + its pixel film, then release (the smoke tail keeps drawing for a few seconds)
+  adb shell am start -n $PKG/.MainActivity --es deck FX --ei fx 7 >/dev/null; sleep 3
+  adb exec-out screencap -p > "$OUT/$name-haze.png" || true
+  adb shell am start -n $PKG/.MainActivity --ei fx -1 >/dev/null; sleep 3
   for th in cyberpunk pastel terminal grayscale studio; do        # every theme on the busiest screens
     for v in DRUM SYNTH; do adb shell am start -n $PKG/.MainActivity --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
     adb exec-out screencap -p > "$OUT/$name-theme-$th.png" || true
