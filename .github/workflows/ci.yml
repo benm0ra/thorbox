@@ -52,13 +52,13 @@ jobs:
           THORBOX_KEY_ALIAS: ${{ secrets.THORBOX_KEY_ALIAS }}
           THORBOX_KEY_PASSWORD: ${{ secrets.THORBOX_KEY_PASSWORD }}
       - run: ./gradlew :app:lintDebug
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: thorbox-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: lint-report
@@ -90,7 +90,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
           script: tools/smoke-test.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: smoke-logs
