@@ -354,7 +354,8 @@ fun PitchViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
         val xd = (w * decay / windowMs).coerceAtMost(w)
         drawLine(Tb.EncGreen, Offset(xd, mid - 14.dp.toPx()), Offset(xd, mid + 14.dp.toPx()), 4.dp.toPx(), cap = StrokeCap.Round)
         // Rider dot from the latest note-on.
-        if (tel.newestNote != track[0]) { track[0] = tel.newestNote; track[1] = tel.timeSec }
+        val newest = tel.newestNote.toFloat()
+        if (newest != track[0]) { track[0] = newest; track[1] = tel.timeSec }
         if (tel.activeVoices > 0) {
             val tMs = (tel.timeSec - track[1]) * 1000f
             if (tMs in 0f..windowMs) {

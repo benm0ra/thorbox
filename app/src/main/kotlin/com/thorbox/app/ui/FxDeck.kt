@@ -64,6 +64,9 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     val hintStyle = remember { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
     val cols = 2; val rows = 4                            // 7 effects + PANIC
+    val xy = remember { FloatArray(NativeEngine.Fx.COUNT * 2) { 0.5f } }      // last XY per effect (drives its glyph)
+    val since = remember { FloatArray(NativeEngine.Fx.COUNT) { -10f } }       // clock time each effect engaged
+    val wasOn = remember { BooleanArray(NativeEngine.Fx.COUNT) }
 
     fun cell(x: Float, y: Float): Int {
         val c = (x / dims[0].coerceAtLeast(1) * cols).toInt().coerceIn(0, cols - 1)
@@ -96,6 +99,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                                 if (latchMode.value) g.toggleLatch(id) else {
                                     val (x, y) = local(ev.getX(i), ev.getY(i))
                                     fingers[ev.getPointerId(i)] = id
+                                    xy[2 * id] = x; xy[2 * id + 1] = y
                                     g.fxDown(id, x, y)
                                 }
                             }
@@ -103,6 +107,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                         MotionEvent.ACTION_MOVE -> for (p in 0 until ev.pointerCount) {
                             val id = fingers[ev.getPointerId(p)] ?: continue
                             val (x, y) = local(ev.getX(p), ev.getY(p))
+                            xy[2 * id] = x; xy[2 * id + 1] = y
                             g.fxMove(id, x, y)
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> fingers.remove(ev.getPointerId(i))?.let(g::fxUp)
@@ -126,7 +131,16 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 }
                 val p = FX_PADS[k]
                 val on = active and (1 shl p.id) != 0
-                drawRoundRect(if (on) p.color else p.color.copy(alpha = 0.18f), o, s, r)
+                if (on && !wasOn[p.id]) since[p.id] = tel.timeSec
+                wasOn[p.id] = on
+                // A punch-in "pop": the pad swells a touch for 120 ms as it engages.
+                val pop = if (on) kotlin.math.exp(-(tel.timeSec - since[p.id]) * 18f) else 0f
+                drawRoundRect(if (on) p.color else p.color.copy(alpha = 0.18f), o - Offset(pop * 4f, pop * 4f), Size(s.width + pop * 8f, s.height + pop * 8f), r)
+                // Glyph lives top-right, clear of the name (top-left) and the XY hint (bottom).
+                val gArea = Offset(o.x + s.width * 0.54f, o.y + 6.dp.toPx())
+                val gSize = Size(s.width * 0.42f, (s.height - 30.dp.toPx()).coerceAtLeast(12.dp.toPx()))
+                fxGlyph(p.id, gArea, gSize, on, xy[2 * p.id], xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
+                    g.transport[0], state.viz.bass, if (on) Tb.Black else p.color)
                 if (latched and (1 shl p.id) != 0) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
                 drawText(tm, p.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), if (on) nameStyle.copy(color = Tb.Black) else nameStyle)
                 drawText(tm, "↔ ${p.x}   ↕ ${p.y}", o + Offset(12.dp.toPx(), s.height - 20.dp.toPx()), hintStyle)
@@ -144,6 +158,137 @@ fun RepeatStrip(state: AppState, modifier: Modifier = Modifier) {
         HoldButton("RPT", g.repeatHeld.value, Tb.EncOrange, Modifier.width(64.dp).fillMaxHeight()) { g.setRepeatHeld(it) }
         RepeatRate.entries.forEach { r ->
             HwButton(r.label, Modifier.weight(1f).fillMaxHeight(), active = r == rate, accent = Tb.EncWhite, fontSize = 11) { g.setRepeatRate(r) }
+        }
+    }
+}
+
+/**
+ * Little animated glyphs, one per punch-in effect (OP-XY style). Idle: a slow, quiet loop in the
+ * pad's colour. Engaged: bold black on the lit pad, driven by the finger's XY, the music's bass
+ * energy and the song position, so every effect visibly "does its thing" while you hold it.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.fxGlyph(
+    id: Int, o: Offset, s: Size, on: Boolean, x: Float, y: Float, t: Float, held: Float, tick: Double, bass: Float, c: Color,
+) {
+    val w = s.width; val h = s.height
+    val cx = o.x + w / 2f; val cy = o.y + h / 2f
+    val sw = (if (on) 3.5f else 2.5f) * density
+    val alpha = if (on) 1f else 0.55f
+    val col = c.copy(alpha = alpha)
+    val beat = ((tick / com.thorbox.model.PPQN) % 1.0).toFloat()
+    when (id) {
+        NativeEngine.Fx.STUTTER -> {
+            // Repeating blocks: more (and faster) as X rises. The first block is "the slice", the rest echo it.
+            val n = 2 + (x * 6f).toInt()
+            val bw = w / n
+            val speed = if (on) 4f + 12f * x else 1f
+            for (i in 0 until n) {
+                val ph = ((t * speed + i * 0.13f) % 1f)
+                val hh = h * (0.35f + 0.45f * (if (i == 0) 1f else (1f - i.toFloat() / n)) * (0.7f + 0.3f * kotlin.math.sin(ph * 6.283f)))
+                drawRoundRect(col.copy(alpha = alpha * (if (i == 0) 1f else 0.5f + 0.5f * (1f - i.toFloat() / n))),
+                    Offset(o.x + i * bw + bw * 0.12f, cy - hh / 2f), Size(bw * 0.76f, hh), CornerRadius(3f * density))
+            }
+        }
+        NativeEngine.Fx.FILTER -> {
+            // The response curve: LP on the left half of X, HP on the right; Y = resonance bump.
+            val path = androidx.compose.ui.graphics.Path()
+            val hp = x > 0.5f
+            val fc = if (hp) (x - 0.5f) * 2f else x * 2f
+            val q = 0.15f + 0.85f * y
+            val wob = if (on) 0.04f * bass * kotlin.math.sin(t * 9f) else 0.02f * kotlin.math.sin(t * 1.5f)
+            for (i in 0..40) {
+                val u = i / 40f
+                val d = (u - (fc + wob)) * 7f
+                val shelf = if (hp) 1f / (1f + kotlin.math.exp(-d)) else 1f / (1f + kotlin.math.exp(d))
+                val bump = q * kotlin.math.exp(-d * d * 2f) * 0.6f
+                val yy = o.y + h * (0.9f - 0.65f * (shelf + bump).coerceAtMost(1.3f))
+                if (i == 0) path.moveTo(o.x + w * u, yy) else path.lineTo(o.x + w * u, yy)
+            }
+            drawPath(path, col, style = Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        }
+        NativeEngine.Fx.TAPE_STOP -> {
+            // A cassette: reels spin at play speed, slow to a halt while held (Y = how long it takes).
+            val stopSec = 0.15f + 1.6f * y
+            val speed = if (on) (1f - (held / stopSec)).coerceIn(0f, 1f) else 0.35f
+            val ang = (t * 6f * speed) % 6.283f
+            val rr = minOf(w * 0.18f, h * 0.3f)
+            drawRoundRect(col, Offset(o.x + w * 0.04f, cy - h * 0.36f), Size(w * 0.92f, h * 0.72f), CornerRadius(6f * density), style = Stroke(sw))
+            for (side in listOf(-1f, 1f)) {
+                val rc = Offset(cx + side * w * 0.22f, cy)
+                drawCircle(col, rr, rc, style = Stroke(sw))
+                for (k in 0 until 3) {
+                    val a = ang + k * 2.094f
+                    drawLine(col, rc, Offset(rc.x + kotlin.math.cos(a) * rr * 0.8f, rc.y + kotlin.math.sin(a) * rr * 0.8f), sw * 0.8f)
+                }
+            }
+        }
+        NativeEngine.Fx.CRUSH -> {
+            // A sine turned into stairs: fewer bits (X left) = taller steps, lower rate (Y) = wider steps.
+            val levels = 2 + ((1f - x) * 0f + x * 14f).toInt()
+            val stepW = w * (0.03f + 0.17f * (1f - y))
+            var u = 0f
+            val ph = t * (if (on) 2.5f else 0.6f)
+            while (u < w) {
+                val v = kotlin.math.sin((u / w) * 6.283f * 1.5f + ph)
+                val q = kotlin.math.round(v * levels) / levels
+                drawRect(col, Offset(o.x + u, cy - q * h * 0.38f - sw / 2), Size(minOf(stepW, w - u), sw))
+                u += stepW
+            }
+        }
+        NativeEngine.Fx.VINYL -> {
+            // A spinning record: X = wow (it wobbles off-centre), Y = dust (specks pop up on it).
+            val rr = minOf(w, h) * 0.46f
+            val wob = (if (on) x else 0.1f) * rr * 0.12f * kotlin.math.sin(t * 3f)
+            val rc = Offset(cx + wob, cy)
+            drawCircle(col, rr, rc, style = Stroke(sw))
+            drawCircle(col.copy(alpha = alpha * 0.5f), rr * 0.66f, rc, style = Stroke(sw * 0.5f))
+            drawCircle(col, rr * 0.22f, rc)
+            val a = t * (if (on) 5f else 1.5f)
+            drawLine(col, rc, Offset(rc.x + kotlin.math.cos(a) * rr * 0.9f, rc.y + kotlin.math.sin(a) * rr * 0.9f), sw * 0.7f)
+            if (on) {
+                var seed = (t * 30f).toInt() * 196613
+                val specks = (y * 14f).toInt()
+                for (i in 0 until specks) {
+                    seed = seed * 1103515245 + 12345
+                    val ra = ((seed ushr 8) and 0xFFFF) / 65535f * 6.283f
+                    seed = seed * 1103515245 + 12345
+                    val rd = ((seed ushr 8) and 0xFFFF) / 65535f * rr
+                    drawCircle(col, 1.6f * density, Offset(rc.x + kotlin.math.cos(ra) * rd, rc.y + kotlin.math.sin(ra) * rd))
+                }
+            }
+        }
+        NativeEngine.Fx.REVERSE -> {
+            // A waveform scrolling right-to-left (backwards); X = slice length = wavelength.
+            val path = androidx.compose.ui.graphics.Path()
+            val k = 1.5f + 5f * (1f - x)
+            val ph = t * (if (on) 6f else 1.2f)
+            for (i in 0..48) {
+                val u = i / 48f
+                val env = kotlin.math.sin(u * 3.1416f)
+                val v = kotlin.math.sin(u * 6.283f * k + ph) * env * (0.6f + 0.4f * if (on) bass else 0.3f)
+                val px = o.x + w * u; val py = cy - v * h * 0.38f
+                if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            drawPath(path, col, style = Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+            // ◀ chevron
+            val ax = o.x + w * 0.1f
+            drawLine(col, Offset(ax + 8f * density, cy - 7f * density), Offset(ax, cy), sw)
+            drawLine(col, Offset(ax, cy), Offset(ax + 8f * density, cy + 7f * density), sw)
+        }
+        NativeEngine.Fx.GATE -> {
+            // Blocks chopped in time: X = rate (1/4 … 1/32), Y = duty (how long each chop stays open).
+            val divs = listOf(1, 2, 4, 8)[(x * 3.99f).toInt()]
+            val n = divs * 2
+            val bw = w / n
+            val duty = 0.15f + 0.8f * y
+            val pos = ((beat * divs) % 1f)
+            val cur = ((beat * n) % n).toInt()
+            for (i in 0 until n) {
+                val open = on && i == cur && pos < duty + 0.001f
+                val hh = h * (if (open) 0.8f else 0.4f)
+                drawRoundRect(col.copy(alpha = alpha * (if (open) 1f else 0.45f)), Offset(o.x + i * bw + bw * 0.1f, cy - hh / 2f),
+                    Size(bw * duty * 0.9f + bw * 0.08f, hh), CornerRadius(2f * density))
+            }
         }
     }
 }

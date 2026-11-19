@@ -56,6 +56,7 @@ fun SynthScreen(state: AppState) {
     val userPresets by state.presets.userSynth.collectAsState()
     val all = remember(userPresets) { state.presets.allSynth() }
     val currentPreset = all.firstOrNull { it.name == patch.name }
+    val cat = currentPreset?.category
 
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp),
@@ -78,7 +79,6 @@ fun SynthScreen(state: AppState) {
         }
 
         // ---- presets + dice ----
-        val cat = currentPreset?.category
         PresetBar(state, patch.name, cat?.label ?: "DICE", cat?.let { synthCategoryColor(it) } ?: Tb.Key,
             onPrev = { state.stepSynthPreset(-1) }, onNext = { state.stepSynthPreset(+1) }, onOpen = { saving = false; browsing = true },
             onDice = state::diceSynth, onMutate = { state.mutateSynth() }, onUndo = state::undoPatch, canUndo = state.canUndoPatch.value,
