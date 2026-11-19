@@ -126,7 +126,7 @@ class InputRouter(private val state: AppState) {
 
         if (state.topView.value == TopView.DRUM) {
             val dc = state.drums
-            val track = com.thorbox.engine.NativeEngine.TRACK_DRUMS
+            val track = state.drums.track
             val steps = com.thorbox.app.groove.Steps.count(g.clips.value[track].lengthTicks)
             val slots = com.thorbox.model.DRUM_SLOTS
             when (e.keyCode) {
@@ -175,13 +175,18 @@ class InputRouter(private val state: AppState) {
             val sel = g.mixSelected.intValue          // 0 sampler, 1 synth, 2 drums, 3 = master
             val master = com.thorbox.app.ui.MASTER_STRIP
             when (e.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (first) g.mixSelected.intValue = (sel + master) % (master + 1)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) g.mixSelected.intValue = (sel + 1) % (master + 1)
+                // Only real tracks + master are selectable (empty slots are skipped).
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) {
+                    val order = state.tracks.value.indices.filter { state.trackKind(it) != com.thorbox.model.TrackKind.EMPTY } + master
+                    val i = order.indexOf(sel).coerceAtLeast(0)
+                    g.mixSelected.intValue = order[(i + (if (e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1) + order.size) % order.size]
+                }
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (down) {
                     val d = if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP) 1f else -1f
                     if (sel == master) g.setMaster(g.masterDb.value + d) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + d) }
                 }
                 KeyEvent.KEYCODE_BUTTON_A -> if (first && sel < master) g.setChannel(sel) { it.copy(mute = !it.mute) }
+                KeyEvent.KEYCODE_BUTTON_X -> if (first && sel < master) state.selectTrack(sel)            // open the selected track
                 KeyEvent.KEYCODE_BUTTON_Y -> if (first && sel < master) g.setChannel(sel) { it.copy(solo = !it.solo) }
                 KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
                 KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit

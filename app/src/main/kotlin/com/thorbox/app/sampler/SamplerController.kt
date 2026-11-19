@@ -28,7 +28,12 @@ enum class ChopMode { AUTO, EQUAL, LAZY }
  * Slice positions are stored in ORIGINAL-sample frames and scaled to whichever buffer is playing.
  * Main-thread only.
  */
-class SamplerController(private val app: AppState) {
+class SamplerController(private val app: AppState, val track: Int = 0) {
+    private fun gp(local: Int) = NativeEngine.pad(track, local)   // global engine pad id
+    private val preview get() = gp(NativeEngine.PREVIEW_PAD)
+    /** This track's loaded sample (key/BPM analysis) and waveform peaks; the screens show the current track's. */
+    var info: com.thorbox.app.LoadedSample? = null
+    var peaks: FloatArray? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val pads = mutableStateOf(List(ChopLogic.PADS) { PadSlot() })
@@ -121,22 +126,22 @@ class SamplerController(private val app: AppState) {
         lazyMarkers.clear()
         applyRegions(listOf(Region(0, originalFrames)))
         lazyRunning.value = true
-        NativeEngine.setPadRegion(NativeEngine.PREVIEW_PAD, 0, -1)
-        NativeEngine.setPlayMode(NativeEngine.PREVIEW_PAD, NativeEngine.PlayMode.ONE_SHOT)
-        NativeEngine.noteOn(NativeEngine.PREVIEW_PAD, 0.9f)
+        NativeEngine.setPadRegion(preview, 0, -1)
+        NativeEngine.setPlayMode(preview, NativeEngine.PlayMode.ONE_SHOT)
+        NativeEngine.noteOn(preview, 0.9f)
     }
 
     private fun stopLazy() {
         if (!lazyRunning.value) return
         lazyRunning.value = false
-        NativeEngine.noteOff(NativeEngine.PREVIEW_PAD)
+        NativeEngine.noteOff(preview)
     }
 
     /** Plays the whole sample from the top (a quick listen; tap again to stop). */
     fun togglePreview(playing: Boolean) {
-        NativeEngine.setPadRegion(NativeEngine.PREVIEW_PAD, 0, -1)
-        NativeEngine.setPlayMode(NativeEngine.PREVIEW_PAD, NativeEngine.PlayMode.GATE)
-        if (playing) NativeEngine.noteOn(NativeEngine.PREVIEW_PAD, 0.9f) else NativeEngine.noteOff(NativeEngine.PREVIEW_PAD)
+        NativeEngine.setPadRegion(preview, 0, -1)
+        NativeEngine.setPlayMode(preview, NativeEngine.PlayMode.GATE)
+        if (playing) NativeEngine.noteOn(preview, 0.9f) else NativeEngine.noteOff(preview)
     }
 
     private fun applyRegions(r: List<Region>) {
@@ -147,12 +152,12 @@ class SamplerController(private val app: AppState) {
     // ================= KEY MATCH / BPM SYNC =================
 
     fun keyShift(): Int {
-        val s = app.sample.value?.key ?: return 0
+        val s = info?.key ?: return 0
         val p = app.projectKey()
         return ChopLogic.keyMatchSemis(s, p)
     }
     fun tempoRatio(): Double {
-        val b = app.sample.value?.bpm ?: return 1.0
+        val b = info?.bpm ?: return 1.0
         return ChopLogic.syncRatio(b, app.groove.groove.value.bpm)
     }
 
@@ -182,8 +187,8 @@ class SamplerController(private val app: AppState) {
     // ================= pads =================
 
     private fun assignAll() {
-        for (p in 0 until ChopLogic.PADS) NativeEngine.assignSample(p, playingId)
-        NativeEngine.assignSample(NativeEngine.PREVIEW_PAD, playingId)
+        for (p in 0 until ChopLogic.PADS) NativeEngine.assignSample(gp(p), playingId)
+        NativeEngine.assignSample(preview, playingId)
         pushRegions()
         pads.value.forEachIndexed(::pushPad)
     }
@@ -193,16 +198,16 @@ class SamplerController(private val app: AppState) {
         val r = regions.value
         for (p in 0 until ChopLogic.PADS) {
             val reg = r.getOrNull(p)
-            if (reg == null) NativeEngine.setPadRegion(p, 0, 1)            // empty pad: silent 1-frame slice
-            else NativeEngine.setPadRegion(p, (reg.start * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+            if (reg == null) NativeEngine.setPadRegion(gp(p), 0, 1)            // empty pad: silent 1-frame slice
+            else NativeEngine.setPadRegion(gp(p), (reg.start * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
                 (reg.end * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
         }
     }
 
     private fun pushPad(i: Int, s: PadSlot) {
-        NativeEngine.setPitch(i, s.pitch, s.fine.toFloat())
-        NativeEngine.setPlayMode(i, NativeEngine.PlayMode.entries[s.mode.ordinal])
-        NativeEngine.setPadGain(i, 10f.pow(s.gainDb / 20f))
+        NativeEngine.setPitch(gp(i), s.pitch, s.fine.toFloat())
+        NativeEngine.setPlayMode(gp(i), NativeEngine.PlayMode.entries[s.mode.ordinal])
+        NativeEngine.setPadGain(gp(i), 10f.pow(s.gainDb / 20f))
     }
 
     fun updatePad(i: Int, f: (PadSlot) -> PadSlot) {
@@ -220,8 +225,8 @@ class SamplerController(private val app: AppState) {
             applyRegions(ChopLogic.lazyDrop(lazyMarkers, frame, originalFrames))
             return
         }
-        if (!app.groove.liveDown(0, i, velocity)) NativeEngine.noteOn(i, velocity)
+        if (!app.groove.liveDown(track, i, velocity)) NativeEngine.noteOn(gp(i), velocity)
     }
 
-    fun padUp(i: Int) { if (!app.groove.liveUp(0, i)) NativeEngine.noteOff(i) }
+    fun padUp(i: Int) { if (!app.groove.liveUp(track, i)) NativeEngine.noteOff(gp(i)) }
 }

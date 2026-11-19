@@ -93,11 +93,11 @@ fun DrumScreen(state: AppState) {
             Column(Modifier.weight(1.25f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth().height(26.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HwButton("DICE BEAT", Modifier.fillMaxHeight(), accent = Tb.Key, minHeight = 24.dp, fontSize = 10) { state.groove.diceBeat() }
-                    HwButton("CLEAR", Modifier.fillMaxHeight(), minHeight = 24.dp, fontSize = 10) { state.groove.clear(NativeEngine.TRACK_DRUMS) }
+                    HwButton("CLEAR", Modifier.fillMaxHeight(), minHeight = 24.dp, fontSize = 10) { state.groove.clear(state.drums.track) }
                     HwButton("↶", Modifier.fillMaxHeight().width(34.dp), enabled = state.groove.canUndo.value, minHeight = 24.dp, fontSize = 11) {
-                        state.groove.undo(NativeEngine.TRACK_DRUMS) }
+                        state.groove.undo(state.drums.track) }
                     Box(Modifier.weight(1f))
-                    val steps = com.thorbox.app.groove.Steps.count(state.groove.clips.value[NativeEngine.TRACK_DRUMS].lengthTicks)
+                    val steps = com.thorbox.app.groove.Steps.count(state.groove.clips.value[state.drums.track].lengthTicks)
                     val pages = (steps + 15) / 16
                     if (pages > 1) for (pg in 0 until pages) {
                         val on = state.groove.cursor.intValue / 16 == pg
@@ -148,7 +148,7 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
     val g = state.groove
     val dc = state.drums
     val tel = state.telemetry
-    val track = NativeEngine.TRACK_DRUMS
+    val track = state.drums.track
     val clip = g.clips.value[track]
     val steps = com.thorbox.app.groove.Steps.count(clip.lengthTicks)
     val labelW = 34.dp

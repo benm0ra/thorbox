@@ -181,6 +181,11 @@ data class DrumVoice(
 
 const val DRUM_SLOTS = 8
 
+/** What a track plays. Ordinals match the engine's TrackType. */
+@Serializable enum class TrackKind(val label: String) { EMPTY("EMPTY"), SAMPLER("SAMPLER"), SYNTH("SYNTH"), DRUMS("DRUMS") }
+@Serializable data class TrackInfo(val kind: TrackKind, val name: String)
+const val TRACK_COUNT = 8
+
 @Serializable
 data class DrumKit(val name: String = "INIT KIT", val voices: List<DrumVoice> = DefaultKit.voices)
 

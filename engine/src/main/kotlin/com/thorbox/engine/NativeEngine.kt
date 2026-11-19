@@ -45,11 +45,11 @@ object NativeEngine {
     fun setMasterGainDb(db: Float) = nativeSetMasterGainDb(db)
 
     // ---- Synth ----
-    fun synthNoteOn(note: Int, velocity: Float) = nativeSynthNoteOn(note, velocity)
-    fun synthNoteOff(note: Int) = nativeSynthNoteOff(note)
+    fun synthNoteOn(track: Int, note: Int, velocity: Float) = nativeSynthNoteOn(track, note, velocity)
+    fun synthNoteOff(track: Int, note: Int) = nativeSynthNoteOff(track, note)
     /** [id] = SynthParam.id, [value] in physical units. Rejected (false) if out of range or not finite. */
-    fun synthParam(id: Int, value: Float) = nativeSynthParam(id, value)
-    fun synthAllOff() = nativeSynthAllOff()
+    fun synthParam(track: Int, id: Int, value: Float) = nativeSynthParam(track, id, value)
+    fun synthAllOff(track: Int) = nativeSynthAllOff(track)
 
     /**
      * Live synth state for animations, filled in place (zero allocation per frame).
@@ -79,7 +79,20 @@ object NativeEngine {
         nativeSetPattern(track, lengthTicks, ticks, lengths, notes, velocities, probabilities, flags, lockIds, lockVals)
 
     // ---- Sampler pads & chopping ----
+    /** Sampler pads are global: track * PADS_PER_TRACK + pad. Pad 16 of each track is its chop-preview voice. */
+    const val PADS_PER_TRACK = 17
     const val PREVIEW_PAD = 16
+    fun pad(track: Int, local: Int) = track * PADS_PER_TRACK + local
+
+    // ---- Tracks: 8, each a sampler, synth or drum machine (ordinals match TrackType in Commands.h) ----
+    const val TRACKS = 8
+    object TrackType { const val NONE = 0; const val SAMPLER = 1; const val SYNTH = 2; const val DRUMS = 3 }
+    fun setTrackType(track: Int, type: Int) = nativeSetTrackType(track, type)
+    /** Which synth feeds the synth telemetry / scope, and which sampler track the pad telemetry. */
+    fun setFocus(track: Int) = nativeSetFocus(track)
+    /** [2k, 2k+1] strip k L/R peaks, [16, 17] master, [18 + k] strip k sidechain gain (1 = none). */
+    fun meters(out: FloatArray) = nativeGetMeters(out)
+    const val METERS = 2 * TRACKS + 2 + TRACKS
     /** Slice region for a pad, in frames of its sample (end -1 = to the end). */
     fun setPadRegion(pad: Int, startFrame: Int, endFrame: Int) = nativeSetPadRegion(pad, startFrame, endFrame)
     fun setPadGain(pad: Int, linear: Float) = nativeSetPadGain(pad, linear)
@@ -93,9 +106,9 @@ object NativeEngine {
     fun repeatVelocity(v: Float) = nativeRepeatVelocity(v)
 
     // ---- Mixer: strip 0 sampler, 1 synth, 2 drums, 3 master (volume only) ----
-    object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3 }
-    const val STRIP_MASTER = 3
-    const val TRACK_DRUMS = 2
+    object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3
+        const val SC_SOURCE = 4; const val SC_AMOUNT = 5; const val SC_RELEASE = 6 }
+    const val STRIP_MASTER = TRACKS
 
     // ---- Drum synth: 8 slots, each a synthesis model (ordinals match drums::Model in DrumSynth.h) ----
     enum class DrumModel(val label: String) { KICK("KICK"), SNARE("SNARE"), CLAP("CLAP"), HAT("HAT"), TOM("TOM"), RIM("RIM"),
@@ -103,10 +116,10 @@ object NativeEngine {
     object DrumParam { const val MODEL = 0; const val TUNE = 1; const val DECAY = 2; const val TONE = 3; const val SNAP = 4
         const val DRIVE = 5; const val LEVEL_DB = 6; const val PAN = 7; const val CHOKE = 8; const val COUNT = 9 }
     const val DRUM_SLOTS = 8
-    fun drumTrigger(slot: Int, velocity: Float) = nativeDrumTrigger(slot, velocity)
-    fun drumParam(slot: Int, id: Int, value: Float) = nativeDrumParam(slot, id, value)
+    fun drumTrigger(track: Int, slot: Int, velocity: Float) = nativeDrumTrigger(track, slot, velocity)
+    fun drumParam(track: Int, slot: Int, id: Int, value: Float) = nativeDrumParam(track, slot, id, value)
     /** Per-slot level (0..1) and hit counters (compare with the last read to spot new hits). */
-    fun drumTelemetry(levels: FloatArray, hits: IntArray) = nativeGetDrumTelemetry(levels, hits)
+    fun drumTelemetry(track: Int, levels: FloatArray, hits: IntArray) = nativeGetDrumTelemetry(track, levels, hits)
     fun setChannel(strip: Int, param: Int, value: Float) = nativeSetChannel(strip, param, value)
 
     // ---- Punch-in FX ----
@@ -182,10 +195,13 @@ object NativeEngine {
     private external fun nativePlayhead(): Float
     private external fun nativePeakLevel(): Float
     private external fun nativeGetStats(out: DoubleArray)
-    private external fun nativeSynthNoteOn(note: Int, velocity: Float): Boolean
-    private external fun nativeSynthNoteOff(note: Int): Boolean
-    private external fun nativeSynthParam(id: Int, value: Float): Boolean
-    private external fun nativeSynthAllOff(): Boolean
+    private external fun nativeSynthNoteOn(track: Int, note: Int, velocity: Float): Boolean
+    private external fun nativeSynthNoteOff(track: Int, note: Int): Boolean
+    private external fun nativeSynthParam(track: Int, id: Int, value: Float): Boolean
+    private external fun nativeSynthAllOff(track: Int): Boolean
+    private external fun nativeSetTrackType(track: Int, type: Int): Boolean
+    private external fun nativeSetFocus(track: Int): Boolean
+    private external fun nativeGetMeters(out: FloatArray)
     private external fun nativeGetSynthTelemetry(values: FloatArray, notes: LongArray)
     private external fun nativeGetScope(out: FloatArray): Int
     private external fun nativeSetTempo(bpm: Float): Boolean
@@ -208,9 +224,9 @@ object NativeEngine {
     private external fun nativeFxOff(id: Int): Boolean
     private external fun nativeFxAllOff(): Boolean
     private external fun nativeGetTransport(out: DoubleArray)
-    private external fun nativeDrumTrigger(slot: Int, velocity: Float): Boolean
-    private external fun nativeDrumParam(slot: Int, id: Int, value: Float): Boolean
-    private external fun nativeGetDrumTelemetry(levels: FloatArray, hits: IntArray)
+    private external fun nativeDrumTrigger(track: Int, slot: Int, velocity: Float): Boolean
+    private external fun nativeDrumParam(track: Int, slot: Int, id: Int, value: Float): Boolean
+    private external fun nativeGetDrumTelemetry(track: Int, levels: FloatArray, hits: IntArray)
     private external fun nativePollRecord(out: DoubleArray): Int
     private external fun nativeGetVisual(bands: FloatArray, wave: FloatArray, energy: FloatArray)
 }

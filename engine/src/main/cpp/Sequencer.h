@@ -21,7 +21,7 @@
 namespace seq {
 
 constexpr int kPpqn = 960;
-constexpr int kTracks = 3;            // 0 = sampler (note = pad index), 1 = synth (note = MIDI), 2 = drum synth (note = slot)
+constexpr int kTracks = 8;            // any mix of sampler (note = pad), synth (note = MIDI) and drum (note = slot) tracks
 constexpr int kMaxEvents = 512;       // per pattern
 constexpr int kMaxPendingOffs = 256;
 constexpr int kMaxRepeats = 16;
@@ -237,7 +237,7 @@ private:
     Repeat mRepeats[kMaxRepeats];
     double mLastLive[kTracks][128];
     uint32_t mRng = 0xC0FFEEu;
-    bool mStepPass[kTracks] = {true, true, true};
+    bool mStepPass[kTracks] = {true, true, true, true, true, true, true, true};
 
 public:
     Sequencer() { for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }

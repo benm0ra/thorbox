@@ -25,7 +25,7 @@ class DrumKnob(val label: String, val color: EncoderColor, val get: (DrumVoice) 
  * play (with note repeat and recording via the groove controller), presets, dice, and the hit
  * telemetry that drives the drummer animation. Main-thread only.
  */
-class DrumController(private val app: AppState) {
+class DrumController(private val app: AppState, val track: Int = 2) {
     val kit = mutableStateOf(DrumKit(name = "TR-808", voices = com.thorbox.model.FactoryPresets.kits.first().kit.voices))
     val selected = mutableIntStateOf(0)
     val page = mutableIntStateOf(0)             // 0 SOUND, 1 MIX
@@ -63,7 +63,7 @@ class DrumController(private val app: AppState) {
         }
     }
     private fun send(slot: Int, id: Int, v: Float) {
-        if (sent[slot][id] != v && NativeEngine.drumParam(slot, id, v)) sent[slot][id] = v
+        if (sent[slot][id] != v && NativeEngine.drumParam(track, slot, id, v)) sent[slot][id] = v
     }
 
     // ---------------- playing ----------------
@@ -71,14 +71,14 @@ class DrumController(private val app: AppState) {
     fun hit(slot: Int, velocity: Float) {
         if (slot !in 0 until DRUM_SLOTS) return
         selected.intValue = slot
-        if (!app.groove.liveDown(NativeEngine.TRACK_DRUMS, slot, velocity)) NativeEngine.drumTrigger(slot, velocity)
+        if (!app.groove.liveDown(track, slot, velocity)) NativeEngine.drumTrigger(track, slot, velocity)
         hitVel[slot] = velocity
     }
-    fun release(slot: Int) { app.groove.liveUp(NativeEngine.TRACK_DRUMS, slot) }
+    fun release(slot: Int) { app.groove.liveUp(track, slot) }
 
     /** Per frame: pull levels + hit counters; a changed counter = a new hit (live or sequenced). */
     fun onFrame(timeSec: Float) {
-        NativeEngine.drumTelemetry(levels, hits)
+        NativeEngine.drumTelemetry(track, levels, hits)
         for (s in 0 until DRUM_SLOTS) {
             if (primed && hits[s] != lastHits[s]) hitTime[s] = timeSec
             lastHits[s] = hits[s]

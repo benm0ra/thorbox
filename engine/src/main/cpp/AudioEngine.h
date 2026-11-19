@@ -32,9 +32,13 @@ struct WorkerResult {
 
 class AudioEngine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErrorCallback {
 public:
-    static constexpr int kMaxPads = 17;        // 16 pads + the chop-preview voice
-    static constexpr int kPreviewPad = 16;
-    static constexpr int kMaxVoices = 32;
+    // 8 tracks; each can be a sampler, synth or drum machine. Sampler pads use GLOBAL ids:
+    // track * kPadsPerTrack + pad (pad 16 of each track is its chop-preview voice).
+    static constexpr int kTracks = seq::kTracks;
+    static constexpr int kPadsPerTrack = 17;
+    static constexpr int kMaxPads = kTracks * kPadsPerTrack;
+    static constexpr int kPreviewPad = 16;      // local index within a track
+    static constexpr int kMaxVoices = 48;
 
     AudioEngine();
     ~AudioEngine() override;
@@ -53,14 +57,19 @@ public:
     // Transient onsets of a loaded sample (frames, ascending, first is 0). Safe from any thread.
     int transients(int sampleId, float sensitivity, int maxSlices, int64_t* out);
     bool setMasterGainDb(float db);
-    bool synthNoteOn(int note, float velocity);
-    bool synthNoteOff(int note);
-    bool synthParam(int id, float value);
-    bool synthAllOff();
-    bool drumTrigger(int slot, float velocity);
-    bool drumParam(int slot, int id, float value);
-    // Drum animation telemetry: per-slot level (0..1) and hit counters (wrap; compare to last read).
-    void getDrumTelemetry(float* levels8, int32_t* hits8);
+    bool synthNoteOn(int track, int note, float velocity);
+    bool synthNoteOff(int track, int note);
+    bool synthParam(int track, int id, float value);
+    bool synthAllOff(int track);
+    bool drumTrigger(int track, int slot, float velocity);
+    bool drumParam(int track, int slot, int id, float value);
+    // Drum animation telemetry for one track: per-slot level (0..1) and hit counters (wrap).
+    void getDrumTelemetry(int track, float* levels8, int32_t* hits8);
+    bool setTrackType(int track, int type);
+    bool setFocus(int track);
+    // Per-strip peaks (held until read): [2k, 2k+1] = strip k L/R, [16, 17] = master,
+    // [18 + k] = strip k sidechain gain (1 = no ducking).
+    void getMeters(float* out26);
 
     // ---- Transport / groove / mixer (main thread → audio thread) ----
     bool setTempo(float bpm);
@@ -72,7 +81,7 @@ public:
     bool repeatOn(int track, int note, int rateTicks, float velocity);
     bool repeatOff(int track, int note);
     bool repeatVelocity(float v);
-    bool setChannel(int strip, int param, float value);  // strip 0 sampler, 1 synth, 2 drums, 3 master
+    bool setChannel(int strip, int param, float value);  // strips 0..7 = tracks, 8 = master
     bool fxOn(int id, float x, float y);
     bool fxMove(int id, float x, float y);
     bool fxOff(int id);
@@ -136,15 +145,17 @@ private:
     std::array<PadState, kMaxPads> mPads{};
     std::array<SamplerVoice, kMaxVoices> mVoices{};
     uint64_t mVoiceStamp = 0;
-    synth::Synth mSynth;
-    drums::DrumSynth mDrums;
+    std::array<synth::Synth, kTracks> mSynths{};
+    std::array<drums::DrumSynth, kTracks> mDrums{};
+    std::array<TrackType, kTracks> mTrackType{TrackType::Sampler, TrackType::Synth, TrackType::Drums};
+    int mFocusSynth = 1, mFocusSampler = 0;
     seq::Sequencer mSeq;
     fx::MasterFx mFx;                  // punch-in effects on the master bus (ring allocated here, main thread)
     bool mRecording = false;
 
     // Rendering happens in chunks of kChunk frames, split at each sequencer event for sample accuracy.
     static constexpr int kChunk = 256;
-    static constexpr int kStrips = 3;
+    static constexpr int kStrips = kTracks;
     std::array<seq::Fire, 512> mFires{};
     std::array<std::array<float, 2 * kChunk>, kStrips> mBus{};   // per-track stereo buses
     std::array<float, 2 * kChunk> mClickBus{};                   // metronome (bypasses the mixer)
@@ -153,7 +164,10 @@ private:
         float volDb = 0.f, pan = 0.f; bool mute = false, solo = false;
         float gL = 1.f, gR = 1.f;       // smoothed gains
         float peakL = 0.f, peakR = 0.f; // block peaks (post-fader)
+        int scSrc = -1; float scAmount = 0.f, scReleaseMs = 150.f;   // sidechain
+        float scEnv = 0.f, scGainMin = 1.f;
     };
+    std::array<float, kStrips> mScKey{};   // per-strip key envelope (pre-fader), shared by all ducked strips
     std::array<Strip, kStrips> mStrips{};
     float mMasterPeakL = 0.f, mMasterPeakR = 0.f;
     float mClickPhase = 0.f, mClickEnv = 0.f, mClickFreq = 1500.f;
@@ -188,9 +202,10 @@ private:
     std::atomic<uint32_t> mTelPads{0};       // bitmask of pads with a sounding voice
     std::atomic<int32_t> mTelPlayPad{-1};    // pad of the newest voice (for the chop playhead)
     std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f};
-    std::array<std::atomic<float>, 8> mMeters{};  // sampler L/R, synth L/R, master L/R, drums L/R
-    std::array<std::atomic<float>, drums::kSlots> mDrumLevel{};
-    std::array<std::atomic<int32_t>, drums::kSlots> mDrumHits{};
+    std::array<std::atomic<float>, 2 * kStrips + 2> mMeters{};   // strips L/R, then master L/R
+    std::array<std::atomic<float>, kStrips> mScGain{};
+    std::array<std::atomic<float>, kTracks * drums::kSlots> mDrumLevel{};
+    std::array<std::atomic<int32_t>, kTracks * drums::kSlots> mDrumHits{};
     std::atomic<uint32_t> mTelDrums{0};
     bool mMetroOn = false;
 

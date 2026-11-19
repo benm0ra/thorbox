@@ -54,9 +54,9 @@ private fun noteName(n: Int) = "${NAMES[n % 12]}${n / 12 - 1}"
 private val audition = Handler(Looper.getMainLooper())
 
 /** Short preview of a note you just drew (so the grid is never silent while you write). */
-private fun previewNote(n: Int) {
-    NativeEngine.synthNoteOn(n, 0.75f)
-    audition.postDelayed({ NativeEngine.synthNoteOff(n) }, 180)
+private fun previewNote(track: Int, n: Int) {
+    NativeEngine.synthNoteOn(track, n, 0.75f)
+    audition.postDelayed({ NativeEngine.synthNoteOff(track, n) }, 180)
 }
 
 /**
@@ -70,7 +70,7 @@ private fun previewNote(n: Int) {
 @Composable
 fun NoteGrid(state: AppState, modifier: Modifier) {
     val g = state.groove
-    val clip = g.clips.value[1]
+    val clip = g.clips.value[g.synthT]
     val rows = g.gridRows()
     val steps = Steps.count(clip.lengthTicks)
     val pages = ((steps + 15) / 16).coerceAtLeast(1)
@@ -123,7 +123,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                                 gesture[5] = 1f
                             } else if (gesture[2] == 2f) {
                                 val newNote = rows[rowAt(ev.y)]
-                                if (newNote != gesture[4].toInt()) { g.gridMove(gesture[3].toInt(), gesture[4].toInt(), newNote); gesture[4] = newNote.toFloat(); previewNote(newNote) }
+                                if (newNote != gesture[4].toInt()) { g.gridMove(gesture[3].toInt(), gesture[4].toInt(), newNote); gesture[4] = newNote.toFloat(); previewNote(g.synthT, newNote) }
                                 gesture[5] = 1f
                             }
                         }
@@ -131,7 +131,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                             val step = stepAt(ev.x); val note = rows[rowAt(ev.y)]
                             val adding = gesture[2] == 0f
                             g.gridToggle(step, note)
-                            if (adding) previewNote(note)
+                            if (adding) previewNote(g.synthT, note)
                         }
                     }
                     true
@@ -184,7 +184,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
 @Composable
 fun StepDeck(state: AppState, modifier: Modifier) {
     val g = state.groove
-    val clip = g.clips.value[1]
+    val clip = g.clips.value[g.synthT]
     val steps = Steps.count(clip.lengthTicks)
     val pages = ((steps + 15) / 16).coerceAtLeast(1)
     val page = g.gridPage.intValue.coerceIn(0, pages - 1)
@@ -225,7 +225,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                     when (ev.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                             val notes = state.notesForKey(keyAt(ev.getX(i), ev.getY(i)))
-                            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(notes[0]) }
+                            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(g.synthT, notes[0]) }
                             else { keyFingers[ev.getPointerId(i)] = notes; state.keyDown(notes, 0.85f) }
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> keyFingers.remove(ev.getPointerId(i))?.let(state::keyUp)

@@ -58,7 +58,7 @@ fun SeqScreen(state: AppState) {
     val g = state.groove
     val groove = g.groove.value
     val track = g.seqTrack.intValue
-    val accent = when (track) { 0 -> Tb.Pads[0]; 1 -> Tb.EncOrange; else -> drumColor(state.drums.selected.intValue) }
+    val accent = kindColor(state.trackKind(track))
 
     Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // ---- transport & groove ----
@@ -78,11 +78,16 @@ fun SeqScreen(state: AppState) {
 
         // ---- track / lane / length / scale ----
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            HwButton("PAD ${state.sampler.selected.intValue + 1}", Modifier.fillMaxHeight(), active = track == 0, accent = Tb.Pads[0], minHeight = 40.dp, fontSize = 12) { g.seqTrack.intValue = 0 }
-            HwButton("SYNTH", Modifier.fillMaxHeight(), active = track == 1, accent = Tb.EncOrange, minHeight = 40.dp, fontSize = 12) { g.seqTrack.intValue = 1 }
-            HwButton(state.drums.kit.value.voices[state.drums.selected.intValue].name.take(6), Modifier.fillMaxHeight(), active = track == 2,
-                accent = Tb.Pads[1], minHeight = 40.dp, fontSize = 12) { g.seqTrack.intValue = 2 }
-            if (track == 1) {
+            // Track picker: tap to step through the tracks (each one keeps its own pattern).
+            val tr = state.tracks.value[track]
+            HwButton("${tr.name} ▸", Modifier.fillMaxHeight(), active = true, accent = kindColor(tr.kind), minHeight = 40.dp, fontSize = 12) {
+                val order = state.tracks.value.indices.filter { state.trackKind(it) != com.thorbox.model.TrackKind.EMPTY }
+                state.selectTrackForSteps(order[(order.indexOf(track) + 1) % order.size])
+            }
+            if (g.isPadTrack(track)) Text(if (tr.kind == com.thorbox.model.TrackKind.DRUMS) state.drumsFor(track).kit.value.voices[g.selectedPad(track)].name
+                else "PAD ${g.selectedPad(track) + 1}", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp,
+                modifier = Modifier.align(Alignment.CenterVertically))
+            if (!g.isPadTrack(track)) {
                 val grid = g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID
                 HwButton(if (grid) "GRID" else "LANES", Modifier.fillMaxHeight(), active = true, accent = Tb.EncGreen, minHeight = 40.dp, fontSize = 12) {
                     g.synthEdit.value = if (grid) com.thorbox.app.groove.GrooveController.SynthEdit.LANES else com.thorbox.app.groove.GrooveController.SynthEdit.GRID
@@ -90,8 +95,8 @@ fun SeqScreen(state: AppState) {
             }
             Box(Modifier.width(6.dp))
             Lane.entries.forEach { l ->
-                if (l == Lane.NOTE && track != 1) return@forEach
-                if (track == 1 && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) return@forEach
+                if (l == Lane.NOTE && g.isPadTrack(track)) return@forEach
+                if (!g.isPadTrack(track) && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) return@forEach
                 HwButton(l.name, Modifier.fillMaxHeight(), active = g.lane.value == l, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12) { g.lane.value = l }
             }
             Box(Modifier.width(6.dp))
@@ -102,7 +107,7 @@ fun SeqScreen(state: AppState) {
         }
 
         // ---- steps (drums, synth lanes) or the note grid (synth) ----
-        if (track == 1 && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) NoteGrid(state, Modifier.weight(1f).fillMaxWidth())
+        if (!g.isPadTrack(track) && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) NoteGrid(state, Modifier.weight(1f).fillMaxWidth())
         else StepGrid(state, track, accent, Modifier.weight(1f).fillMaxWidth())
 
         // ---- generator ----
@@ -114,7 +119,7 @@ fun SeqScreen(state: AppState) {
             HwButton("CLEAR", Modifier.fillMaxHeight(), fontSize = 12) { g.clear(track) }
             DragValue("DENSITY", "${(gp.density * 100).roundToInt()}%", accent, Modifier.weight(1f).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { g.gen.value = g.gen.value.copy(density = (g.gen.value.density + it).coerceIn(0.05f, 1f)) })
-            if (track == 1) {
+            if (!g.isPadTrack(track)) {
                 HwButton("${gp.rangeOctaves} OCT", Modifier.fillMaxHeight(), fontSize = 12) { g.gen.value = gp.copy(rangeOctaves = gp.rangeOctaves % 3 + 1) }
                 HwButton("FIX SCALE", Modifier.fillMaxHeight(), fontSize = 12) { g.snapToScale() }
             }
@@ -201,7 +206,7 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
                 val h = (size.height - pad * 2) * (if (lane == Lane.NOTE) 0.15f + 0.85f * v else v)
                 val alpha = if (lane == Lane.PROB) 1f else 0.35f + 0.65f * e.probability   // uncertain steps look ghosted
                 drawRoundRect(accent.copy(alpha = alpha), Offset(x + pad, size.height - pad - h), Size(cell.width, h), CornerRadius(6.dp.toPx()))
-                if (track == 1 && w > 18.dp.toPx())
+                if (!g.isPadTrack(track) && w > 18.dp.toPx())
                     drawText(tm, "${NOTE_NAMES[e.note % 12]}${e.note / 12 - 1}", Offset(x + pad + 3.dp.toPx(), size.height - pad - 16.dp.toPx()), noteStyle)
             }
             if (s == play) drawRoundRect(Tb.Text, Offset(x + pad, pad), cell, CornerRadius(6.dp.toPx()), style = Stroke(3.dp.toPx()))

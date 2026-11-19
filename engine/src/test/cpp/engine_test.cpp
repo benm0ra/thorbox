@@ -26,6 +26,7 @@ static seq::Pattern* synthLoop() {
 
 int main() {
     double tr[20], ev[10], rec[4];
+    float m[26];
     {
         AudioEngine e;
         e.setTempo(120); e.setPattern(1, synthLoop()); e.setPlaying(true);
@@ -33,7 +34,8 @@ int main() {
         CHECK(rms(out, 0) > 0.01 && rms(out, 1) > 0.01, "sequenced synth reaches the output (rms %.3f)", rms(out, 0));
         e.getTransport(tr);
         CHECK(std::fabs(tr[0] - 1920.0) < 2.0 && tr[1] == 1 && tr[3] == 120, "transport tick = 1920 after 1 s at 120 BPM (%.1f)", tr[0]);
-        CHECK(tr[6] > 0.01 && tr[4] == 0 && tr[8] > 0.01, "meters: synth strip + master move, sampler strip silent");
+        e.getMeters(m);
+        CHECK(m[2] > 0.01 && m[0] == 0 && m[16] > 0.01, "meters: synth strip + master move, sampler strip silent");
 
         e.setChannel(1, 2, 1.f);                      // mute synth
         render(e, 2400);                              // let the 5 ms smoothing settle
@@ -52,7 +54,7 @@ int main() {
         e.pollEvent(ev);                              // frees the released pattern (ASan checks no leak/UAF)
 
         e.setRecording(true); render(e, 256);
-        e.synthNoteOn(72, 0.7f); render(e, 4800); e.synthNoteOff(72); render(e, 256);
+        e.synthNoteOn(1, 72, 0.7f); render(e, 4800); e.synthNoteOff(1, 72); render(e, 256);
         e.pollEvent(ev);
         int t1 = e.pollRecord(rec); double onTick = rec[3]; int note = (int)rec[1]; float vel = (float)rec[2];
         int t2 = e.pollRecord(rec);
@@ -84,24 +86,51 @@ int main() {
         auto* dp = new seq::Pattern(); dp->lengthTicks = 3840; dp->count = 4;
         for (int i = 0; i < 4; ++i) dp->events[i] = seq::Event{i * 960, 120, (int16_t)(i % 2 ? 1 : 0), 1.f, 1.f};
         e.setPattern(2, dp);
-        render(e, 2400); e.getTransport(tr);
-        auto dr = render(e, 48000); e.getTransport(tr);
-        CHECK(rms(dr, 0) > 0.01 && tr[16] > 0.01 && tr[6] < 1e-3, "drum track sequenced on its own strip (rms %.3f, meter %.3f)", rms(dr, 0), tr[16]);
-        float lv[8]; int32_t hits[8]; e.getDrumTelemetry(lv, hits);
+        render(e, 2400); e.getMeters(m);
+        auto dr = render(e, 48000); e.getMeters(m);
+        CHECK(rms(dr, 0) > 0.01 && m[4] > 0.01 && m[2] < 1e-3, "drum track sequenced on its own strip (rms %.3f, meter %.3f)", rms(dr, 0), m[4]);
+        float lv[8]; int32_t hits[8]; e.getDrumTelemetry(2, lv, hits);
         CHECK(hits[0] >= 1 && hits[1] >= 1, "drum hit counters advance (kick %d, snare %d)", hits[0], hits[1]);
         e.setChannel(2, 2, 1.f); render(e, 2400); auto dm = render(e, 24000);
         CHECK(rms(dm, 0) < 1e-5, "muting strip 2 silences the drums");
         e.setChannel(2, 2, 0.f);
-        e.setChannel(3, 0, -60.f); render(e, 9600); auto mm = render(e, 24000);
-        CHECK(rms(mm, 0) < 2e-3, "strip 3 is the master fader (rms %.2e)", rms(mm, 0));
-        e.setChannel(3, 0, 0.f);
-        CHECK(!e.setChannel(4, 0, 0.f) && !e.drumTrigger(8, 1.f) && !e.drumParam(0, 99, 1.f), "out-of-range strip / slot / param rejected");
+        e.setChannel(8, 0, -60.f); render(e, 9600); auto mm = render(e, 24000);
+        CHECK(rms(mm, 0) < 2e-3, "strip 8 is the master fader (rms %.2e)", rms(mm, 0));
+        e.setChannel(8, 0, 0.f);
+        CHECK(!e.setChannel(9, 0, 0.f) && !e.drumTrigger(2, 8, 1.f) && !e.drumParam(2, 0, 99, 1.f) && !e.drumTrigger(8, 0, 1.f)
+              && !e.synthNoteOn(8, 60, 1.f) && !e.setTrackType(3, 7), "out-of-range track / strip / slot / param rejected");
         e.setRecording(true); render(e, 256); e.pollEvent(ev); while (e.pollRecord(rec)) {}
         e.setPattern(2, nullptr);
-        e.drumTrigger(5, 0.9f); render(e, 256); e.pollEvent(ev);
+        e.drumTrigger(2, 5, 0.9f); render(e, 256); e.pollEvent(ev);
         bool got = false; while (e.pollRecord(rec)) got |= ((int)rec[0] == 2 && (int)rec[1] == 5);
         CHECK(got, "live drum hits are recorded on track 2");
         e.setRecording(false); e.setChannel(1, 2, 0.f);
+
+        // ---- 8 tracks: a second synth on track 5, a second drum machine on track 6 ----
+        e.setTrackType(5, 2); e.setTrackType(6, 3);
+        e.setPattern(5, synthLoop());
+        auto* dp2 = new seq::Pattern(); dp2->lengthTicks = 3840; dp2->count = 1;
+        dp2->events[0] = seq::Event{0, 120, 0, 1.f, 1.f};
+        e.setPattern(6, dp2);
+        e.setChannel(2, 2, 1.f);                       // mute track 2's drums: only the new tracks + nothing else
+        render(e, 4800); e.getMeters(m);
+        auto multi = render(e, 48000); e.getMeters(m);
+        CHECK(m[10] > 0.01 && m[12] > 0.01, "extra synth (track 5) and drums (track 6) play on their own strips (%.3f, %.3f)", m[10], m[12]);
+        e.synthParam(5, 0, 1.f);                       // a param on track 5 must not touch track 1
+        CHECK(e.synthParam(1, 0, 0.f), "per-track synth params accepted");
+
+        // ---- sidechain: duck track 5 (synth) from track 6 (kick) ----
+        e.setChannel(5, 4, 6.f); e.setChannel(5, 5, 1.f); e.setChannel(5, 6, 200.f);
+        render(e, 9600); e.getMeters(m);
+        render(e, 96000); e.getMeters(m);                // a full 2 s pattern, so the kick lands in the window
+        CHECK(m[18 + 5] < 0.3f && m[18 + 1] >= 0.999f, "sidechain: track 5 ducks under the kick (min gain %.2f), track 1 untouched", m[18 + 5]);
+        e.setChannel(5, 5, 0.f); render(e, 9600); e.getMeters(m); render(e, 24000); e.getMeters(m);
+        CHECK(m[18 + 5] >= 0.999f, "sidechain amount 0 = no ducking");
+        CHECK(e.setChannel(5, 4, -1.f), "sidechain source -1 = off");
+        // Switch a track's instrument while it plays: no crash, track goes quiet.
+        e.setTrackType(5, 0); render(e, 4800); e.getMeters(m); render(e, 24000); e.getMeters(m);
+        CHECK(m[10] < 1e-6, "track type NONE renders nothing");
+        e.setChannel(2, 2, 0.f);
 
         e.setPlaying(false); render(e, 48000);
         e.getTransport(tr);

@@ -154,6 +154,13 @@ object Glossary {
         "DENSITY" to "How busy the dice makes the pattern.",
         "UNDO" to "Undo the last pattern change.",
         // ---- FX ----
+        "ADD TRACK" to "Add a track: pick a sampler, a synth or a drum machine. Up to 8 tracks.",
+        "OPEN TRACK" to "Open this track in its editor (sampler, synth or drums).",
+        "TRACK MENU" to "Track options: PUMP sidechain, clear the pattern, remove the track.",
+        "OPEN" to "Open this track in its editor.",
+        "OFF" to "No sidechain on this track.",
+        "REMOVE TRACK" to "Delete this track and its pattern.",
+        "CLEAR PATTERN" to "Empty this track's pattern.",
         "LATCH" to "Then tap an effect to keep it on without holding it.",
         "SAVE LOG" to "Save the app's recent log as a text file in Downloads, to send with a bug report.",
         "SHARE LOG" to "Send the app's recent log to another app (email, chat, Drive).",

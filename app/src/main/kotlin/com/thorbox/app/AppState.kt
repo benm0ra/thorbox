@@ -90,8 +90,27 @@ class AppState(private val app: Application) {
     val library = SampleLibrary(app)
     val input = InputRouter(this)
     val groove = GrooveController(this)
-    val sampler = com.thorbox.app.sampler.SamplerController(this)
-    val drums = com.thorbox.app.drums.DrumController(this)
+    // ================= Tracks: 8, each a sampler, synth or drum machine =================
+    val tracks = mutableStateOf(List(com.thorbox.model.TRACK_COUNT) { i ->
+        when (i) {
+            0 -> com.thorbox.model.TrackInfo(com.thorbox.model.TrackKind.SAMPLER, "SAMPLER")
+            1 -> com.thorbox.model.TrackInfo(com.thorbox.model.TrackKind.SYNTH, "SYNTH")
+            2 -> com.thorbox.model.TrackInfo(com.thorbox.model.TrackKind.DRUMS, "DRUMS")
+            else -> com.thorbox.model.TrackInfo(com.thorbox.model.TrackKind.EMPTY, "")
+        }
+    })
+    fun trackKind(t: Int) = tracks.value.getOrNull(t)?.kind ?: com.thorbox.model.TrackKind.EMPTY
+    /** The track each editor shows: the last selected track of that kind. */
+    val samplerTrack = androidx.compose.runtime.mutableIntStateOf(0)
+    val synthTrack = androidx.compose.runtime.mutableIntStateOf(1)
+    val drumTrack = androidx.compose.runtime.mutableIntStateOf(2)
+    private val samplers = arrayOfNulls<com.thorbox.app.sampler.SamplerController>(com.thorbox.model.TRACK_COUNT)
+    private val drumMachines = arrayOfNulls<com.thorbox.app.drums.DrumController>(com.thorbox.model.TRACK_COUNT)
+    fun samplerFor(t: Int) = samplers[t] ?: com.thorbox.app.sampler.SamplerController(this, t).also { samplers[t] = it }
+    fun drumsFor(t: Int) = drumMachines[t] ?: com.thorbox.app.drums.DrumController(this, t).also { drumMachines[t] = it }
+    /** The sampler / drum machine the editors are showing (reads are snapshot-tracked). */
+    val sampler get() = samplerFor(samplerTrack.intValue)
+    val drums get() = drumsFor(drumTrack.intValue)
     val tilt = com.thorbox.app.input.TiltController(this, app)
 
     // ---- Theme (persisted) ----
@@ -135,11 +154,11 @@ class AppState(private val app: Application) {
         deck.value = d
         // The instrument decks pull their editor onto the top screen. SEQ and MIX stay put.
         when (d) {
-            Deck.PADS -> { if (topView.value == TopView.SYNTH || topView.value == TopView.DRUM) topView.value = TopView.SAMPLER; groove.seqTrack.intValue = 0 }
-            Deck.KEYS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.DRUM) topView.value = TopView.SYNTH; groove.seqTrack.intValue = 1 }
-            Deck.DRUMS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.SYNTH) topView.value = TopView.DRUM; groove.seqTrack.intValue = 2 }
+            Deck.PADS -> { if (topView.value == TopView.SYNTH || topView.value == TopView.DRUM) topView.value = TopView.SAMPLER; groove.seqTrack.intValue = samplerTrack.intValue }
+            Deck.KEYS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.DRUM) topView.value = TopView.SYNTH; groove.seqTrack.intValue = synthTrack.intValue }
+            Deck.DRUMS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.SYNTH) topView.value = TopView.DRUM; groove.seqTrack.intValue = drumTrack.intValue }
             // The STEP deck is the synth's OP-XY step sequencer (drums have their own TR grid on DRM).
-            Deck.STEP -> { topView.value = TopView.SEQ; groove.seqTrack.intValue = 1; groove.synthEdit.value = com.thorbox.app.groove.GrooveController.SynthEdit.GRID }
+            Deck.STEP -> { topView.value = TopView.SEQ; groove.seqTrack.intValue = synthTrack.intValue; groove.synthEdit.value = com.thorbox.app.groove.GrooveController.SynthEdit.GRID }
             else -> Unit
         }
     }
@@ -177,7 +196,10 @@ class AppState(private val app: Application) {
     val patch = _patch.asStateFlow()
     val synthPage = mutableStateOf(SynthPage.OSC)
     val telemetry = SynthTelemetry()
-    private val sentParams = FloatArray(SynthId.COUNT) { Float.NaN }   // NaN = never sent
+    // Per-track synth state. The editor works on _patch (the current synth track's patch).
+    private val synthPatches = arrayOfNulls<SynthPatch>(com.thorbox.model.TRACK_COUNT)
+    private val sentAll = Array(com.thorbox.model.TRACK_COUNT) { FloatArray(SynthId.COUNT) { Float.NaN } }   // NaN = never sent
+    private val sentParams: FloatArray get() = sentAll[synthTrack.intValue]
     private val nextParams = FloatArray(SynthId.COUNT)
 
     // ---- Keyboard (KEYS deck) ----
@@ -204,6 +226,7 @@ class AppState(private val app: Application) {
     private var nextRequestId = 1
     private val pendingNames = HashMap<Int, String>()
     private var latestRequest = 0
+    private var loadTarget = 0
     private var engineRunning = false
 
     // ================= Engine lifecycle =================
@@ -212,9 +235,18 @@ class AppState(private val app: Application) {
         if (engineRunning) return
         engineRunning = NativeEngine.start()
         if (!engineRunning) _error.value = "Audio engine failed to start"
-        sentParams.fill(Float.NaN)
-        pushPatch(_patch.value)
-        drums.pushAll()
+        sentAll.forEach { it.fill(Float.NaN) }
+        synthPatches[synthTrack.intValue] = _patch.value
+        for (t in 0 until com.thorbox.model.TRACK_COUNT) {
+            NativeEngine.setTrackType(t, trackKind(t).ordinal)
+            when (trackKind(t)) {
+                com.thorbox.model.TrackKind.SYNTH -> pushPatchTo(t, synthPatches[t] ?: SynthPatch())
+                com.thorbox.model.TrackKind.DRUMS -> drumsFor(t).pushAll()
+                else -> Unit
+            }
+        }
+        tracks.value.forEachIndexed { t, info -> if (info.kind != com.thorbox.model.TrackKind.EMPTY) groove.nameChannel(t, info.name) }
+        NativeEngine.setFocus(synthTrack.intValue); NativeEngine.setFocus(samplerTrack.intValue)
         groove.pushAll()
         tilt.onForeground(true)
         startTicker()
@@ -260,7 +292,7 @@ class AppState(private val app: Application) {
     fun scaleBpm(factor: Float) {
         val s = _sample.value ?: return
         val nb = (s.bpm ?: return) * factor
-        if (nb in 40f..300f) _sample.value = s.copy(bpm = nb)
+        if (nb in 40f..300f) { _sample.value = s.copy(bpm = nb); sampler.info = _sample.value }
     }
 
     // ================= Synth =================
@@ -303,16 +335,100 @@ class AppState(private val app: Application) {
     }
 
     /** Sends only the engine params whose values changed (a knob turn ≈ 1 command). */
-    private fun pushPatch(p: SynthPatch) {
+    private fun pushPatch(p: SynthPatch) = pushPatchTo(synthTrack.intValue, p)
+
+    private fun pushPatchTo(t: Int, p: SynthPatch) {
+        synthPatches[t] = p
+        val sent = sentAll[t]
         SynthParams.toEngine(p, nextParams)
         // Switching mono ↔ poly mid-note would strand voices the other mode can't release.
-        if (!sentParams[SynthId.MONO].isNaN() && nextParams[SynthId.MONO] != sentParams[SynthId.MONO]) {
-            NativeEngine.synthAllOff(); noteRefs.fill(0)
+        if (!sent[SynthId.MONO].isNaN() && nextParams[SynthId.MONO] != sent[SynthId.MONO]) {
+            NativeEngine.synthAllOff(t); if (t == synthTrack.intValue) noteRefs.fill(0)
         }
         for (id in 0 until SynthId.COUNT) {
             val v = nextParams[id]
-            if (v != sentParams[id] && NativeEngine.synthParam(id, v)) sentParams[id] = v
+            if (v != sent[id] && NativeEngine.synthParam(t, id, v)) sent[id] = v
         }
+    }
+
+    // ================= Track management =================
+
+    /** Show track [t] in its editor and make it the step-sequencer / record target. */
+    fun selectTrack(t: Int) {
+        when (trackKind(t)) {
+            com.thorbox.model.TrackKind.SYNTH -> {
+                if (t != synthTrack.intValue) {
+                    releaseAllKeys()
+                    synthPatches[synthTrack.intValue] = _patch.value
+                    synthTrack.intValue = t
+                    _patch.value = synthPatches[t] ?: SynthPatch().also { pushPatchTo(t, it) }
+                    patchUndo.clear(); canUndoPatch.value = false
+                }
+                NativeEngine.setFocus(t); selectTop(TopView.SYNTH)
+            }
+            com.thorbox.model.TrackKind.SAMPLER -> {
+                samplerTrack.intValue = t; NativeEngine.setFocus(t)
+                _sample.value = samplerFor(t).info; _peaks.value = samplerFor(t).peaks     // show this track's sample
+                selectTop(TopView.SAMPLER)
+            }
+            com.thorbox.model.TrackKind.DRUMS -> { drumTrack.intValue = t; selectTop(TopView.DRUM) }
+            com.thorbox.model.TrackKind.EMPTY -> return
+        }
+        groove.seqTrack.intValue = t
+    }
+
+    /** Point the step sequencer at [t] (and make it current for its kind) without leaving the STEPS view. */
+    fun selectTrackForSteps(t: Int) {
+        val view = topView.value
+        selectTrack(t)
+        if (view == TopView.SEQ) topView.value = TopView.SEQ
+    }
+
+    /** Adds a track of [kind] in the first empty slot and selects it. Returns its index, or -1 if all 8 are used. */
+    fun addTrack(kind: com.thorbox.model.TrackKind): Int {
+        if (kind == com.thorbox.model.TrackKind.EMPTY) return -1
+        val list = tracks.value
+        val t = list.indexOfFirst { it.kind == com.thorbox.model.TrackKind.EMPTY }
+        if (t < 0) return -1
+        val n = list.count { it.kind == kind } + 1
+        tracks.value = list.toMutableList().also { it[t] = com.thorbox.model.TrackInfo(kind, if (n == 1) kind.label else "${kind.label} $n") }
+        NativeEngine.setTrackType(t, kind.ordinal)
+        when (kind) {
+            com.thorbox.model.TrackKind.SYNTH -> { sentAll[t].fill(Float.NaN); pushPatchTo(t, SynthPatch()) }
+            com.thorbox.model.TrackKind.DRUMS -> drumsFor(t).pushAll()
+            com.thorbox.model.TrackKind.SAMPLER -> samplerFor(t)
+            else -> Unit
+        }
+        groove.resetTrack(t, tracks.value[t].name)
+        selectTrack(t)
+        return t
+    }
+
+    /** True if [t] can be removed: there must stay at least one track of each instrument kind. */
+    fun canRemoveTrack(t: Int): Boolean {
+        val k = trackKind(t)
+        return k != com.thorbox.model.TrackKind.EMPTY && tracks.value.count { it.kind == k } > 1
+    }
+    fun removeTrack(t: Int) {
+        if (!canRemoveTrack(t)) return
+        val kind = trackKind(t)
+        NativeEngine.setTrackType(t, 0)
+        tracks.value = tracks.value.toMutableList().also { it[t] = com.thorbox.model.TrackInfo(com.thorbox.model.TrackKind.EMPTY, "") }
+        groove.resetTrack(t, "T${t + 1}")
+        // Any editor pointing at the removed track moves to another track of the same kind.
+        val other = tracks.value.indexOfFirst { it.kind == kind }
+        when (kind) {
+            com.thorbox.model.TrackKind.SYNTH -> if (synthTrack.intValue == t) selectTrack(other)
+            com.thorbox.model.TrackKind.SAMPLER -> if (samplerTrack.intValue == t) selectTrack(other)
+            com.thorbox.model.TrackKind.DRUMS -> if (drumTrack.intValue == t) drumTrack.intValue = other
+            else -> Unit
+        }
+        if (groove.seqTrack.intValue == t) groove.seqTrack.intValue = other
+    }
+    fun renameTrack(t: Int, name: String) {
+        if (trackKind(t) == com.thorbox.model.TrackKind.EMPTY) return
+        tracks.value = tracks.value.toMutableList().also { it[t] = it[t].copy(name = name.trim().uppercase().take(12).ifEmpty { it[t].name }) }
+        groove.nameChannel(t, tracks.value[t].name)
     }
 
     // ================= Synth presets + dice (OP-XY style) =================
@@ -375,19 +491,19 @@ class AppState(private val app: Application) {
 
     fun keyDown(notes: IntArray, velocity: Float) {
         for (n in notes) if (n in 0..127) {
-            if (groove.liveDown(1, n, velocity)) continue                       // RPT held → note repeat
-            if (noteRefs[n]++ == 0 || chordMode.value) NativeEngine.synthNoteOn(n, velocity)
+            if (groove.liveDown(synthTrack.intValue, n, velocity)) continue    // RPT held → note repeat
+            if (noteRefs[n]++ == 0 || chordMode.value) NativeEngine.synthNoteOn(synthTrack.intValue, n, velocity)
         }
     }
 
     fun keyUp(notes: IntArray) {
         for (n in notes) if (n in 0..127) {
-            if (groove.liveUp(1, n)) continue
-            if (noteRefs[n] > 0 && --noteRefs[n] == 0) NativeEngine.synthNoteOff(n)
+            if (groove.liveUp(synthTrack.intValue, n)) continue
+            if (noteRefs[n] > 0 && --noteRefs[n] == 0) NativeEngine.synthNoteOff(synthTrack.intValue, n)
         }
     }
 
-    fun releaseAllKeys() { noteRefs.fill(0); NativeEngine.synthAllOff() }
+    fun releaseAllKeys() { noteRefs.fill(0); NativeEngine.synthAllOff(synthTrack.intValue) }
 
     fun shiftOctave(d: Int) { releaseAllKeys(); keyOctave.value = (keyOctave.value + d).coerceIn(-2, 3) }
 
@@ -403,6 +519,7 @@ class AppState(private val app: Application) {
         val id = nextRequestId++
         latestRequest = id
         pendingNames[id] = name
+        loadTarget = samplerTrack.intValue          // the track that asked gets the sample, even if you switch
         _loadingName.value = name
         _error.value = null
         scope.launch {
@@ -421,27 +538,30 @@ class AppState(private val app: Application) {
     private fun onEngineEvent(e: NativeEngine.Event) {
         when (e) {
             is NativeEngine.Event.SampleLoaded -> {
-                if (sampler.isStretchResult(e.requestId)) { sampler.onStretchLoaded(e.requestId, e.sampleId, e.frames); return }
+                samplers.firstOrNull { it?.isStretchResult(e.requestId) == true }?.let { it.onStretchLoaded(e.requestId, e.sampleId, e.frames); return }
                 val name = pendingNames.remove(e.requestId) ?: "sample"
                 if (e.requestId != latestRequest) { NativeEngine.unloadSample(e.sampleId); return }
-                _sample.value = LoadedSample(
+                val target = samplerFor(loadTarget)
+                val info = LoadedSample(
                     engineId = e.sampleId, name = name, frames = e.frames, sampleRate = e.sampleRate, channels = e.channels,
                     key = if (e.keyRoot in 0..11) MusicalKey(PitchClass.entries[e.keyRoot], if (e.keyMinor) ScaleMode.MINOR else ScaleMode.MAJOR) else null,
                     keyConfidence = e.keyConfidence, bpm = e.bpm.takeIf { it > 0f }, bpmConfidence = e.bpmConfidence,
                 )
+                target.info = info; target.peaks = null
+                if (target === sampler) { _sample.value = info; _peaks.value = null }
                 _loadingName.value = null
-                _peaks.value = null
-                sampler.onOriginalLoaded(e.sampleId, e.frames)      // auto-chop onto all 16 pads
+                target.onOriginalLoaded(e.sampleId, e.frames)      // auto-chop onto all 16 pads
                 val sid = e.sampleId
                 scope.launch {
                     val pk = withContext(Dispatchers.Default) { NativeEngine.peaks(sid, 2048) }
+                    if (target.info?.engineId == sid) target.peaks = pk
                     if (_sample.value?.engineId == sid) _peaks.value = pk
                 }
                 // File names can be personal: log them in debug builds only.
                 if (BuildConfig.DEBUG) Log.d(TAG, "loaded $name: ${e.frames} frames @${e.sampleRate}, key=${_sample.value?.key?.label()}, bpm=${e.bpm}")
             }
             is NativeEngine.Event.LoadFailed -> {
-                if (sampler.isStretchResult(e.requestId)) { sampler.onStretchFailed(e.requestId); _error.value = "Couldn't re-render the sample"; return }
+                samplers.firstOrNull { it?.isStretchResult(e.requestId) == true }?.let { it.onStretchFailed(e.requestId); _error.value = "Couldn't re-render the sample"; return }
                 val name = pendingNames.remove(e.requestId)
                 if (e.requestId == latestRequest) { _loadingName.value = null; _error.value = "Couldn't decode ${name ?: "file"}" }
             }
