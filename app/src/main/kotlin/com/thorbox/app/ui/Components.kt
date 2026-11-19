@@ -3,6 +3,8 @@ package com.thorbox.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -104,11 +106,11 @@ fun DragValue(
 
 private fun Modifier.androidxPointer(pxPerUnit: Float, onDelta: (Float) -> Unit, onDoubleTap: () -> Unit): Modifier =
     this.then(Modifier.pointerInput(Unit) {
-        androidx.compose.foundation.gestures.detectDragGestures { change, drag ->
+        detectDragGestures { change, drag ->
             change.consume(); onDelta((drag.x - drag.y) / pxPerUnit)
         }
     }).then(Modifier.pointerInput(Unit) {
-        androidx.compose.foundation.gestures.detectTapGestures(onDoubleTap = { onDoubleTap() })
+        detectTapGestures(onDoubleTap = { onDoubleTap() })
     })
 
 /** Momentary button: active only while touched (fires on touch-down, with no tap delay). */

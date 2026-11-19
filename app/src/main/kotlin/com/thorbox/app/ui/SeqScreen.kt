@@ -148,10 +148,10 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
     val clip = g.clips.value[track]
     val steps = Steps.count(clip.lengthTicks)
     val byStep = Steps.byStep(g.visibleNotes(track), clip.lengthTicks)
+    val lane = g.lane.value
     val laneVals = remember(clip, lane, state.sampler.selected.intValue, state.lockKey(), state.keyLock.value) {
         FloatArray(byStep.size) { i -> byStep[i]?.let { g.laneValue(track, it, lane) } ?: 0f }
     }
-    val lane = g.lane.value
     val dims = remember { IntArray(2) }
     val slop = LocalViewConfiguration.current.touchSlop
     val gesture = remember { FloatArray(3) }          // downX, downY, dragging(0/1)
