@@ -74,7 +74,7 @@ fun VizScreen(state: AppState) {
             Text(mode.label, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
             Text(String.format(Locale.US, "%.1f BPM", g.groove.value.bpm), color = Tb.Tempo, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
             Text(state.lockKey().label().uppercase(), color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
-            if (s != null) Text(s.name.substringBeforeLast('.'), color = Tb.Muted, fontSize = 12.sp, maxLines = 1)
+            s?.let { Text(it.name.substringBeforeLast('.'), color = Tb.Muted, fontSize = 12.sp, maxLines = 1) }
         }
         // Look settings live here: glass level (FULL / SUBTLE / OFF) and visualizer auto-start.
         Row(Modifier.align(Alignment.BottomStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
