@@ -86,7 +86,7 @@ fun SeqScreen(state: AppState) {
             }
             if (g.isPadTrack(track)) Text(if (tr.kind == com.thorbox.model.TrackKind.DRUMS) state.drumsFor(track).kit.value.voices[g.selectedPad(track)].name
                 else "PAD ${g.selectedPad(track) + 1}", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp,
-                modifier = Modifier.align(Alignment.CenterVertically))
+                modifier = Modifier.align(androidx.compose.ui.Alignment.CenterVertically))
             if (!g.isPadTrack(track)) {
                 val grid = g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID
                 HwButton(if (grid) "GRID" else "LANES", Modifier.fillMaxHeight(), active = true, accent = Tb.EncGreen, minHeight = 40.dp, fontSize = 12) {
