@@ -14,7 +14,7 @@ We aim to acknowledge within 7 days and to ship a fix or mitigation within 30 da
 high-severity issues. You'll be credited in the release notes unless you'd rather not be.
 
 ## Threat model (what we defend)
-Thorbox is an **offline** instrument. It requests **no Android permissions**, has **no network
+Clamshell Beats is an **offline** instrument. It requests **no Android permissions**, has **no network
 access** (no `INTERNET` permission) and no accounts, analytics or ads.
 
 The main attack surface is **untrusted audio files**:

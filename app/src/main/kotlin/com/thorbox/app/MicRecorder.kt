@@ -21,7 +21,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * Field recorder: the Thor's mic → a 48 kHz mono WAV in Music/Thorbox/Field Recordings, then
+ * Field recorder: the Thor's mic → a 48 kHz mono WAV in Music/Clamshell Beats/Field Recordings, then
  * straight into the current sampler track. Uses the UNPROCESSED source when the device offers it
  * (no AGC / noise suppression: what you hear is what you sample), falling back to MIC. Capped at
  * 10 minutes so memory can't run away. Recording runs on its own thread; state is read by the UI.
@@ -76,7 +76,7 @@ class MicRecorder(private val app: Context) {
         val values = ContentValues().apply {
             put(MediaStore.Audio.Media.DISPLAY_NAME, "$name.wav")
             put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")
-            put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/Thorbox/Field Recordings")
+            put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/Clamshell Beats/Field Recordings")
             put(MediaStore.Audio.Media.IS_PENDING, 1)
         }
         val r = app.contentResolver

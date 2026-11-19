@@ -51,7 +51,7 @@ fun DiagnosticsPanel(state: AppState, modifier: Modifier = Modifier) {
             Box(Modifier.weight(1f))
             HwButton(saved.value ?: "SAVE LOG", minHeight = 34.dp, fontSize = 11, accent = Tb.Key, active = true) {
                 scope.launch {
-                    val name = withContext(Dispatchers.IO) { com.thorbox.app.LogExport.saveToDownloads(ctx, "Thorbox-log", collectLog(state)) }
+                    val name = withContext(Dispatchers.IO) { com.thorbox.app.LogExport.saveToDownloads(ctx, "ClamshellBeats-log", collectLog(state)) }
                     saved.value = if (name != null) "SAVED ✓" else "SAVE FAILED"
                     if (name != null) state.lastInput.value = "Downloads/$name"
                 }
@@ -60,7 +60,7 @@ fun DiagnosticsPanel(state: AppState, modifier: Modifier = Modifier) {
                 scope.launch {
                     val text = withContext(Dispatchers.IO) { collectLog(state) }
                     ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_SUBJECT, "Thorbox log").putExtra(Intent.EXTRA_TEXT, text), "Share Thorbox log")
+                        .putExtra(Intent.EXTRA_SUBJECT, "Clamshell Beats log").putExtra(Intent.EXTRA_TEXT, text), "Share Thorbox log")
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
             }
@@ -107,7 +107,7 @@ private fun Line(k: String, v: String) {
 /** The app's own recent log (Android only exposes this process's lines to it), plus a header. */
 private fun collectLog(state: AppState): String {
     val header = buildString {
-        append("Thorbox log · ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
+        append("Clamshell Beats log · ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
         append(" · Android ").append(Build.VERSION.RELEASE).append(" · ").append(Build.SOC_MODEL).append('\n')
         append("tilt: ").append(state.tilt.sensorSummary()).append(" enabled=").append(state.tilt.enabled.value)
         append(" running=").append(state.tilt.running).append(" events=").append(state.tilt.events).append("\n\n")

@@ -4,7 +4,8 @@
 # doesn't stay alive. Runs twice: single screen, then with a simulated 1080x1240 second display
 # (the Thor's bottom screen). Logs and screenshots land in ./smoke/.
 set -u
-PKG=com.thorbox.app
+PKG=com.clamshellbeats.app
+ACT=com.thorbox.app.MainActivity   # code package differs from the application id
 APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
 OUT=smoke; mkdir -p "$OUT"
 fail=0
@@ -13,7 +14,7 @@ run_case() {
   local name=$1
   adb shell am force-stop $PKG
   adb logcat -c
-  adb shell am start -W -n $PKG/.MainActivity | tee "$OUT/$name-start.txt"
+  adb shell am start -W -n $PKG/$ACT | tee "$OUT/$name-start.txt"
   sleep 20
   adb logcat -d -v threadtime > "$OUT/$name-logcat.txt"
   adb exec-out screencap -p > "$OUT/$name.png" || true
@@ -40,24 +41,24 @@ tour() {
   local name=$1
   adb logcat -c
   for v in SYNTH DRUM SEQ MIX VIZ SAMPLER; do
-    adb shell am start -n $PKG/.MainActivity --es view $v --ez play true >/dev/null; sleep 2
+    adb shell am start -n $PKG/$ACT --es view $v --ez play true >/dev/null; sleep 2
     for k in BUTTON_A DPAD_RIGHT DPAD_DOWN BUTTON_A BUTTON_X BUTTON_THUMBR BUTTON_Y BUTTON_B; do adb shell input keyevent KEYCODE_$k; done
     sleep 1; adb exec-out screencap -p > "$OUT/$name-view-$v.png" || true
   done
   for d in DRUMS KEYS STEP FX PADS; do
-    adb shell am start -n $PKG/.MainActivity --es deck $d >/dev/null; sleep 2
+    adb shell am start -n $PKG/$ACT --es deck $d >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-deck-$d.png" || true
   done
   # Fill the song: a second synth, a second drum machine, another sampler; then play everything.
-  for k in SYNTH DRUMS SAMPLER SYNTH DRUMS; do adb shell am start -n $PKG/.MainActivity --es add $k >/dev/null; sleep 1; done
-  for v in MIX SYNTH DRUM SEQ SAMPLER; do adb shell am start -n $PKG/.MainActivity --es view $v --ez play true >/dev/null; sleep 2
+  for k in SYNTH DRUMS SAMPLER SYNTH DRUMS; do adb shell am start -n $PKG/$ACT --es add $k >/dev/null; sleep 1; done
+  for v in MIX SYNTH DRUM SEQ SAMPLER; do adb shell am start -n $PKG/$ACT --es view $v --ez play true >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-8tracks-$v.png" || true; done
   # HAZE + its pixel film, then release (the smoke tail keeps drawing for a few seconds)
-  adb shell am start -n $PKG/.MainActivity --es deck FX --ei fx 7 >/dev/null; sleep 3
+  adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3
   adb exec-out screencap -p > "$OUT/$name-haze.png" || true
-  adb shell am start -n $PKG/.MainActivity --ei fx -1 >/dev/null; sleep 3
+  adb shell am start -n $PKG/$ACT --ei fx -1 >/dev/null; sleep 3
   for th in cyberpunk pastel terminal grayscale studio; do        # every theme on the busiest screens
-    for v in DRUM SYNTH; do adb shell am start -n $PKG/.MainActivity --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
+    for v in DRUM SYNTH; do adb shell am start -n $PKG/$ACT --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
     adb exec-out screencap -p > "$OUT/$name-theme-$th.png" || true
   done
   adb logcat -d -v threadtime > "$OUT/$name-tour-logcat.txt"

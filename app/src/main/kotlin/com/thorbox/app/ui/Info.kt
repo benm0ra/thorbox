@@ -61,7 +61,7 @@ object Glossary {
         "STEPS" to "The step sequencer: write patterns for each track, step by step.",
         "MIXER" to "Volume, pan, mute and solo for each track, plus the master level.",
         "VISUAL" to "A full-screen visualizer that dances to whatever is playing. B or tap to leave.",
-        "THEME" to "Change how Thorbox looks: Studio, Cyberpunk, Pastel, Terminal or Grayscale.",
+        "THEME" to "Change how Clamshell Beats looks: Studio, Cyberpunk, Pastel, Terminal or Grayscale.",
         "▶" to "Play. Starts the song from the top.",
         "■" to "Stop.",
         "●" to "Record. Whatever you play on pads or keys is written into the pattern.",

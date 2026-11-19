@@ -371,8 +371,8 @@ private val CAP_SHADE = Color(0xFF0C152A)
 private val STICKER = Color(0xFFE0B03A)
 
 /**
- * BIT's fitted cap: navy crown with panel seams, a top button, an original interlocking "TB"
- * monogram (ours, not a team's) and the gold size sticker left on the brim, the way it should be.
+ * BIT's fitted cap: navy crown with panel seams, a top button, an interlocking "CB" monogram
+ * (Clamshell Beats; our own mark) and the gold size sticker left on the brim, the way it should be.
  */
 private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float) {
     val base = cy - 22f - hop * 0.5f
@@ -384,13 +384,13 @@ private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float)
     drawLine(CAP_SHADE, Offset(cx - 14f, capTop + 6f), Offset(cx - 22f, base), 1.5f)
     drawLine(CAP_SHADE, Offset(cx + 14f, capTop + 6f), Offset(cx + 22f, base), 1.5f)
     drawCircle(CAP_SHADE, 3.5f, Offset(cx, capTop + 1f))
-    // monogram: a T laid over a B, in white stitching
+    // monogram: an interlocking C and B in white stitching (Clamshell Beats; our own, not a team's)
     val mx = cx; val my = capTop + (base - capTop) * 0.55f
     val ink = Color(0xFFF4F4F5)
-    drawLine(ink, Offset(mx - 7f, my - 8f), Offset(mx + 7f, my - 8f), 2.6f, cap = StrokeCap.Round)          // T bar
-    drawLine(ink, Offset(mx, my - 8f), Offset(mx, my + 8f), 2.6f, cap = StrokeCap.Round)                    // T stem / B spine
-    drawArc(ink, -90f, 180f, false, Offset(mx - 4f, my - 7f), Size(10f, 8f), style = Stroke(2.2f))          // B upper bowl
-    drawArc(ink, -90f, 180f, false, Offset(mx - 4f, my), Size(12f, 8f), style = Stroke(2.2f))               // B lower bowl
+    drawArc(ink, 50f, 260f, false, Offset(mx - 11f, my - 8f), Size(14f, 16f), style = Stroke(2.4f, cap = StrokeCap.Round))   // C
+    drawLine(ink, Offset(mx - 1f, my - 8f), Offset(mx - 1f, my + 8f), 2.4f, cap = StrokeCap.Round)                         // B spine (crosses the C)
+    drawArc(ink, -90f, 180f, false, Offset(mx - 5f, my - 8f), Size(11f, 8f), style = Stroke(2.2f))                         // B upper bowl
+    drawArc(ink, -90f, 180f, false, Offset(mx - 5f, my), Size(13f, 8f), style = Stroke(2.2f))                              // B lower bowl
     // brim: flat and forward, slightly darker underside
     drawOval(CAP_SHADE, Offset(cx - 44f, base - 4f), Size(88f, 14f))
     drawOval(CAP, Offset(cx - 44f, base - 6f), Size(88f, 12f))

@@ -445,7 +445,7 @@ class AppState(private val app: Application) {
         }
         val bytes = com.thorbox.model.MidiWriter.write(out, groove.groove.value.bpm, loops, lengths)
         scope.launch {
-            val name = withContext(Dispatchers.IO) { LogExport.saveBytes(app, "Thorbox", "mid", "audio/midi", bytes) }
+            val name = withContext(Dispatchers.IO) { LogExport.saveBytes(app, "ClamshellBeats", "mid", "audio/midi", bytes) }
             lastInput.value = if (name != null) "Saved Downloads/$name" else "MIDI export failed"
             com.thorbox.app.ui.Info.title.value = "MIDI"
             com.thorbox.app.ui.Info.body.value = if (name != null) "Saved to Downloads: $name (${out.size} tracks, $loops× loop). Drag it into Ableton." else "Couldn't save the MIDI file."
@@ -568,7 +568,7 @@ class AppState(private val app: Application) {
         android.content.pm.PackageManager.PERMISSION_GRANTED
     /** MIC button: open the recorder (asks for the mic permission the first time). */
     fun openMic() { if (hasMic()) showMic.value = true else micPermissionRequests.tryEmit(Unit) }
-    fun onMicPermission(granted: Boolean) { if (granted) showMic.value = true else _error.value = "Mic permission denied: allow it in Settings → Apps → Thorbox" }
+    fun onMicPermission(granted: Boolean) { if (granted) showMic.value = true else _error.value = "Mic permission denied: allow it in Settings → Apps → Clamshell Beats" }
     fun toggleMicRecording() {
         if (mic.recording.value) { mic.stop(); return }
         if (!hasMic()) { micPermissionRequests.tryEmit(Unit); return }
@@ -577,7 +577,7 @@ class AppState(private val app: Application) {
             // Into the sampler track you're on, auto-chopped, like any other sample.
             if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) load(uri, name)
             showMic.value = false
-            lastInput.value = "Saved Music/Thorbox/Field Recordings/$name"
+            lastInput.value = "Saved Music/Clamshell Beats/Field Recordings/$name"
         }
     }
     fun load(item: LibraryItem) {

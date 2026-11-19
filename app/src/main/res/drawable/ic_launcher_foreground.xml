@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clamshell Beats: two shells on a hinge (the Thor), a beat on the top screen, pads below. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- top shell -->
+    <path android:fillColor="#FF5A36"
+        android:pathData="M36,28 H72 A6,6 0 0 1 78,34 V44 A6,6 0 0 1 72,50 H36 A6,6 0 0 1 30,44 V34 A6,6 0 0 1 36,28 Z" />
+    <!-- the beat -->
+    <path android:strokeColor="#0B0B0D" android:strokeWidth="2.6" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M36,39 H45 L48.5,33 L52.5,45 L56.5,31 L60,41 L62,39 H72" />
+    <!-- hinge -->
+    <path android:fillColor="#55555C"
+        android:pathData="M43,52 H65 A1,1 0 0 1 66,53 A1,1 0 0 1 65,54 H43 A1,1 0 0 1 42,53 A1,1 0 0 1 43,52 Z" />
+    <!-- bottom shell -->
+    <path android:fillColor="#F4F4F5"
+        android:pathData="M36,56 H72 A6,6 0 0 1 78,62 V74 A6,6 0 0 1 72,80 H36 A6,6 0 0 1 30,74 V62 A6,6 0 0 1 36,56 Z" />
+    <!-- pads: one lit -->
+    <path android:fillColor="#FF5A36" android:pathData="M46.5,59 H51.5 A1.5,1.5 0 0 1 53,60.5 V65.5 A1.5,1.5 0 0 1 51.5,67 H46.5 A1.5,1.5 0 0 1 45,65.5 V60.5 A1.5,1.5 0 0 1 46.5,59 Z" />
+    <path android:fillColor="#0B0B0D" android:pathData="M56.5,59 H61.5 A1.5,1.5 0 0 1 63,60.5 V65.5 A1.5,1.5 0 0 1 61.5,67 H56.5 A1.5,1.5 0 0 1 55,65.5 V60.5 A1.5,1.5 0 0 1 56.5,59 Z" />
+    <path android:fillColor="#0B0B0D" android:pathData="M46.5,69 H51.5 A1.5,1.5 0 0 1 53,70.5 V75.5 A1.5,1.5 0 0 1 51.5,77 H46.5 A1.5,1.5 0 0 1 45,75.5 V70.5 A1.5,1.5 0 0 1 46.5,69 Z" />
+    <path android:fillColor="#0B0B0D" android:pathData="M56.5,69 H61.5 A1.5,1.5 0 0 1 63,70.5 V75.5 A1.5,1.5 0 0 1 61.5,77 H56.5 A1.5,1.5 0 0 1 55,75.5 V70.5 A1.5,1.5 0 0 1 56.5,69 Z" />
+</vector>

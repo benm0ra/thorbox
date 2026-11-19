@@ -1,4 +1,6 @@
-# Thorbox
+<img src="docs/logo.png" width="120" alt="Clamshell Beats logo">
+
+# Clamshell Beats
 
 **A touch-first sampler and synth groovebox for the AYN Thor dual-screen handheld.**
 It combines Koala Sampler's zero-friction flow with Ableton Live's session/detail split across the Thor's hinge.
@@ -186,4 +188,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) (it covers the real-time rules), [SECURIT
 
 ## License
 
-Copyright © 2026 the Thorbox contributors. [GPL-3.0-or-later](LICENSE). Third-party notices are in [NOTICE](NOTICE).
+Copyright © 2026 the Clamshell Beats contributors. [GPL-3.0-or-later](LICENSE). Third-party notices are in [NOTICE](NOTICE).

@@ -1,6 +1,6 @@
-# Contributing to Thorbox
+# Contributing to Clamshell Beats
 
-Thanks for helping! Thorbox is a touch-first sampler/groovebox for the AYN Thor dual-screen
+Thanks for helping! Clamshell Beats is a touch-first sampler/groovebox for the AYN Thor dual-screen
 handheld, built on Oboe (C++) and Jetpack Compose.
 
 ## Ground rules

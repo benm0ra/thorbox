@@ -32,7 +32,7 @@ import java.util.Locale
 
 /**
  * Field recorder sheet. One huge button: tap to record, tap to stop. Stopping saves a WAV to
- * Music/Thorbox/Field Recordings and drops it onto the current sampler track, auto-chopped.
+ * Music/Clamshell Beats/Field Recordings and drops it onto the current sampler track, auto-chopped.
  */
 @Composable
 fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
@@ -68,7 +68,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
                 Text(if (rec) "Tap ■ to stop and chop it" else "Tap ● to record from the Thor's mic", color = Tb.Muted, fontSize = 12.sp)
             }
         }
-        Text("Saves to Music/Thorbox/Field Recordings and loads onto this sampler track's 16 pads. Up to 10 minutes.",
+        Text("Saves to Music/Clamshell Beats/Field Recordings and loads onto this sampler track's 16 pads. Up to 10 minutes.",
             color = Tb.Dim, fontSize = 11.sp)
     }
 }

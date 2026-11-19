@@ -12,7 +12,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.thorbox.app"
+        applicationId = "com.clamshellbeats.app"   // code packages stay com.thorbox.* (internal name)
         minSdk = 33
         targetSdk = 35
         // CI/release set these from git (commit count = always-increasing versionCode, tag = name),

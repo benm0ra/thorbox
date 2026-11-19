@@ -13,8 +13,9 @@
 
     <application
         android:name=".ThorboxApp"
-        android:label="Thorbox"
-        android:icon="@android:drawable/ic_media_play"
+        android:label="Clamshell Beats"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.Thorbox"
         android:hardwareAccelerated="true"
         android:allowBackup="false"
