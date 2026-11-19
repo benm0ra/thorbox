@@ -50,19 +50,19 @@ fun TopScreen(state: AppState) {
         awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); state.noteTopTouch() } }
     }) {
     Row(Modifier.fillMaxSize().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Column(Modifier.width(56.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
+        Column(Modifier.width(64.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            HwButton("SMP", Modifier.fillMaxWidth(), active = view == TopView.SAMPLER, minHeight = 40.dp, fontSize = 12) { state.selectTop(TopView.SAMPLER) }
-            HwButton("SYN", Modifier.fillMaxWidth(), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 40.dp, fontSize = 12) { state.selectTop(TopView.SYNTH) }
-            HwButton("DRM", Modifier.fillMaxWidth(), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 40.dp, fontSize = 12) { state.selectTop(TopView.DRUM) }
-            HwButton("SEQ", Modifier.fillMaxWidth(), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 40.dp, fontSize = 12) { state.selectTop(TopView.SEQ) }
-            HwButton("MIX", Modifier.fillMaxWidth(), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12) { state.selectTop(TopView.MIX) }
-            HwButton("VIZ", Modifier.fillMaxWidth(), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 44.dp, fontSize = 12) {
+            HwButton("SAMPLE", Modifier.fillMaxWidth(), active = view == TopView.SAMPLER, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SAMPLER) }
+            HwButton("SYNTH", Modifier.fillMaxWidth(), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
+            HwButton("DRUMS", Modifier.fillMaxWidth(), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
+            HwButton("STEPS", Modifier.fillMaxWidth(), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
+            HwButton("MIXER", Modifier.fillMaxWidth(), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
+            HwButton("VISUAL", Modifier.fillMaxWidth(), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) {
                 if (view == TopView.VIZ) state.exitViz() else state.selectTop(TopView.VIZ)
             }
             // Transport: always visible whatever view you're in
             HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth(), active = state.groove.playing.value, accent = Tb.Good, minHeight = 40.dp, fontSize = 14) { state.groove.togglePlay() }
-            HwButton("THM", Modifier.fillMaxWidth(), active = state.showThemes.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 10) {
+            HwButton("THEME", Modifier.fillMaxWidth(), active = state.showThemes.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 9, hPad = 2.dp) {
                 state.showThemes.value = !state.showThemes.value }
             Box(Modifier.weight(1f))
             LevelMeter(state.level, Modifier.fillMaxWidth().weight(2f)
@@ -82,6 +82,7 @@ fun TopScreen(state: AppState) {
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
         }
     }
+    InfoLine()             // plain-words explanation of whatever you just touched
     if (state.showThemes.value) ThemePicker(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls
     }

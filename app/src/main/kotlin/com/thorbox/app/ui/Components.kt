@@ -39,6 +39,7 @@ fun HwButton(
     accent: Color = Tb.Pads[0],
     minHeight: Dp = 44.dp,
     fontSize: Int = 14,
+    hPad: Dp = 12.dp,
     onClick: () -> Unit,
 ) {
     Box(
@@ -47,8 +48,8 @@ fun HwButton(
             .widthIn(min = 44.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (active) accent else Tb.Raised)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
+            .clickable(enabled = enabled) { Info.show(text); onClick() }
+            .padding(horizontal = hPad),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -95,7 +96,7 @@ fun DragValue(
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(Tb.Raised)
-            .androidxPointer(pxPerUnit, { delta(it) }, { reset?.invoke() })
+            .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.Center,
     ) {
@@ -123,7 +124,7 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
             .background(if (held) accent else Tb.Raised)
             .pointerInteropFilter { ev ->
                 when (ev.actionMasked) {
-                    android.view.MotionEvent.ACTION_DOWN -> cb(true)
+                    android.view.MotionEvent.ACTION_DOWN -> { Info.show(text); cb(true) }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> cb(false)
                 }
                 true

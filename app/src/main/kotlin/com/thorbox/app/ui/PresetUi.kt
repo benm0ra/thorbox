@@ -70,7 +70,7 @@ fun PresetBar(
     val spin by animateFloatAsState(rolls * 90f, spring(dampingRatio = 0.45f, stiffness = 300f), label = "die")
     Row(modifier.height(40.dp).glass(state, 12.dp).padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        HwButton("◀", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 13, onClick = onPrev)
+        HwButton("‹", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 20, hPad = 4.dp, onClick = onPrev)
         Row(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Void.copy(alpha = 0.55f))
             .clickable(onClick = onOpen).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(groupColor))
@@ -79,7 +79,7 @@ fun PresetBar(
             if (groupLabel != null) Text(groupLabel, color = groupColor, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
             Text("  ▾", color = Tb.Muted, fontSize = 12.sp)
         }
-        HwButton("▶", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 13, onClick = onNext)
+        HwButton("›", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 20, hPad = 4.dp, onClick = onNext)
         Box(Modifier.fillMaxHeight().width(54.dp).clip(RoundedCornerShape(6.dp)).background(Tb.Key)
             .clickable { rolls++; onDice() }, contentAlignment = Alignment.Center) {
             Die(Modifier.size(20.dp).rotate(spin))

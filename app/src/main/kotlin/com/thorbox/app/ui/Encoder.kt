@@ -56,7 +56,7 @@ fun Encoder(
             Modifier.fillMaxWidth(0.82f).aspectRatio(1f)
                 .pointerInput(Unit) {
                     detectDragGestures(
-                        onDragStart = { start() },
+                        onDragStart = { Info.show(label); start() },
                         onDragEnd = { end() },
                         onDragCancel = { end() },
                     ) { change, drag ->

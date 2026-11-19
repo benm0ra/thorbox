@@ -116,7 +116,7 @@ fun SeqScreen(state: AppState) {
                 onDelta = { g.gen.value = g.gen.value.copy(density = (g.gen.value.density + it).coerceIn(0.05f, 1f)) })
             if (track == 1) {
                 HwButton("${gp.rangeOctaves} OCT", Modifier.fillMaxHeight(), fontSize = 12) { g.gen.value = gp.copy(rangeOctaves = gp.rangeOctaves % 3 + 1) }
-                HwButton("SNAP", Modifier.fillMaxHeight(), fontSize = 12) { g.snapToScale() }
+                HwButton("FIX SCALE", Modifier.fillMaxHeight(), fontSize = 12) { g.snapToScale() }
             }
             HwButton("CHANCE", Modifier.fillMaxHeight(), active = gp.probSpread, accent = Tb.EncGreen, fontSize = 12) { g.gen.value = gp.copy(probSpread = !gp.probSpread) }
             Text("#${g.seed.intValue % 10000}", color = Tb.Dim, fontFamily = Tb.Mono, fontSize = 11.sp, modifier = Modifier.padding(top = 16.dp))

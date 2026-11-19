@@ -34,7 +34,7 @@ const val PADS_PER_BANK = 16
 data class MusicalKey(val root: PitchClass, val mode: ScaleMode) {
     // Formats as "C# Min" or "F Maj".
     fun label(): String = root.name.replace("s", "#") + " " +
-        when (mode) { ScaleMode.MAJOR -> "Maj"; ScaleMode.MINOR -> "Min"; else -> mode.name.lowercase() }
+        when (mode) { ScaleMode.MAJOR -> "major"; ScaleMode.MINOR -> "minor"; else -> mode.name.lowercase() }
 }
 
 // ---------- Sample ----------

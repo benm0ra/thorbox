@@ -76,7 +76,7 @@ fun BoxScope.ControllerHud(state: AppState) {
 }
 
 private fun short(v: TopView) = when (v) {
-    TopView.SAMPLER -> "SMP"; TopView.SYNTH -> "SYN"; TopView.DRUM -> "DRM"; TopView.SEQ -> "SEQ"; TopView.MIX -> "MIX"; TopView.VIZ -> "VIZ"
+    TopView.SAMPLER -> "SAMPLE"; TopView.SYNTH -> "SYNTH"; TopView.DRUM -> "DRUMS"; TopView.SEQ -> "STEPS"; TopView.MIX -> "MIXER"; TopView.VIZ -> "VISUAL"
 }
 
 private fun accent(v: TopView) = when (v) {
