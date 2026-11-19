@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Builds signed APKs for a version tag and publishes them as a GitHub Release.
+#   git tag v0.7.0-alpha.1 && git push origin v0.7.0-alpha.1
+# Tags with a "-" (alpha, beta, rc) are marked pre-release.
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the release and upload the APKs
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }          # full history: versionCode = commit count
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Engine tests (ASan + UBSan)
+        run: tools/run-host-tests.sh
+
+      - name: Version + signing key
+        env:
+          KS: ${{ secrets.THORBOX_KEYSTORE_B64 }}
+        run: |
+          echo "THORBOX_VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "THORBOX_VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "THORBOX_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "SIGNING=permanent project key" >> "$GITHUB_ENV"
+          else
+            echo "::warning::THORBOX_KEYSTORE_B64 secret not set: signing with a temporary key. Later builds will need an uninstall first."
+            echo "THORBOX_ALLOW_DEBUG_SIGNING=1" >> "$GITHUB_ENV"
+            echo "SIGNING=TEMPORARY key (uninstall before installing a later build)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build release + debug APKs
+        env:
+          THORBOX_KEYSTORE_PASSWORD: ${{ secrets.THORBOX_KEYSTORE_PASSWORD }}
+          THORBOX_KEY_ALIAS: ${{ secrets.THORBOX_KEY_ALIAS }}
+          THORBOX_KEY_PASSWORD: ${{ secrets.THORBOX_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease :app:assembleDebug --stacktrace
+
+      - name: Collect files
+        run: |
+          mkdir dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/Thorbox-${THORBOX_VERSION_NAME}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/Thorbox-${THORBOX_VERSION_NAME}-debug.apk"
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          cat > notes.md <<NOTES
+          ## Install on the AYN Thor
+          1. Download **Thorbox-${THORBOX_VERSION_NAME}.apk** below (on the Thor, or on a computer and copy it over).
+          2. Open it and allow *Install unknown apps* when asked. Or, from a computer: \`adb install -r Thorbox-${THORBOX_VERSION_NAME}.apk\`
+          3. New versions install straight over the old one: your projects and settings stay.
+
+          **Which file?** \`Thorbox-${THORBOX_VERSION_NAME}.apk\` is the optimized build: smaller and faster.
+          If it misbehaves, try \`-debug.apk\` and please report what happened. Both are the same app and update each other.
+
+          Build ${THORBOX_VERSION_CODE} · signed with the ${SIGNING} · checksums in SHA256SUMS.txt
+          NOTES
+          sed -i 's/^          //' notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
+          body_path: notes.md
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

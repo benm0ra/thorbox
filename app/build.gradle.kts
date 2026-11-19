@@ -15,8 +15,10 @@ android {
         applicationId = "com.thorbox.app"
         minSdk = 33
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-m1"
+        // CI/release set these from git (commit count = always-increasing versionCode, tag = name),
+        // so every new build installs over the previous one.
+        versionCode = (System.getenv("THORBOX_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("THORBOX_VERSION_NAME") ?: "0.0.0-dev"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
     // Release signing comes from keystore.properties (git-ignored), or from environment variables in CI.
@@ -37,6 +39,13 @@ android {
     }
 
     buildTypes {
+        // Debug builds use the release key when it's available (CI with secrets), so a debug APK
+        // and a release APK can update each other. Otherwise: the local, per-machine debug key.
+        debug {
+            // No key → unsigned (can't be installed), unless CI explicitly allows a temporary debug signature.
+            signingConfig = signingConfigs.findByName("release")
+                ?: if (System.getenv("THORBOX_ALLOW_DEBUG_SIGNING") == "1") signingConfigs.getByName("debug") else null ?: signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
