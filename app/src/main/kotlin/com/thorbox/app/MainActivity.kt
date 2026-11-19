@@ -66,6 +66,9 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    // androidx.core marks ComponentActivity.dispatchKeyEvent @RestrictTo, so lint flags the plain
+    // super call. It's a known false positive: we only forward to the framework implementation.
+    @android.annotation.SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         state.input.onKey(event) || super.dispatchKeyEvent(event)
 

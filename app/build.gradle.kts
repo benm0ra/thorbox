@@ -46,6 +46,12 @@ android {
         }
     }
     buildFeatures { compose = true; buildConfig = true }
+    lint {
+        textReport = true
+        textOutput = file("stdout")          // print every finding in the CI log, not just the first
+        abortOnError = true
+        checkDependencies = true             // also lint :engine
+    }
     packaging { jniLibs { useLegacyPackaging = false } }   // page-aligned, uncompressed .so (faster load)
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

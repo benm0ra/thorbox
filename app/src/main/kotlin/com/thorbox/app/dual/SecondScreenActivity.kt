@@ -29,6 +29,9 @@ class SecondScreenActivity : ComponentActivity() {
         setContent { ThorboxTheme { RoleContent(role, appState) } }
     }
 
+    // androidx.core marks ComponentActivity.dispatchKeyEvent @RestrictTo, so lint flags the plain
+    // super call. It's a known false positive: we only forward to the framework implementation.
+    @android.annotation.SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         appState.input.onKey(event) || super.dispatchKeyEvent(event)
 

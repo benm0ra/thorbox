@@ -35,9 +35,18 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :app:assembleDebug :app:lintDebug --stacktrace
+      # Build first and lint second, so the APK is produced (and uploaded) even when lint fails.
+      - run: ./gradlew :app:assembleDebug --stacktrace
+      - run: ./gradlew :app:lintDebug
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: thorbox-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.*
           retention-days: 14
