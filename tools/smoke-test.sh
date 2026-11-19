@@ -48,6 +48,10 @@ tour() {
     adb shell am start -n $PKG/.MainActivity --es deck $d >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-deck-$d.png" || true
   done
+  # Fill the song: a second synth, a second drum machine, another sampler; then play everything.
+  for k in SYNTH DRUMS SAMPLER SYNTH DRUMS; do adb shell am start -n $PKG/.MainActivity --es add $k >/dev/null; sleep 1; done
+  for v in MIX SYNTH DRUM SEQ SAMPLER; do adb shell am start -n $PKG/.MainActivity --es view $v --ez play true >/dev/null; sleep 2
+    adb exec-out screencap -p > "$OUT/$name-8tracks-$v.png" || true; done
   for th in cyberpunk pastel terminal grayscale studio; do        # every theme on the busiest screens
     for v in DRUM SYNTH; do adb shell am start -n $PKG/.MainActivity --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
     adb exec-out screencap -p > "$OUT/$name-theme-$th.png" || true
