@@ -31,22 +31,23 @@ class GrooveController(private val app: AppState) {
 
     // ---- patterns (index = engine track) ----
     val clips = mutableStateOf(listOf(
-        Clip(ClipId("t0"), "DRUMS", color = 0, lengthTicks = 16 * STEP_TICKS),
+        Clip(ClipId("t0"), "SAMPLER", color = 0, lengthTicks = 16 * STEP_TICKS),
         Clip(ClipId("t1"), "SYNTH", color = 1, lengthTicks = 16 * STEP_TICKS),
+        Clip(ClipId("t2"), "DRUMS", color = 2, lengthTicks = 16 * STEP_TICKS),
     ))
     val seqTrack = mutableIntStateOf(0)
     val lane = mutableStateOf(Lane.VEL)
     val cursor = mutableIntStateOf(0)
     val gen = mutableStateOf(GenParams())
     val seed = mutableIntStateOf(1)
-    private val undo = List(2) { ArrayDeque<Clip>() }
+    private val undo = List(3) { ArrayDeque<Clip>() }
     val canUndo = mutableStateOf(false)
 
     // ---- scale ----
     val scale = mutableStateOf(ScaleSetting())
 
     // ---- mixer ----
-    val channels = mutableStateOf(listOf(Channel("SAMPLER"), Channel("SYNTH")))
+    val channels = mutableStateOf(listOf(Channel("SAMPLER"), Channel("SYNTH"), Channel("DRUMS")))
     val masterDb = mutableStateOf(0f)
     val mixSelected = mutableIntStateOf(0)
 
@@ -59,8 +60,8 @@ class GrooveController(private val app: AppState) {
     val fxHeld = mutableIntStateOf(0)                   // bitmask: effects currently touched / pressed
 
     // ---- live readouts (read in draw lambdas) ----
-    val transport = DoubleArray(16)
-    val meters = FloatArray(6)                          // displayed peaks with falloff
+    val transport = DoubleArray(20)
+    val meters = FloatArray(8)                          // displayed peaks with falloff: sampler, synth, master, drums (L/R)
     private val recBuf = DoubleArray(4)
     private val openNotes = HashMap<Int, Pair<Int, Double>>()   // track*128+note → (event tick, abs start tick)
 
@@ -74,7 +75,7 @@ class GrooveController(private val app: AppState) {
         NativeEngine.setPlaying(playing.value); NativeEngine.setRecording(recording.value)
         clips.value.indices.forEach(::sendClip)
         channels.value.indices.forEach(::pushChannel)
-        NativeEngine.setChannel(2, NativeEngine.Ch.VOLUME_DB, masterDb.value)
+        NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value)
     }
 
     private fun pushGroove() {
@@ -86,7 +87,7 @@ class GrooveController(private val app: AppState) {
 
     // Edits mark a track dirty. onFrame() sends at most ONE new pattern per track per frame, however
     // many edits a drag or a recording produced (each push allocates and copies a native pattern).
-    private val dirty = BooleanArray(2)
+    private val dirty = BooleanArray(3)
     private fun pushClip(track: Int) { dirty[track] = true }
     private fun flushClips() { for (t in dirty.indices) if (dirty[t]) { dirty[t] = false; sendClip(t) } }
 
@@ -161,19 +162,44 @@ class GrooveController(private val app: AppState) {
         pushClip(track)
     }
 
-    fun defaultNote(track: Int): Int = if (track == 0) app.sampler.selected.intValue else
+    /** Tracks whose notes are pads/slots (one row per sound) rather than pitches. */
+    fun isPadTrack(track: Int) = track != 1
+    /** The pad / drum slot that pad-track step edits apply to. */
+    fun selectedPad(track: Int) = if (track == NativeEngine.TRACK_DRUMS) app.drums.selected.intValue else app.sampler.selected.intValue
+
+    fun defaultNote(track: Int): Int = if (isPadTrack(track)) selectedPad(track) else
         clips.value[1].notes.lastOrNull()?.note ?: synthBase()
 
-    /** Drums edit one pad at a time (the selected pad), like an MPC/Koala step view. Synth edits everything. */
+    /** Pad tracks edit one pad at a time (the selected pad), like an MPC/Koala step view. Synth edits everything. */
     private inline fun scoped(track: Int, notes: List<NoteEvent>, f: (List<NoteEvent>) -> List<NoteEvent>): List<NoteEvent> {
-        if (track != 0) return f(notes)
-        val pad = app.sampler.selected.intValue
+        if (!isPadTrack(track)) return f(notes)
+        val pad = selectedPad(track)
         val (mine, others) = notes.partition { it.note == pad }
         return (others + f(mine)).sortedBy { it.tick }
     }
     fun visibleNotes(track: Int): List<NoteEvent> {
         val c = clips.value[track]
-        return if (track == 0) c.notes.filter { it.note == app.sampler.selected.intValue } else c.notes
+        return if (isPadTrack(track)) c.notes.filter { it.note == selectedPad(track) } else c.notes
+    }
+
+    // ================= drum machine grid (TR style: one row per drum slot) =================
+
+    fun drumHas(step: Int, slot: Int): Boolean {
+        val c = clips.value[NativeEngine.TRACK_DRUMS]
+        return c.notes.any { it.note == slot && Steps.stepOf(it, c.lengthTicks) == step }
+    }
+    /** Toggle one cell of the TR grid. Accent (velocity) cycles on a second tap? No: tap = on/off, kept simple. */
+    fun drumToggle(step: Int, slot: Int) = update(NativeEngine.TRACK_DRUMS) { c ->
+        val hit = c.notes.firstOrNull { it.note == slot && Steps.stepOf(it, c.lengthTicks) == step }
+        if (hit != null) c.copy(notes = c.notes - hit)
+        else c.copy(notes = (c.notes + NoteEvent(tick = step * STEP_TICKS, lengthTicks = STEP_TICKS / 2, note = slot,
+            velocity = if (step % 4 == 0) 0.95f else 0.8f)).sortedBy { it.tick })
+    }
+    /** Dice a whole beat: kick on the grid, backbeat snare/clap, busy hats, sprinkles of the rest. */
+    fun diceBeat() {
+        seed.intValue = seed.intValue * 1103515245 + 12345 and 0x7fffffff
+        val g = PatternGen(seed.intValue)
+        update(NativeEngine.TRACK_DRUMS, saveUndo = true) { c -> c.copy(notes = g.beat(Steps.count(c.lengthTicks), gen.value)) }
     }
 
     fun stepTap(track: Int, step: Int) = update(track) { c -> c.copy(notes = scoped(track, c.notes) { Steps.toggle(it, c.lengthTicks, step, defaultNote(track)) }) }
@@ -181,7 +207,7 @@ class GrooveController(private val app: AppState) {
     /** Lane edit with v in 0..1. NOTE is scale-aware: two octaves of scale degrees from the root. */
     fun stepEdit(track: Int, step: Int, lane: Lane, v: Float) = update(track) { c ->
         if (lane != Lane.NOTE) c.copy(notes = scoped(track, c.notes) { Steps.edit(it, c.lengthTicks, step, lane, v) })
-        else if (track == 0) c
+        else if (isPadTrack(track)) c
         else {
             val note = if (app.keyLock.value) {
                 val k = key(); val size = Scales.steps(k.mode).size
@@ -196,7 +222,7 @@ class GrooveController(private val app: AppState) {
         Lane.VEL -> e.velocity
         Lane.PROB -> e.probability
         Lane.GATE -> Steps.gateNorm(e.lengthTicks)
-        Lane.NOTE -> if (track == 0) 0.5f else if (app.keyLock.value) {
+        Lane.NOTE -> if (isPadTrack(track)) 0.5f else if (app.keyLock.value) {
             val k = key(); val size = Scales.steps(k.mode).size
             (Scales.degreeOf(e.note, k, synthBase()).toFloat() / (size * 2)).coerceIn(0f, 1f)
         } else ((e.note - synthBase()) / 24f).coerceIn(0f, 1f)
@@ -214,14 +240,14 @@ class GrooveController(private val app: AppState) {
         val g = PatternGen(seed.intValue)
         update(track, saveUndo = true) { c ->
             val steps = Steps.count(c.lengthTicks)
-            c.copy(notes = if (track == 0) g.drums(steps, gen.value) else g.melody(steps, gen.value, key(), synthBase()))
+            c.copy(notes = if (isPadTrack(track)) scoped(track, c.notes) { g.drums(steps, gen.value, selectedPad(track)) } else g.melody(steps, gen.value, key(), synthBase()))
         }
     }
 
     fun mutate(track: Int) {
         seed.intValue = seed.intValue * 1103515245 + 12345 and 0x7fffffff
         val g = PatternGen(seed.intValue)
-        update(track, saveUndo = true) { c -> c.copy(notes = g.mutate(c.notes, c.lengthTicks, 0.3f, if (track == 1) key() else null, synthBase(), track == 0)) }
+        update(track, saveUndo = true) { c -> c.copy(notes = g.mutate(c.notes, c.lengthTicks, 0.3f, if (track == 1) key() else null, synthBase(), isPadTrack(track))) }
     }
 
     /** Snap the synth pattern to the current scale (after you change key). */
@@ -386,7 +412,7 @@ class GrooveController(private val app: AppState) {
         if (new == list[i]) return
         list[i] = new; channels.value = list; pushChannel(i)
     }
-    fun setMaster(db: Float) { masterDb.value = db.coerceIn(-60f, 6f); NativeEngine.setChannel(2, NativeEngine.Ch.VOLUME_DB, masterDb.value) }
+    fun setMaster(db: Float) { masterDb.value = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value) }
 
     // ================= per frame =================
 
@@ -402,6 +428,7 @@ class GrooveController(private val app: AppState) {
         NativeEngine.transport(transport)
         val fall = Math.pow(0.05, dt.toDouble()).toFloat()          // ~0.5 s meter falloff
         for (i in 0 until 6) meters[i] = maxOf(transport[4 + i].toFloat(), meters[i] * fall)
+        for (i in 0 until 2) meters[6 + i] = maxOf(transport[16 + i].toFloat(), meters[6 + i] * fall)
         while (true) {
             val t = NativeEngine.pollRecord(recBuf)
             if (t == 0) break

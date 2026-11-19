@@ -25,7 +25,7 @@ static seq::Pattern* synthLoop() {
 }
 
 int main() {
-    double tr[16], ev[10], rec[4];
+    double tr[20], ev[10], rec[4];
     {
         AudioEngine e;
         e.setTempo(120); e.setPattern(1, synthLoop()); e.setPlaying(true);
@@ -78,6 +78,30 @@ int main() {
         CHECK(((int)tr[12] & 1) == 1, "punch-in stutter reported active");
         e.fxOff(0); render(e, 9600); e.getTransport(tr);
         CHECK((int)tr[12] == 0, "…and inactive after release");
+
+        // Drum synth: its own track (2), strip (2) and meters [16..17]; master is strip 3.
+        e.setChannel(1, 2, 1.f);                       // mute the synth so only drums sound
+        auto* dp = new seq::Pattern(); dp->lengthTicks = 3840; dp->count = 4;
+        for (int i = 0; i < 4; ++i) dp->events[i] = seq::Event{i * 960, 120, (int16_t)(i % 2 ? 1 : 0), 1.f, 1.f};
+        e.setPattern(2, dp);
+        render(e, 2400); e.getTransport(tr);
+        auto dr = render(e, 48000); e.getTransport(tr);
+        CHECK(rms(dr, 0) > 0.01 && tr[16] > 0.01 && tr[6] < 1e-3, "drum track sequenced on its own strip (rms %.3f, meter %.3f)", rms(dr, 0), tr[16]);
+        float lv[8]; int32_t hits[8]; e.getDrumTelemetry(lv, hits);
+        CHECK(hits[0] >= 1 && hits[1] >= 1, "drum hit counters advance (kick %d, snare %d)", hits[0], hits[1]);
+        e.setChannel(2, 2, 1.f); render(e, 2400); auto dm = render(e, 24000);
+        CHECK(rms(dm, 0) < 1e-5, "muting strip 2 silences the drums");
+        e.setChannel(2, 2, 0.f);
+        e.setChannel(3, 0, -60.f); render(e, 9600); auto mm = render(e, 24000);
+        CHECK(rms(mm, 0) < 2e-3, "strip 3 is the master fader (rms %.2e)", rms(mm, 0));
+        e.setChannel(3, 0, 0.f);
+        CHECK(!e.setChannel(4, 0, 0.f) && !e.drumTrigger(8, 1.f) && !e.drumParam(0, 99, 1.f), "out-of-range strip / slot / param rejected");
+        e.setRecording(true); render(e, 256); e.pollEvent(ev); while (e.pollRecord(rec)) {}
+        e.setPattern(2, nullptr);
+        e.drumTrigger(5, 0.9f); render(e, 256); e.pollEvent(ev);
+        bool got = false; while (e.pollRecord(rec)) got |= ((int)rec[0] == 2 && (int)rec[1] == 5);
+        CHECK(got, "live drum hits are recorded on track 2");
+        e.setRecording(false); e.setChannel(1, 2, 0.f);
 
         e.setPlaying(false); render(e, 48000);
         e.getTransport(tr);

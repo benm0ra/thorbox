@@ -173,6 +173,25 @@ void AudioEngine::getTransport(double* out) {
     out[13] = (double)mTelPads.load(std::memory_order_relaxed);
     out[14] = mTelPlayPad.load(std::memory_order_relaxed);
     out[15] = 0;
+    out[16] = mMeters[6].exchange(0.f, std::memory_order_relaxed);
+    out[17] = mMeters[7].exchange(0.f, std::memory_order_relaxed);
+    out[18] = (double)mTelDrums.load(std::memory_order_relaxed);
+    out[19] = 0;
+}
+
+bool AudioEngine::drumTrigger(int slot, float vel) {
+    if (slot < 0 || slot >= drums::kSlots) return false;
+    return mCmds.push({CmdType::DrumTrigger, slot, 0, std::clamp(vel, 0.f, 1.f)});
+}
+bool AudioEngine::drumParam(int slot, int id, float v) {
+    if (slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount || !std::isfinite(v)) return false;
+    return mCmds.push({CmdType::DrumParam, slot, id, v});
+}
+void AudioEngine::getDrumTelemetry(float* levels, int32_t* hits) {
+    for (int s = 0; s < drums::kSlots; ++s) {
+        levels[s] = mDrumLevel[s].load(std::memory_order_relaxed);
+        hits[s] = mDrumHits[s].load(std::memory_order_relaxed);
+    }
 }
 
 bool AudioEngine::setPadRegion(int pad, int64_t s, int64_t e) {
@@ -443,6 +462,8 @@ void AudioEngine::handleCommand(const Command& c) {
         case CmdType::FxMove: mFx.move(c.i0, c.f0, c.f1); break;
         case CmdType::FxOff:  mFx.release(c.i0); break;
         case CmdType::FxAllOff: mFx.releaseAll(); break;
+        case CmdType::DrumTrigger: mDrums.trigger(c.pad, c.f0); recordEvent(AudioEventType::NoteRecorded, 2, c.pad, c.f0, mSeq.tick()); break;
+        case CmdType::DrumParam: mDrums.setParam(c.pad, c.i0, c.f0); break;
         case CmdType::SetChannel: {
             if (c.pad == kStrips) {                       // master: volume only
                 if (c.i0 == (int)ChannelParam::VolumeDb) mMasterGainTarget = std::pow(10.f, std::clamp(c.f0, -60.f, 6.f) / 20.f);
@@ -510,6 +531,7 @@ void AudioEngine::applyFire(const seq::Fire& f, double tickAtChunk, double tps, 
         return;
     }
     if (f.track == 0) { if (f.on) startPad(f.note, f.velocity, sr); else releasePad(f.note, sr); }
+    else if (f.track == 2) { if (f.on) mDrums.trigger(f.note, f.velocity); }   // drums are one-shots: note-offs are ignored
     else {
         if (f.on && f.src) {
             // Pattern hit: its p-locks apply now and hold until the next step without them.
@@ -528,6 +550,7 @@ void AudioEngine::renderSegment(int a, int b, float sr, uint32_t& w) {
     if (n <= 0) return;
     for (auto& v : mVoices) if (v.active()) v.render(mBus[0].data() + 2 * a, n, sr);
     mSynth.render(mBus[1].data() + 2 * a, mSynthScratch.data() + a, n);
+    mDrums.render(mBus[2].data() + 2 * a, n);
     for (int i = 0; i < n; ++i) mScope[(w++) & (kScope - 1)].store(mSynthScratch[a + i], std::memory_order_relaxed);
     if (mClickEnv > 1e-4f) {
         const float dec = std::exp(-1.f / (0.012f * sr)), inc = mClickFreq / sr;
@@ -606,6 +629,7 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     std::memset(out, 0, sizeof(float) * (size_t)numFrames * 2);
     const float sr = (float)stream->getSampleRate();
     mSynth.setSampleRate(sr);
+    mDrums.setSampleRate(sr);
     for (auto& s : mStrips) { s.peakL = s.peakR = 0.f; }
     mMasterPeakL = mMasterPeakR = 0.f;
     uint32_t w = mScopeWrite.load(std::memory_order_relaxed);
@@ -648,6 +672,16 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     atomicMax(mMeters[0], mStrips[0].peakL); atomicMax(mMeters[1], mStrips[0].peakR);
     atomicMax(mMeters[2], mStrips[1].peakL); atomicMax(mMeters[3], mStrips[1].peakR);
     atomicMax(mMeters[4], mMasterPeakL);     atomicMax(mMeters[5], mMasterPeakR);
+    atomicMax(mMeters[6], mStrips[2].peakL); atomicMax(mMeters[7], mStrips[2].peakR);
+    {
+        uint32_t dm = 0;
+        for (int s = 0; s < drums::kSlots; ++s) {
+            if (mDrums.active(s)) dm |= 1u << s;
+            mDrumLevel[s].store(mDrums.slotLevel(s), std::memory_order_relaxed);
+            mDrumHits[s].store((int32_t)mDrums.hitCount(s), std::memory_order_relaxed);
+        }
+        mTelDrums.store(dm, std::memory_order_relaxed);
+    }
     atomicMax(mPeak, std::max(mMasterPeakL, mMasterPeakR));
 
     // Playhead (position in the whole sample) of the newest voice, which pad it's on, and the pad activity mask.

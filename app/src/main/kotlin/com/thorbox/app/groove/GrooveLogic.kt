@@ -180,6 +180,41 @@ class PatternGen(seed: Int) {
     }
 
     /**
+     * A whole beat for the drum machine (slots: 0 kick, 1 snare, 2 clap, 3 closed hat, 4 open hat,
+     * 5 tom, 6 perc, 7 cymbal). Always a groove, never noise: the kick owns the downbeat, the
+     * backbeat lands on 2 and 4, hats keep time (with the odd trap roll), and [GenParams.density]
+     * decides how busy the extras get.
+     */
+    fun beat(steps: Int, p: GenParams): List<NoteEvent> {
+        val out = ArrayList<NoteEvent>()
+        val d = p.density.coerceIn(0.05f, 1f)
+        fun hit(step: Int, slot: Int, vel: Float, prob: Float = 1f, ratchet: Int = 1) {
+            out += NoteEvent(tick = step * STEP_TICKS, lengthTicks = STEP_TICKS / 2, note = slot,
+                velocity = (vel + (rnd.nextFloat() * 2f - 1f) * 0.12f * p.humanize).coerceIn(0.2f, 1f), probability = prob, ratchet = ratchet)
+        }
+        val kickExtras = listOf(3, 6, 7, 8, 10, 11, 14).shuffled(rnd).take(1 + (d * 3).roundToInt())
+        val hatRate = if (rnd.nextFloat() < 0.35f + 0.4f * d) 1 else 2            // 16ths or 8ths
+        val openOffbeat = rnd.nextFloat() < 0.5f
+        val clapLayer = rnd.nextFloat() < 0.5f
+        for (s in 0 until steps) {
+            val b = s % 16
+            if (b == 0 || b in kickExtras) hit(s, 0, if (b == 0) 1f else 0.85f)
+            if (b == 4 || b == 12) { hit(s, 1, 0.95f); if (clapLayer) hit(s, 2, 0.8f) }
+            else if (!clapLayer && b == 15 && rnd.nextFloat() < d) hit(s, 1, 0.55f, prob = 0.5f)   // ghost snare
+            val open = openOffbeat && b % 4 == 2
+            if (open) hit(s, 4, 0.8f)
+            else if (b % hatRate == 0) {
+                val roll = hatRate == 1 && rnd.nextFloat() < 0.12f * d
+                hit(s, 3, if (b % 4 == 0) 0.85f else 0.6f, ratchet = if (roll) 2 + rnd.nextInt(2) else 1)
+            }
+            if (rnd.nextFloat() < 0.07f * d) hit(s, 5, 0.75f, prob = 0.75f)
+            if (rnd.nextFloat() < 0.09f * d) hit(s, 6, 0.7f, prob = if (p.probSpread) 0.5f else 1f)
+            if (s == 0 && rnd.nextFloat() < 0.4f) hit(s, 7, 0.7f)
+        }
+        return out.sortedBy { it.tick }
+    }
+
+    /**
      * Melody (synth track): always in [key]. Chord tones (degrees 0, 2, 4) are twice as likely,
      * steps move mostly by small intervals so lines sound sung, not sprayed, and gates vary.
      */

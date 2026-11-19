@@ -144,7 +144,63 @@ data class SynthPatch(
     val filterEnv: Adsr = Adsr(attackMs = 2f, decayMs = 350f, sustain = 0.15f, releaseMs = 300f),
     val lfo: Lfo = Lfo(),
     val gainDb: Float = -9f,
+    val voice: VoiceMod = VoiceMod(),
 )
+
+/** Per-voice behaviour added in 0.7 (defaults keep older saved patches sounding the same). */
+@Serializable
+data class VoiceMod(
+    val pitchEnvSemis: Float = 0f,     // -48..48: start this far off and fall back (808 boom, zaps)
+    val pitchEnvDecayMs: Float = 80f,  // 1..5000
+    val glideMs: Float = 0f,           // 0..2000
+    val mono: Boolean = false,         // last-note priority; legato when glide > 0
+    val drive: Float = 0f,             // 0..1
+    val noise: Float = 0f,             // 0..1
+)
+
+// ---------- Drum synth ----------
+// Order matches the engine's drums::Model.
+@Serializable enum class DrumModel(val label: String) {
+    KICK("KICK"), SNARE("SNARE"), CLAP("CLAP"), HAT("HAT"), TOM("TOM"), RIM("RIM"),
+    COWBELL("BELL"), CYMBAL("CYMB"), ZAP("ZAP"), SHAKER("SHAKE")
+}
+
+@Serializable
+data class DrumVoice(
+    val name: String,
+    val model: DrumModel,
+    val tune: Float = 0f,        // semitones -24..24
+    val decayMs: Float = 400f,   // 5..4000
+    val tone: Float = 0.5f,      // 0..1
+    val snap: Float = 0.5f,      // 0..1
+    val drive: Float = 0f,       // 0..1
+    val levelDb: Float = 0f,     // -40..6
+    val pan: Float = 0f,         // -1..1
+    val choke: Int = 0,          // 0 none, 1..4
+)
+
+const val DRUM_SLOTS = 8
+
+@Serializable
+data class DrumKit(val name: String = "INIT KIT", val voices: List<DrumVoice> = DefaultKit.voices)
+
+object DefaultKit {
+    val voices = listOf(
+        DrumVoice("KICK", DrumModel.KICK, decayMs = 450f),
+        DrumVoice("SNARE", DrumModel.SNARE, decayMs = 220f),
+        DrumVoice("CLAP", DrumModel.CLAP, decayMs = 260f),
+        DrumVoice("C.HAT", DrumModel.HAT, decayMs = 60f, choke = 1),
+        DrumVoice("O.HAT", DrumModel.HAT, decayMs = 420f, tone = 0.6f, choke = 1),
+        DrumVoice("TOM", DrumModel.TOM, decayMs = 380f),
+        DrumVoice("RIM", DrumModel.RIM, decayMs = 70f),
+        DrumVoice("CYMBAL", DrumModel.CYMBAL, decayMs = 1400f),
+    )
+}
+
+// ---------- Presets ----------
+@Serializable enum class SynthCategory(val label: String) { BASS("BASS"), SUB808("808"), LEAD("LEAD"), KEYS("KEYS"), PAD("PAD"), PLUCK("PLUCK"), WEIRD("WEIRD") }
+@Serializable data class SynthPreset(val name: String, val category: SynthCategory, val patch: SynthPatch, val user: Boolean = false)
+@Serializable data class KitPreset(val name: String, val kit: DrumKit, val user: Boolean = false)
 
 // ---------- Tracks ----------
 @Serializable
@@ -250,4 +306,4 @@ sealed interface Selection {
 }
 
 enum class AppMode { DAW, PERFORMANCE }
-enum class Deck { PADS, KEYS, STEP, FX, STRUM }
+enum class Deck { PADS, KEYS, DRUMS, STEP, FX, STRUM }

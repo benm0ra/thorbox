@@ -27,6 +27,9 @@ import kotlin.math.sign
  *   SYNTH    the sticks are the four encoders (L-stick X = blue, Y = green; R-stick X = white, Y = orange)
  *            D-pad ←/→ page · ↑/↓ keyboard octave · A / R1 hold = play root (or root chord)
  *            X chord mode · Y reset page
+ *            L3 next preset · R3 DICE a new sound
+ *   DRUM     D-pad ←/→ step · ↑/↓ sound · A toggle step · R1 hold = play sound · sticks = encoders
+ *            X dice beat · Y undo · L3 next kit · R3 dice kit
  *   SEQ      D-pad ←/→ step cursor · ↑/↓ edit the current lane · A toggle step · X dice · Y undo
  *   MIX      D-pad ←/→ select strip · ↑/↓ ±1 dB · A mute · Y solo · L-stick Y volume · R-stick X pan
  *   always   START play/stop · L1 hold = note repeat (with A/R1, pads or keys)
@@ -55,7 +58,7 @@ class InputRouter(private val state: AppState) {
                 state.selectTop(v); state.noteTopTouch()
             }
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (first) {
-                val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
+                val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
                 state.selectDeck(cycle(decks, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1))
             }
             KeyEvent.KEYCODE_BUTTON_L1 -> if (down) g.nudgeBpm(-1f)
@@ -120,6 +123,28 @@ class InputRouter(private val state: AppState) {
             KeyEvent.KEYCODE_BUTTON_L1 -> { if (first) g.setRepeatHeld(true) else if (up) g.setRepeatHeld(false); return true }
         }
 
+        if (state.topView.value == TopView.DRUM) {
+            val dc = state.drums
+            val track = com.thorbox.engine.NativeEngine.TRACK_DRUMS
+            val steps = com.thorbox.app.groove.Steps.count(g.clips.value[track].lengthTicks)
+            val slots = com.thorbox.model.DRUM_SLOTS
+            when (e.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (down) g.cursor.intValue = (g.cursor.intValue - 1 + steps) % steps
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (down) g.cursor.intValue = (g.cursor.intValue + 1) % steps
+                KeyEvent.KEYCODE_DPAD_UP -> if (down) dc.selected.intValue = (dc.selected.intValue - 1 + slots) % slots
+                KeyEvent.KEYCODE_DPAD_DOWN -> if (down) dc.selected.intValue = (dc.selected.intValue + 1) % slots
+                KeyEvent.KEYCODE_BUTTON_A -> if (first) g.drumToggle(g.cursor.intValue % steps, dc.selected.intValue)
+                KeyEvent.KEYCODE_BUTTON_R1 -> if (first) dc.hit(dc.selected.intValue, 0.9f) else if (up) dc.release(dc.selected.intValue)
+                KeyEvent.KEYCODE_BUTTON_X -> if (first) g.diceBeat()
+                KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.undo(track)
+                KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) dc.stepKit(+1)
+                KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) dc.diceKit()
+                KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> Unit
+                else -> return false
+            }
+            return true
+        }
+
         if (state.topView.value == TopView.SEQ) {
             val tr = g.seqTrack.intValue
             val steps = com.thorbox.app.groove.Steps.count(g.clips.value[tr].lengthTicks)
@@ -146,16 +171,17 @@ class InputRouter(private val state: AppState) {
         }
 
         if (state.topView.value == TopView.MIX) {
-            val sel = g.mixSelected.intValue          // 0, 1 = strips, 2 = master
+            val sel = g.mixSelected.intValue          // 0 sampler, 1 synth, 2 drums, 3 = master
+            val master = com.thorbox.app.ui.MASTER_STRIP
             when (e.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (first) g.mixSelected.intValue = (sel + 2) % 3
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) g.mixSelected.intValue = (sel + 1) % 3
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (first) g.mixSelected.intValue = (sel + master) % (master + 1)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) g.mixSelected.intValue = (sel + 1) % (master + 1)
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (down) {
                     val d = if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP) 1f else -1f
-                    if (sel == 2) g.setMaster(g.masterDb.value + d) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + d) }
+                    if (sel == master) g.setMaster(g.masterDb.value + d) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + d) }
                 }
-                KeyEvent.KEYCODE_BUTTON_A -> if (first && sel < 2) g.setChannel(sel) { it.copy(mute = !it.mute) }
-                KeyEvent.KEYCODE_BUTTON_Y -> if (first && sel < 2) g.setChannel(sel) { it.copy(solo = !it.solo) }
+                KeyEvent.KEYCODE_BUTTON_A -> if (first && sel < master) g.setChannel(sel) { it.copy(mute = !it.mute) }
+                KeyEvent.KEYCODE_BUTTON_Y -> if (first && sel < master) g.setChannel(sel) { it.copy(solo = !it.solo) }
                 KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
                 KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit
                 else -> return false
@@ -177,7 +203,9 @@ class InputRouter(private val state: AppState) {
             KeyEvent.KEYCODE_BUTTON_X -> if (first) { if (synth) state.chordMode.value = !state.chordMode.value else state.cyclePlayMode() }
             KeyEvent.KEYCODE_BUTTON_Y -> if (first) { if (synth) state.resetPage(state.synthPage.value) else state.resetPitch() }
             KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
-            KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit   // consumed, reserved
+            // Stick clicks: in the synth, L3 = next preset, R3 = DICE a new sound. Reserved elsewhere.
+            KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first && synth) state.stepSynthPreset(+1)
+            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first && synth) state.diceSynth()
             else -> return false
         }
         return true
@@ -251,8 +279,14 @@ class InputRouter(private val state: AppState) {
             val g = state.groove; val sel = g.mixSelected.intValue
             val vol = -axes[1] * abs(axes[1]) * dt * 30f            // dB per second at full tilt
             val pan = axes[2] * abs(axes[2]) * dt * 1.5f
-            if (vol != 0f) { if (sel == 2) g.setMaster(g.masterDb.value + vol) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + vol) } }
-            if (pan != 0f && sel < 2) g.setChannel(sel) { it.copy(pan = it.pan + pan) }
+            val master = com.thorbox.app.ui.MASTER_STRIP
+            if (vol != 0f) { if (sel == master) g.setMaster(g.masterDb.value + vol) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + vol) } }
+            if (pan != 0f && sel < master) g.setChannel(sel) { it.copy(pan = it.pan + pan) }
+            return
+        }
+        if (state.topView.value == TopView.DRUM) {
+            val dirs = floatArrayOfAxes()
+            for (i in 0 until 4) { val a = dirs[i]; if (a != 0f) state.drums.nudgeKnob(i, a * abs(a) * dt * 0.85f) }
             return
         }
         if (state.topView.value != TopView.SYNTH) return

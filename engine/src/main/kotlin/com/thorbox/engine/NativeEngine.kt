@@ -92,8 +92,21 @@ object NativeEngine {
     fun repeatOff(track: Int, note: Int) = nativeRepeatOff(track, note)
     fun repeatVelocity(v: Float) = nativeRepeatVelocity(v)
 
-    // ---- Mixer: strip 0 sampler, 1 synth, 2 master (volume only) ----
+    // ---- Mixer: strip 0 sampler, 1 synth, 2 drums, 3 master (volume only) ----
     object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3 }
+    const val STRIP_MASTER = 3
+    const val TRACK_DRUMS = 2
+
+    // ---- Drum synth: 8 slots, each a synthesis model (ordinals match drums::Model in DrumSynth.h) ----
+    enum class DrumModel(val label: String) { KICK("KICK"), SNARE("SNARE"), CLAP("CLAP"), HAT("HAT"), TOM("TOM"), RIM("RIM"),
+        COWBELL("BELL"), CYMBAL("CYMB"), ZAP("ZAP"), SHAKER("SHAKE") }
+    object DrumParam { const val MODEL = 0; const val TUNE = 1; const val DECAY = 2; const val TONE = 3; const val SNAP = 4
+        const val DRIVE = 5; const val LEVEL_DB = 6; const val PAN = 7; const val CHOKE = 8; const val COUNT = 9 }
+    const val DRUM_SLOTS = 8
+    fun drumTrigger(slot: Int, velocity: Float) = nativeDrumTrigger(slot, velocity)
+    fun drumParam(slot: Int, id: Int, value: Float) = nativeDrumParam(slot, id, value)
+    /** Per-slot level (0..1) and hit counters (compare with the last read to spot new hits). */
+    fun drumTelemetry(levels: FloatArray, hits: IntArray) = nativeGetDrumTelemetry(levels, hits)
     fun setChannel(strip: Int, param: Int, value: Float) = nativeSetChannel(strip, param, value)
 
     // ---- Punch-in FX ----
@@ -104,9 +117,10 @@ object NativeEngine {
     fun fxAllOff() = nativeFxAllOff()
 
     /**
-     * Transport + meters, filled in place. Layout (16): 0 tick (absolute since PLAY), 1 playing,
+     * Transport + meters, filled in place. Layout (20): 0 tick (absolute since PLAY), 1 playing,
      * 2 recording, 3 bpm, 4/5 sampler L/R peak, 6/7 synth L/R, 8/9 master L/R, 10 swing,
-     * 11 metronome, 12 active FX bitmask. Peaks are held until read.
+     * 11 metronome, 12 active FX bitmask, 13 sounding pads mask, 14 newest pad, 16/17 drums L/R,
+     * 18 sounding drum slots mask. Peaks are held until read.
      */
     fun transport(out: DoubleArray) = nativeGetTransport(out)
 
@@ -194,6 +208,9 @@ object NativeEngine {
     private external fun nativeFxOff(id: Int): Boolean
     private external fun nativeFxAllOff(): Boolean
     private external fun nativeGetTransport(out: DoubleArray)
+    private external fun nativeDrumTrigger(slot: Int, velocity: Float): Boolean
+    private external fun nativeDrumParam(slot: Int, id: Int, value: Float): Boolean
+    private external fun nativeGetDrumTelemetry(levels: FloatArray, hits: IntArray)
     private external fun nativePollRecord(out: DoubleArray): Int
     private external fun nativeGetVisual(bands: FloatArray, wave: FloatArray, energy: FloatArray)
 }

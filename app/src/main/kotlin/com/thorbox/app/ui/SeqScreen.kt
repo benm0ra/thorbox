@@ -58,7 +58,7 @@ fun SeqScreen(state: AppState) {
     val g = state.groove
     val groove = g.groove.value
     val track = g.seqTrack.intValue
-    val accent = if (track == 0) Tb.Pads[0] else Tb.EncOrange
+    val accent = when (track) { 0 -> Tb.Pads[0]; 1 -> Tb.EncOrange; else -> drumColor(state.drums.selected.intValue) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // ---- transport & groove ----
@@ -80,6 +80,8 @@ fun SeqScreen(state: AppState) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             HwButton("PAD ${state.sampler.selected.intValue + 1}", Modifier.fillMaxHeight(), active = track == 0, accent = Tb.Pads[0], minHeight = 40.dp, fontSize = 12) { g.seqTrack.intValue = 0 }
             HwButton("SYNTH", Modifier.fillMaxHeight(), active = track == 1, accent = Tb.EncOrange, minHeight = 40.dp, fontSize = 12) { g.seqTrack.intValue = 1 }
+            HwButton(state.drums.kit.value.voices[state.drums.selected.intValue].name.take(6), Modifier.fillMaxHeight(), active = track == 2,
+                accent = Tb.Pads[1], minHeight = 40.dp, fontSize = 12) { g.seqTrack.intValue = 2 }
             if (track == 1) {
                 val grid = g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID
                 HwButton(if (grid) "GRID" else "LANES", Modifier.fillMaxHeight(), active = true, accent = Tb.EncGreen, minHeight = 40.dp, fontSize = 12) {
@@ -88,7 +90,7 @@ fun SeqScreen(state: AppState) {
             }
             Box(Modifier.width(6.dp))
             Lane.entries.forEach { l ->
-                if (l == Lane.NOTE && track == 0) return@forEach
+                if (l == Lane.NOTE && track != 1) return@forEach
                 if (track == 1 && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) return@forEach
                 HwButton(l.name, Modifier.fillMaxHeight(), active = g.lane.value == l, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12) { g.lane.value = l }
             }

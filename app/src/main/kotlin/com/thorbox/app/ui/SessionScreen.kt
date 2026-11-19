@@ -54,6 +54,7 @@ fun TopScreen(state: AppState) {
             verticalArrangement = Arrangement.spacedBy(5.dp)) {
             HwButton("SMP", Modifier.fillMaxWidth(), active = view == TopView.SAMPLER, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.SAMPLER) }
             HwButton("SYN", Modifier.fillMaxWidth(), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.SYNTH) }
+            HwButton("DRM", Modifier.fillMaxWidth(), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.DRUM) }
             HwButton("SEQ", Modifier.fillMaxWidth(), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.SEQ) }
             HwButton("MIX", Modifier.fillMaxWidth(), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.MIX) }
             HwButton("VIZ", Modifier.fillMaxWidth(), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 44.dp, fontSize = 12) {
@@ -69,6 +70,7 @@ fun TopScreen(state: AppState) {
             when (view) {
                 TopView.SAMPLER -> ChopScreen(state)
                 TopView.SYNTH -> SynthScreen(state)
+                TopView.DRUM -> DrumScreen(state)
                 TopView.SEQ -> SeqScreen(state)
                 TopView.MIX -> MixScreen(state)
                 TopView.VIZ -> VizScreen(state)

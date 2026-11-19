@@ -54,7 +54,7 @@ data class DisplayProbe(
 )
 
 enum class ScreenRole { SESSION, DECK }
-enum class TopView { SAMPLER, SYNTH, SEQ, MIX, VIZ }
+enum class TopView { SAMPLER, SYNTH, DRUM, SEQ, MIX, VIZ }
 
 /**
  * Live synth state for animations, refreshed every vsync into preallocated arrays.
@@ -86,10 +86,12 @@ class SynthTelemetry {
  */
 class AppState(private val app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val presets = com.thorbox.app.presets.PresetStore(app, scope)
     val library = SampleLibrary(app)
     val input = InputRouter(this)
     val groove = GrooveController(this)
     val sampler = com.thorbox.app.sampler.SamplerController(this)
+    val drums = com.thorbox.app.drums.DrumController(this)
 
     // ---- Look & visualizer ----
     val glass = mutableStateOf(com.thorbox.app.ui.GlassLevel.FULL)
@@ -119,8 +121,10 @@ class AppState(private val app: Application) {
         deck.value = d
         // The instrument decks pull their editor onto the top screen. SEQ and MIX stay put.
         when (d) {
-            Deck.PADS -> { if (topView.value == TopView.SYNTH) topView.value = TopView.SAMPLER; groove.seqTrack.intValue = 0 }
-            Deck.KEYS -> { if (topView.value == TopView.SAMPLER) topView.value = TopView.SYNTH; groove.seqTrack.intValue = 1 }
+            Deck.PADS -> { if (topView.value == TopView.SYNTH || topView.value == TopView.DRUM) topView.value = TopView.SAMPLER; groove.seqTrack.intValue = 0 }
+            Deck.KEYS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.DRUM) topView.value = TopView.SYNTH; groove.seqTrack.intValue = 1 }
+            Deck.DRUMS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.SYNTH) topView.value = TopView.DRUM; groove.seqTrack.intValue = 2 }
+            // The STEP deck is the synth's OP-XY step sequencer (drums have their own TR grid on DRM).
             Deck.STEP -> { topView.value = TopView.SEQ; groove.seqTrack.intValue = 1; groove.synthEdit.value = com.thorbox.app.groove.GrooveController.SynthEdit.GRID }
             else -> Unit
         }
@@ -129,8 +133,9 @@ class AppState(private val app: Application) {
         if (v == TopView.VIZ && topView.value != TopView.VIZ) viewBeforeViz = topView.value
         topView.value = v
         when (v) {
-            TopView.SAMPLER -> if (deck.value == Deck.KEYS) selectDeck(Deck.PADS)
-            TopView.SYNTH -> if (deck.value == Deck.PADS) selectDeck(Deck.KEYS)
+            TopView.SAMPLER -> if (deck.value == Deck.KEYS || deck.value == Deck.DRUMS) selectDeck(Deck.PADS)
+            TopView.SYNTH -> if (deck.value == Deck.PADS || deck.value == Deck.DRUMS) selectDeck(Deck.KEYS)
+            TopView.DRUM -> if (deck.value == Deck.PADS || deck.value == Deck.KEYS) selectDeck(Deck.DRUMS)
             else -> Unit
         }
     }
@@ -195,6 +200,7 @@ class AppState(private val app: Application) {
         if (!engineRunning) _error.value = "Audio engine failed to start"
         sentParams.fill(Float.NaN)
         pushPatch(_patch.value)
+        drums.pushAll()
         groove.pushAll()
         startTicker()
     }
@@ -283,10 +289,58 @@ class AppState(private val app: Application) {
     /** Sends only the engine params whose values changed (a knob turn ≈ 1 command). */
     private fun pushPatch(p: SynthPatch) {
         SynthParams.toEngine(p, nextParams)
+        // Switching mono ↔ poly mid-note would strand voices the other mode can't release.
+        if (!sentParams[SynthId.MONO].isNaN() && nextParams[SynthId.MONO] != sentParams[SynthId.MONO]) {
+            NativeEngine.synthAllOff(); noteRefs.fill(0)
+        }
         for (id in 0 until SynthId.COUNT) {
             val v = nextParams[id]
             if (v != sentParams[id] && NativeEngine.synthParam(id, v)) sentParams[id] = v
         }
+    }
+
+    // ================= Synth presets + dice (OP-XY style) =================
+
+    /** Category filter for browsing and for DICE (null = any). */
+    val synthCategory = mutableStateOf<com.thorbox.model.SynthCategory?>(null)
+    private val patchUndo = ArrayDeque<SynthPatch>()
+    val canUndoPatch = mutableStateOf(false)
+    private var diceSeed = (SystemClock.uptimeMillis() and 0x7fffffff).toInt()
+
+    private fun applyPatch(p: SynthPatch, undoable: Boolean = true) {
+        if (p == _patch.value) return
+        if (undoable) { patchUndo.addLast(_patch.value); while (patchUndo.size > 32) patchUndo.removeFirst(); canUndoPatch.value = true }
+        _patch.value = p
+        pushPatch(p)
+    }
+    fun loadSynthPreset(p: com.thorbox.model.SynthPreset) = applyPatch(p.patch.copy(name = p.name))
+
+    /** Previous / next preset (within the category filter, wrapping). */
+    fun stepSynthPreset(d: Int) {
+        val cat = synthCategory.value
+        val list = presets.allSynth().filter { cat == null || it.category == cat }
+        if (list.isEmpty()) return
+        val i = list.indexOfFirst { it.name == _patch.value.name }
+        val next = if (i < 0) (if (d > 0) 0 else list.lastIndex) else (i + d + list.size) % list.size
+        loadSynthPreset(list[next])
+    }
+    /** DICE: a brand-new playable sound in the current category. */
+    fun diceSynth() { diceSeed = diceSeed * 1103515245 + 12345 and 0x7fffffff; applyPatch(com.thorbox.model.PatchDice.dice(diceSeed, synthCategory.value)) }
+    /** MUTATE: nudge the current sound. */
+    fun mutateSynth(amount: Float = 0.25f) {
+        diceSeed = diceSeed * 1103515245 + 12345 and 0x7fffffff
+        val cur = _patch.value
+        applyPatch(com.thorbox.model.PatchDice.mutate(cur, amount, diceSeed).copy(name = cur.name.removeSuffix("*") + "*"))
+    }
+    fun undoPatch() {
+        val prev = patchUndo.removeLastOrNull() ?: return
+        canUndoPatch.value = patchUndo.isNotEmpty()
+        applyPatch(prev, undoable = false)
+    }
+    fun saveSynthPreset(name: String, category: com.thorbox.model.SynthCategory): String {
+        val stored = presets.saveSynth(com.thorbox.model.SynthPreset(name, category, _patch.value))
+        _patch.value = _patch.value.copy(name = stored)
+        return stored
     }
 
     // ================= Keyboard =================
@@ -405,6 +459,7 @@ class AppState(private val app: Application) {
             t.frame.longValue = frameTimeNanos
 
             groove.onFrame(dt)
+            drums.onFrame(telemetry.timeSec)
             input.applySticks(dt)
 
             // Visual features feed the visualizer AND the glass aurora. The 2048-point FFT only runs when

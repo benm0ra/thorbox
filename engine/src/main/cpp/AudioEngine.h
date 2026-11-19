@@ -15,6 +15,7 @@
 #include "SamplerVoice.h"
 #include "SpscQueue.h"
 #include "Synth.h"
+#include "DrumSynth.h"
 #include "Sequencer.h"
 #include "MasterFx.h"
 #include "Spectrum.h"
@@ -56,6 +57,10 @@ public:
     bool synthNoteOff(int note);
     bool synthParam(int id, float value);
     bool synthAllOff();
+    bool drumTrigger(int slot, float velocity);
+    bool drumParam(int slot, int id, float value);
+    // Drum animation telemetry: per-slot level (0..1) and hit counters (wrap; compare to last read).
+    void getDrumTelemetry(float* levels8, int32_t* hits8);
 
     // ---- Transport / groove / mixer (main thread → audio thread) ----
     bool setTempo(float bpm);
@@ -67,14 +72,14 @@ public:
     bool repeatOn(int track, int note, int rateTicks, float velocity);
     bool repeatOff(int track, int note);
     bool repeatVelocity(float v);
-    bool setChannel(int strip, int param, float value);  // strip 0 sampler, 1 synth, 2 master
+    bool setChannel(int strip, int param, float value);  // strip 0 sampler, 1 synth, 2 drums, 3 master
     bool fxOn(int id, float x, float y);
     bool fxMove(int id, float x, float y);
     bool fxOff(int id);
     bool fxAllOff();
     // Recorded live hits (main thread). Returns 0 none, 1 note-on, 2 note-off; out = {track, note, vel, tick}.
     int pollRecord(double* out4);
-    void getTransport(double* out16);   // [12] = active punch-in FX bitmask
+    void getTransport(double* out20);   // [12] = active punch-in FX bitmask, [16..17] drum meters, [18] drum activity mask
     // Visualizer (main thread): FFT of the latest master output. energy3 = bass, mid, treble (0..1).
     void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy3);
 
@@ -132,13 +137,14 @@ private:
     std::array<SamplerVoice, kMaxVoices> mVoices{};
     uint64_t mVoiceStamp = 0;
     synth::Synth mSynth;
+    drums::DrumSynth mDrums;
     seq::Sequencer mSeq;
     fx::MasterFx mFx;                  // punch-in effects on the master bus (ring allocated here, main thread)
     bool mRecording = false;
 
     // Rendering happens in chunks of kChunk frames, split at each sequencer event for sample accuracy.
     static constexpr int kChunk = 256;
-    static constexpr int kStrips = 2;
+    static constexpr int kStrips = 3;
     std::array<seq::Fire, 512> mFires{};
     std::array<std::array<float, 2 * kChunk>, kStrips> mBus{};   // per-track stereo buses
     std::array<float, 2 * kChunk> mClickBus{};                   // metronome (bypasses the mixer)
@@ -182,7 +188,10 @@ private:
     std::atomic<uint32_t> mTelPads{0};       // bitmask of pads with a sounding voice
     std::atomic<int32_t> mTelPlayPad{-1};    // pad of the newest voice (for the chop playhead)
     std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f};
-    std::array<std::atomic<float>, 6> mMeters{};  // sampler L/R, synth L/R, master L/R
+    std::array<std::atomic<float>, 8> mMeters{};  // sampler L/R, synth L/R, master L/R, drums L/R
+    std::array<std::atomic<float>, drums::kSlots> mDrumLevel{};
+    std::array<std::atomic<int32_t>, drums::kSlots> mDrumHits{};
+    std::atomic<uint32_t> mTelDrums{0};
     bool mMetroOn = false;
 
     // Main-thread-only staging for recorded notes (filled while draining mAudioEvents).

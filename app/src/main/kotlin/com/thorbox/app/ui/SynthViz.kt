@@ -314,3 +314,138 @@ fun LfoViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
     }
 }
 
+
+// ============================== PITCH ==============================
+// The pitch envelope as a falling (or rising) line from P.ENV back to the note, drawn over a
+// semitone ladder; a dot rides it from every new note. Octave ladders for both oscillators on the right.
+
+@Composable
+fun PitchViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
+    val curve = remember { Path() }
+    val track = remember { FloatArray(2) { -1f } }            // [0] last newest note, [1] its start time
+    Canvas(modifier) {
+        tel.frame.longValue
+        dotGrid(24.dp.toPx())
+        val w = size.width * 0.74f; val h = size.height
+        val amt = patch.voice.pitchEnvSemis
+        val decay = patch.voice.pitchEnvDecayMs.coerceAtLeast(1f)
+        val span = max(12f, abs(amt) * 1.15f)
+        val mid = if (amt >= 0f) h * 0.82f else h * 0.18f
+        val pxPerSemi = (h * 0.64f) / span
+        // Semitone ladder: octaves bold.
+        for (s in 0..span.toInt()) {
+            val y = mid - (if (amt >= 0f) s else -s) * pxPerSemi
+            val oct = s % 12 == 0
+            drawLine(if (oct) Tb.Line else Tb.Raised, Offset(0f, y), Offset(w, y), if (oct) 2f else 1f)
+        }
+        // Window: 4 × decay, at least 200 ms.
+        val windowMs = max(200f, decay * 1.6f)
+        curve.reset()
+        val n = 120
+        for (i in 0..n) {
+            val tMs = windowMs * i / n
+            val env = kotlin.math.exp(-4f * tMs / decay)
+            val x = w * i / n
+            val y = mid - amt * env * pxPerSemi
+            if (i == 0) curve.moveTo(x, y) else curve.lineTo(x, y)
+        }
+        drawPath(curve, Tb.EncBlue, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        // Decay marker (green): where 98 % of the drop is done.
+        val xd = (w * decay / windowMs).coerceAtMost(w)
+        drawLine(Tb.EncGreen, Offset(xd, mid - 14.dp.toPx()), Offset(xd, mid + 14.dp.toPx()), 4.dp.toPx(), cap = StrokeCap.Round)
+        // Rider dot from the latest note-on.
+        if (tel.newestNote != track[0]) { track[0] = tel.newestNote; track[1] = tel.timeSec }
+        if (tel.activeVoices > 0) {
+            val tMs = (tel.timeSec - track[1]) * 1000f
+            if (tMs in 0f..windowMs) {
+                val env = kotlin.math.exp(-4f * tMs / decay)
+                drawCircle(Tb.Text, 7.dp.toPx() * (0.6f + 0.4f * tel.ampLevel), Offset(w * tMs / windowMs, mid - amt * env * pxPerSemi))
+            }
+        }
+        // Octave ladders (white = osc 1, orange = osc 2).
+        fun ladder(x: Float, oct: Int, c: Color) {
+            val step = h / 8f; val bw = size.width * 0.09f
+            for (o in -3..3) {
+                val y = h / 2f - o * step
+                val on = o == oct
+                drawRoundRect(if (on) c else Tb.Raised, Offset(x, y - step * 0.32f), androidx.compose.ui.geometry.Size(bw, step * 0.64f),
+                    androidx.compose.ui.geometry.CornerRadius(6f))
+            }
+        }
+        ladder(size.width * 0.78f, patch.osc1.octave, Tb.EncWhite)
+        ladder(size.width * 0.89f, patch.osc2.octave, Tb.EncOrange)
+    }
+}
+
+// ============================== VOICE ==============================
+// Four little instruments in one panel: GLIDE (a note sliding between two keys), MONO/POLY
+// (voice dots), DRIVE (a sine bent by the actual clip curve), NOISE (sparkle grains).
+
+@Composable
+fun VoiceViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
+    val wave = remember { Path() }
+    Canvas(modifier) {
+        tel.frame.longValue
+        dotGrid(24.dp.toPx())
+        val w = size.width; val h = size.height
+        val t = tel.timeSec
+        val pad = 10.dp.toPx()
+        val cw = w / 2f; val ch = h / 2f
+
+        // GLIDE (blue, top-left): a dot slides between two keys; slide time ∝ glide.
+        run {
+            val g = patch.voice.glideMs
+            val period = 1.4f
+            val ph = (t % period) / period
+            val slide = (g / 1000f).coerceIn(0.02f, 0.6f)
+            val a = Offset(pad * 2, ch * 0.75f); val b = Offset(cw - pad * 2, ch * 0.3f)
+            val k = if (g <= 0f) (if (ph < 0.5f) 0f else 1f) else (((ph - 0.5f) / slide).coerceIn(0f, 1f).let { if (ph < 0.5f) 0f else it })
+            drawLine(Tb.Raised, Offset(a.x, a.y), Offset(b.x, a.y), 2f)
+            drawLine(Tb.Raised, Offset(a.x, b.y), Offset(b.x, b.y), 2f)
+            val p = Offset(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k)
+            if (g > 0f) drawLine(Tb.EncBlue.copy(alpha = 0.45f), a, p, 4.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(Tb.EncBlue, 8.dp.toPx(), p)
+        }
+        // MONO / POLY (green, top-right): one big voice, or eight small ones lit by activity.
+        run {
+            val cx = cw + cw / 2f; val cy = ch / 2f
+            if (patch.voice.mono) {
+                drawCircle(Tb.EncGreen.copy(alpha = 0.25f + 0.75f * tel.ampLevel), ch * 0.28f, Offset(cx, cy))
+                drawCircle(Tb.EncGreen, ch * 0.28f, Offset(cx, cy), style = Stroke(3.dp.toPx()))
+            } else for (i in 0 until 8) {
+                val x = cw + pad * 2 + (cw - pad * 4) * (i + 0.5f) / 8f
+                drawCircle(if (i < tel.activeVoices) Tb.EncGreen else Tb.Raised, min(ch * 0.12f, (cw - pad * 4) / 20f), Offset(x, cy))
+            }
+        }
+        // DRIVE (white, bottom-left): a sine through the engine's clip curve.
+        run {
+            val d = patch.voice.drive
+            val gain = 1.2f * 2f.pow(d * 4f); val comp = 1f / (1f + 1.6f * d)
+            fun clip(x: Float): Float { val c = x.coerceIn(-3f, 3f); return c * (27f + c * c) / (27f + 9f * c * c) }
+            wave.reset()
+            val n = 100; val y0 = ch + ch / 2f; val amp = ch * 0.3f
+            for (i in 0..n) {
+                val ph = i.toFloat() / n
+                val x = pad * 2 + (cw - pad * 4) * ph
+                val y = y0 - clip(sin(2f * PI.toFloat() * (ph * 2f + t * 0.3f)) * gain) * comp * amp * 1.6f
+                if (i == 0) wave.moveTo(x, y) else wave.lineTo(x, y)
+            }
+            drawPath(wave, Tb.EncWhite, style = Stroke(4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        // NOISE (orange, bottom-right): grains, count ∝ noise, re-seeded every frame like static.
+        run {
+            val nz = patch.voice.noise
+            val count = (nz * 90f).toInt()
+            var seed = (t * 60f).toInt() * 1103515245
+            fun rnd(): Float { seed = seed * 1103515245 + 12345; return ((seed ushr 8) and 0xFFFF) / 65535f }
+            for (i in 0 until count) {
+                val x = cw + pad * 2 + (cw - pad * 4) * rnd(); val y = ch + pad + (ch - pad * 2) * rnd()
+                drawCircle(Tb.EncOrange.copy(alpha = 0.4f + 0.6f * rnd()), 1.5f.dp.toPx() + 2.dp.toPx() * rnd(), Offset(x, y))
+            }
+            if (count == 0) drawLine(Tb.EncOrange.copy(alpha = 0.4f), Offset(cw + pad * 2, ch + ch / 2f), Offset(w - pad * 2, ch + ch / 2f), 3.dp.toPx(), cap = StrokeCap.Round)
+        }
+        // Quadrant dividers
+        drawLine(Tb.Line, Offset(cw, pad), Offset(cw, h - pad), 1f)
+        drawLine(Tb.Line, Offset(pad, ch), Offset(w - pad, ch), 1f)
+    }
+}

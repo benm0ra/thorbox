@@ -26,13 +26,15 @@ enum class CmdType : uint8_t {
     RepeatOn,      // pad = track, i0 = note, i1 = rate ticks, f0 = velocity
     RepeatOff,     // pad = track, i0 = note
     RepeatVelocity,// f0
-    SetChannel,    // pad = track (2 = master), i0 = ChannelParam, f0 = value
+    SetChannel,    // pad = track (3 = master), i0 = ChannelParam, f0 = value
     SetPadRegion,  // pad, i0 = start frame, i1 = end frame (-1 = to the end)
     SetPadGain,    // pad, f0 = linear gain
     FxOn,          // i0 = fx::Id, f0 = x, f1 = y
     FxMove,        // i0 = fx::Id, f0 = x, f1 = y
     FxOff,         // i0 = fx::Id
     FxAllOff,
+    DrumTrigger,   // pad = slot, f0 = velocity
+    DrumParam,     // pad = slot, i0 = drums::Param, f0 = value
 };
 
 // Plain-old-data, trivially copyable, fixed size. Never contains owning pointers:

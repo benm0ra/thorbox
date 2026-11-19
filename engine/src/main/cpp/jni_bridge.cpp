@@ -243,10 +243,26 @@ JNIEXPORT jint JNICALL JNI_FN(nativePollRecord)(JNIEnv* env, jobject, jdoubleArr
     return type;
 }
 JNIEXPORT void JNICALL JNI_FN(nativeGetTransport)(JNIEnv* env, jobject, jdoubleArray out) {
-    if (!gEngine || !out || env->GetArrayLength(out) < 16) return;
-    double tmp[16];
+    if (!gEngine || !out || env->GetArrayLength(out) < 20) return;
+    double tmp[20];
     gEngine->getTransport(tmp);
-    env->SetDoubleArrayRegion(out, 0, 16, tmp);
+    env->SetDoubleArrayRegion(out, 0, 20, tmp);
+}
+
+// ---------------- drum synth ----------------
+JNIEXPORT jboolean JNICALL JNI_FN(nativeDrumTrigger)(JNIEnv*, jobject, jint slot, jfloat vel) {
+    return gEngine && slot >= 0 && slot < drums::kSlots && finite(vel) && gEngine->drumTrigger(slot, std::clamp(vel, 0.f, 1.f));
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeDrumParam)(JNIEnv*, jobject, jint slot, jint id, jfloat v) {
+    if (!gEngine || slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount || !finite(v)) return JNI_FALSE;
+    return gEngine->drumParam(slot, id, std::clamp(v, drums::kRanges[id].lo, drums::kRanges[id].hi));
+}
+JNIEXPORT void JNICALL JNI_FN(nativeGetDrumTelemetry)(JNIEnv* env, jobject, jfloatArray jLevels, jintArray jHits) {
+    if (!gEngine || !jLevels || !jHits || env->GetArrayLength(jLevels) < drums::kSlots || env->GetArrayLength(jHits) < drums::kSlots) return;
+    float lv[drums::kSlots]; int32_t h[drums::kSlots];
+    gEngine->getDrumTelemetry(lv, h);
+    env->SetFloatArrayRegion(jLevels, 0, drums::kSlots, lv);
+    env->SetIntArrayRegion(jHits, 0, drums::kSlots, reinterpret_cast<jint*>(h));
 }
 
 } // extern "C"

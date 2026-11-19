@@ -51,8 +51,9 @@ fun MixScreen(state: AppState) {
     Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         chans.forEachIndexed { i, ch ->
             Strip(
-                state, name = ch.name, color = if (i == 0) Tb.Pads[0] else Tb.EncOrange, selected = g.mixSelected.intValue == i,
-                db = ch.volumeDb, pan = ch.pan, mute = ch.mute, solo = ch.solo, meterIdx = i * 2,
+                state, name = ch.name, color = when (i) { 0 -> Tb.Pads[0]; 1 -> Tb.EncOrange; else -> Tb.Pads[1] }, selected = g.mixSelected.intValue == i,
+                // meters: sampler 0/1, synth 2/3, master 4/5, drums 6/7
+                db = ch.volumeDb, pan = ch.pan, mute = ch.mute, solo = ch.solo, meterIdx = if (i == 2) 6 else i * 2,
                 onDb = { d -> g.mixSelected.intValue = i; g.setChannel(i) { it.copy(volumeDb = d) } },
                 onPan = { p -> g.setChannel(i) { it.copy(pan = p) } },
                 onMute = { g.setChannel(i) { it.copy(mute = !it.mute) } },
@@ -61,9 +62,9 @@ fun MixScreen(state: AppState) {
             )
         }
         Strip(
-            state, name = "MASTER", color = Tb.EncWhite, selected = g.mixSelected.intValue == 2,
+            state, name = "MASTER", color = Tb.EncWhite, selected = g.mixSelected.intValue == MASTER_STRIP,
             db = g.masterDb.value, pan = null, mute = null, solo = null, meterIdx = 4,
-            onDb = { d -> g.mixSelected.intValue = 2; g.setMaster(d) }, onPan = {}, onMute = {}, onSolo = {},
+            onDb = { d -> g.mixSelected.intValue = MASTER_STRIP; g.setMaster(d) }, onPan = {}, onMute = {}, onSolo = {},
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }
@@ -138,3 +139,6 @@ private fun Strip(
         }
     }
 }
+
+/** mixSelected index of the master strip (after the three track strips). */
+const val MASTER_STRIP = 3

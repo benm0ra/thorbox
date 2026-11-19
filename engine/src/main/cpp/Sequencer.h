@@ -21,7 +21,7 @@
 namespace seq {
 
 constexpr int kPpqn = 960;
-constexpr int kTracks = 2;            // 0 = sampler (note = pad index), 1 = synth (note = MIDI)
+constexpr int kTracks = 3;            // 0 = sampler (note = pad index), 1 = synth (note = MIDI), 2 = drum synth (note = slot)
 constexpr int kMaxEvents = 512;       // per pattern
 constexpr int kMaxPendingOffs = 256;
 constexpr int kMaxRepeats = 16;
@@ -231,13 +231,13 @@ private:
     float mSwing = 0.5f;
     int mSwingGrid = 240;
     bool mPlaying = false, mMetro = false, mFlushOffs = false;
-    const Pattern* mPattern[kTracks] = {nullptr, nullptr};
+    const Pattern* mPattern[kTracks] = {};
     Off mOffs[kMaxPendingOffs];
     int mOffCount = 0;
     Repeat mRepeats[kMaxRepeats];
     double mLastLive[kTracks][128];
     uint32_t mRng = 0xC0FFEEu;
-    bool mStepPass[kTracks] = {true, true};
+    bool mStepPass[kTracks] = {true, true, true};
 
 public:
     Sequencer() { for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }

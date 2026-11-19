@@ -53,7 +53,7 @@ fun BoxScope.ControllerHud(state: AppState) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 HudTitle("SELECT +", Tb.Key)
                 HudRow("◀ ▶", "view  ${TopView.entries.joinToString(" · ") { short(it) }}")
-                HudRow("▲ ▼", "deck  PADS · KEYS · STEP · FX")
+                HudRow("▲ ▼", "deck  PADS · KEYS · DRUMS · STEP · FX")
                 HudRow("L1 R1", "tempo −1 / +1")
                 HudRow("A", "tap tempo")
                 HudRow("X", "metronome")
@@ -75,11 +75,11 @@ fun BoxScope.ControllerHud(state: AppState) {
 }
 
 private fun short(v: TopView) = when (v) {
-    TopView.SAMPLER -> "SMP"; TopView.SYNTH -> "SYN"; TopView.SEQ -> "SEQ"; TopView.MIX -> "MIX"; TopView.VIZ -> "VIZ"
+    TopView.SAMPLER -> "SMP"; TopView.SYNTH -> "SYN"; TopView.DRUM -> "DRM"; TopView.SEQ -> "SEQ"; TopView.MIX -> "MIX"; TopView.VIZ -> "VIZ"
 }
 
 private fun accent(v: TopView) = when (v) {
-    TopView.SAMPLER -> Tb.Pads[0]; TopView.SYNTH -> Tb.EncOrange; TopView.SEQ -> Tb.Good
+    TopView.SAMPLER -> Tb.Pads[0]; TopView.SYNTH -> Tb.EncOrange; TopView.DRUM -> Tb.Pads[1]; TopView.SEQ -> Tb.Good
     TopView.MIX -> Tb.EncWhite; TopView.VIZ -> Tb.EncBlue
 }
 
@@ -89,7 +89,10 @@ private fun contextRows(v: TopView): List<Pair<String, String>> = when (v) {
         "L-stick ▲▼" to "pitch ±12", "X" to "play mode", "Y" to "reset pitch")
     TopView.SYNTH -> listOf(
         "sticks" to "the 4 encoders", "◀ ▶" to "page", "▲ ▼" to "octave",
-        "A / R1" to "play root", "X" to "chord mode", "Y" to "reset page")
+        "A / R1" to "play root", "X" to "chord mode", "Y" to "reset page", "L3 / R3" to "next preset / DICE")
+    TopView.DRUM -> listOf(
+        "◀ ▶" to "step", "▲ ▼" to "sound", "A" to "toggle step", "R1" to "play sound",
+        "sticks" to "the 4 encoders", "X / Y" to "dice beat / undo", "L3 / R3" to "next kit / dice kit")
     TopView.SEQ -> listOf(
         "◀ ▶" to "step cursor", "▲ ▼" to "edit lane", "A" to "toggle step", "X" to "dice", "Y" to "undo")
     TopView.MIX -> listOf(

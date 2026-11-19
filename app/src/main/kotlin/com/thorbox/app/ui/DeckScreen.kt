@@ -50,6 +50,7 @@ fun DeckScreen(state: AppState) {
         DeckTabs(deck, state::selectDeck, Modifier.glass(state, 12.dp).padding(4.dp))
         when (deck) {
             Deck.KEYS -> { KeysDeck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
+            Deck.DRUMS -> { DrumsDeck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
             Deck.STEP -> StepDeck(state, Modifier.weight(1f).fillMaxWidth())
             Deck.FX -> FxDeck(state, Modifier.weight(1f).fillMaxWidth())
             else -> { Pad16Deck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
@@ -62,9 +63,9 @@ fun DeckScreen(state: AppState) {
 @Composable
 private fun DeckTabs(current: Deck, onSelect: (Deck) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        listOf(Deck.PADS to true, Deck.KEYS to true, Deck.STEP to true, Deck.FX to true).forEach { (d, live) ->
+        listOf(Deck.PADS to true, Deck.KEYS to true, Deck.DRUMS to true, Deck.STEP to true, Deck.FX to true).forEach { (d, live) ->
             HwButton(d.name, Modifier.weight(1f).fillMaxHeight(), active = d == current, enabled = live,
-                accent = when (d) { Deck.KEYS -> Tb.EncOrange; Deck.STEP -> Tb.EncGreen; Deck.FX -> Tb.EncBlue; else -> Tb.Pads[0] }, minHeight = 40.dp, fontSize = 12) { onSelect(d) }
+                accent = when (d) { Deck.KEYS -> Tb.EncOrange; Deck.DRUMS -> Tb.Pads[1]; Deck.STEP -> Tb.EncGreen; Deck.FX -> Tb.EncBlue; else -> Tb.Pads[0] }, minHeight = 40.dp, fontSize = 12) { onSelect(d) }
         }
     }
 }
