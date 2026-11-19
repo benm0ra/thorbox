@@ -78,6 +78,7 @@ fun TopScreen(state: AppState) {
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
         }
     }
+    ControllerHud(state)   // hold SELECT: map of the physical controls
     }
 }
 

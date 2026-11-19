@@ -14,35 +14,109 @@ import kotlin.math.sign
  * Presentation, fallback second Activity) forwards input here: Android sends key events only to
  * the focused display, which is whichever screen you touched last.
  *
- * The map depends on context (what the top screen shows):
+ * NAVIGATION (works everywhere). SELECT is SHIFT: hold it to see this map on screen.
+ *   SHIFT + D-pad ←/→  top screen view (SMP · SYN · SEQ · MIX · VIZ)
+ *   SHIFT + D-pad ↑/↓  bottom deck (PADS · KEYS · STEP · FX)
+ *   SHIFT + L1 / R1    tempo −1 / +1 BPM        SHIFT + A  tap tempo
+ *   SHIFT + X metronome · SHIFT + Y glass look · SHIFT + B diagnostics
+ *   SELECT tapped on its own = record.  B = back (leave the visualizer, close the step editor).
  *
- *   SAMPLER  A / R1 hold = play pad · D-pad ←/→ ±1 st · ↑/↓ ±12 · X cycle play mode · Y reset pitch
+ * PLAYING (depends on the top view):
+ *   SAMPLER  D-pad moves the pad cursor on the 4×4 grid · A / R1 hold = play it
+ *            L-stick flick ←/→ ±1 semitone, ↑/↓ ±12 · X cycle play mode · Y reset pitch
  *   SYNTH    the sticks are the four encoders (L-stick X = blue, Y = green; R-stick X = white, Y = orange)
  *            D-pad ←/→ page · ↑/↓ keyboard octave · A / R1 hold = play root (or root chord)
  *            X chord mode · Y reset page
  *   SEQ      D-pad ←/→ step cursor · ↑/↓ edit the current lane · A toggle step · X dice · Y undo
  *   MIX      D-pad ←/→ select strip · ↑/↓ ±1 dB · A mute · Y solo · L-stick Y volume · R-stick X pan
- *   always   START play/stop · SELECT record · L1 hold = note repeat (with A/R1, pads or keys)
+ *   always   START play/stop · L1 hold = note repeat (with A/R1, pads or keys)
  *            L2 analog = filter-sweep punch-in (deeper the harder you press) · R2 = stutter punch-in
- *            B is consumed, so it never acts as Back and quits mid-set
+ *
+ * Some handhelds report the D-pad as a hat axis instead of keys; that's turned into D-pad keys here.
  */
 class InputRouter(private val state: AppState) {
 
     private val axes = FloatArray(4)          // LX, LY, RX, RY after deadzone
     private var heldRoot: IntArray? = null
 
+    /** SELECT is held (the on-screen control map shows after a short hold). */
+    val shiftHeld = androidx.compose.runtime.mutableStateOf(false)
+    private var shiftUsed = false             // a combo fired, so releasing SELECT doesn't toggle record
+
+    private fun <T> cycle(values: List<T>, current: T, d: Int): T =
+        values[(values.indexOf(current).coerceAtLeast(0) + d + values.size) % values.size]
+
+    /** SHIFT combos. Returns true when the key was a navigation key (consumed either way). */
+    private fun shiftKey(e: KeyEvent, down: Boolean, first: Boolean): Boolean {
+        val g = state.groove
+        when (e.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) {
+                val v = cycle(TopView.entries, state.topView.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1)
+                state.selectTop(v); state.noteTopTouch()
+            }
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (first) {
+                val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
+                state.selectDeck(cycle(decks, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1))
+            }
+            KeyEvent.KEYCODE_BUTTON_L1 -> if (down) g.nudgeBpm(-1f)
+            KeyEvent.KEYCODE_BUTTON_R1 -> if (down) g.nudgeBpm(+1f)
+            KeyEvent.KEYCODE_BUTTON_A -> if (first) g.tapTempo(android.os.SystemClock.uptimeMillis())
+            KeyEvent.KEYCODE_BUTTON_X -> if (first) g.toggleMetronome()
+            KeyEvent.KEYCODE_BUTTON_Y -> if (first) state.cycleGlass()
+            KeyEvent.KEYCODE_BUTTON_B -> if (first) state.showDiagnostics.value = !state.showDiagnostics.value
+            KeyEvent.KEYCODE_BUTTON_START -> if (first) g.togglePlay()
+            else -> return false
+        }
+        if (down) shiftUsed = true
+        return true
+    }
+
+    /** B: step back out of whatever is layered on top. Never quits the app mid-set. */
+    private fun back() {
+        when {
+            state.groove.heldStep.intValue >= 0 -> state.groove.heldStep.intValue = -1
+            state.topView.value == TopView.VIZ -> state.exitViz()
+        }
+    }
+
+    /** Sampler pad cursor on the MPC-style grid (pad 1 bottom-left, index = row * 4 + column). */
+    private fun movePad(keyCode: Int) {
+        val sm = state.sampler
+        val i = sm.selected.intValue
+        val col = i % 4; val row = i / 4
+        sm.selected.intValue = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> row * 4 + (col + 3) % 4
+            KeyEvent.KEYCODE_DPAD_RIGHT -> row * 4 + (col + 1) % 4
+            KeyEvent.KEYCODE_DPAD_UP -> ((row + 1) % 4) * 4 + col
+            else -> ((row + 3) % 4) * 4 + col
+        }
+    }
+
     fun onKey(e: KeyEvent): Boolean {
         val down = e.action == KeyEvent.ACTION_DOWN
         val first = down && e.repeatCount == 0
         val up = e.action == KeyEvent.ACTION_UP
-        if (first) state.lastInput.value = KeyEvent.keyCodeToString(e.keyCode).removePrefix("KEYCODE_")
+        if (first) {
+            state.lastInput.value = KeyEvent.keyCodeToString(e.keyCode).removePrefix("KEYCODE_")
+            state.noteTopTouch()      // using the buttons counts as activity: don't auto-jump to the visualizer
+        }
         val synth = state.topView.value == TopView.SYNTH
         val g = state.groove
 
-        // Global transport keys
+        // SELECT = SHIFT (tap alone = record, on release)
+        if (e.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) {
+            if (first) { shiftHeld.value = true; shiftUsed = false }
+            else if (up) { shiftHeld.value = false; if (!shiftUsed) g.toggleRecord() }
+            return true
+        }
+        // Only key-downs go through SHIFT, so a key that was already held (a pad, L1 repeat) still
+        // gets its release when SELECT is pressed in between.
+        if (shiftHeld.value && down && shiftKey(e, down, first)) return true
+
+        // Global keys
         when (e.keyCode) {
             KeyEvent.KEYCODE_BUTTON_START -> { if (first) g.togglePlay(); return true }
-            KeyEvent.KEYCODE_BUTTON_SELECT -> { if (first) g.toggleRecord(); return true }
+            KeyEvent.KEYCODE_BUTTON_B -> { if (first) back(); return true }
             KeyEvent.KEYCODE_BUTTON_L1 -> { if (first) g.setRepeatHeld(true) else if (up) g.setRepeatHeld(false); return true }
         }
 
@@ -64,7 +138,7 @@ class InputRouter(private val state: AppState) {
                 KeyEvent.KEYCODE_BUTTON_A -> if (first) g.stepTap(tr, g.cursor.intValue)
                 KeyEvent.KEYCODE_BUTTON_X -> if (first) g.dice(tr)
                 KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.undo(tr)
-                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
                 KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit
                 else -> return false
             }
@@ -82,7 +156,7 @@ class InputRouter(private val state: AppState) {
                 }
                 KeyEvent.KEYCODE_BUTTON_A -> if (first && sel < 2) g.setChannel(sel) { it.copy(mute = !it.mute) }
                 KeyEvent.KEYCODE_BUTTON_Y -> if (first && sel < 2) g.setChannel(sel) { it.copy(solo = !it.solo) }
-                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
+                KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
                 KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit
                 else -> return false
             }
@@ -96,13 +170,12 @@ class InputRouter(private val state: AppState) {
                 !synth && first -> state.padDown(0.9f)
                 !synth && up -> state.padUp()
             }
-            KeyEvent.KEYCODE_DPAD_LEFT -> if (synth) { if (first) state.cyclePage(-1) } else if (down) state.nudgeSemis(-1)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> if (synth) { if (first) state.cyclePage(+1) } else if (down) state.nudgeSemis(+1)
-            KeyEvent.KEYCODE_DPAD_UP -> if (first) { if (synth) state.shiftOctave(+1) else state.nudgeSemis(+12) }
-            KeyEvent.KEYCODE_DPAD_DOWN -> if (first) { if (synth) state.shiftOctave(-1) else state.nudgeSemis(-12) }
+            KeyEvent.KEYCODE_DPAD_LEFT -> if (synth) { if (first) state.cyclePage(-1) } else if (down) movePad(e.keyCode)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> if (synth) { if (first) state.cyclePage(+1) } else if (down) movePad(e.keyCode)
+            KeyEvent.KEYCODE_DPAD_UP -> if (synth) { if (first) state.shiftOctave(+1) } else if (down) movePad(e.keyCode)
+            KeyEvent.KEYCODE_DPAD_DOWN -> if (synth) { if (first) state.shiftOctave(-1) } else if (down) movePad(e.keyCode)
             KeyEvent.KEYCODE_BUTTON_X -> if (first) { if (synth) state.chordMode.value = !state.chordMode.value else state.cyclePlayMode() }
             KeyEvent.KEYCODE_BUTTON_Y -> if (first) { if (synth) state.resetPage(state.synthPage.value) else state.resetPitch() }
-            KeyEvent.KEYCODE_BUTTON_B,
             KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
             KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit   // consumed, reserved
             else -> return false
@@ -115,6 +188,7 @@ class InputRouter(private val state: AppState) {
 
     fun onGenericMotion(e: MotionEvent): Boolean {
         if (e.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK) return false
+        hat(e)
         axes[0] = deadzone(e.getAxisValue(MotionEvent.AXIS_X))
         axes[1] = deadzone(e.getAxisValue(MotionEvent.AXIS_Y))
         axes[2] = deadzone(e.getAxisValue(MotionEvent.AXIS_Z))
@@ -127,7 +201,36 @@ class InputRouter(private val state: AppState) {
             lastL2 = l2; lastR2 = r2
             state.lastInput.value = "L2 %.2f  R2 %.2f".format(l2, r2)
         }
+        if (state.topView.value == TopView.SAMPLER) flicks()
         return true
+    }
+
+    // ---- D-pad reported as a hat axis → the same D-pad keys ----
+    private var hatX = 0; private var hatY = 0
+    private fun hat(e: MotionEvent) {
+        val x = e.getAxisValue(MotionEvent.AXIS_HAT_X).let { if (it > 0.5f) 1 else if (it < -0.5f) -1 else 0 }
+        val y = e.getAxisValue(MotionEvent.AXIS_HAT_Y).let { if (it > 0.5f) 1 else if (it < -0.5f) -1 else 0 }
+        if (x != hatX) {
+            if (hatX != 0) synthKey(if (hatX < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_UP)
+            if (x != 0) synthKey(if (x < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN)
+            hatX = x
+        }
+        if (y != hatY) {
+            if (hatY != 0) synthKey(if (hatY < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.ACTION_UP)
+            if (y != 0) synthKey(if (y < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.ACTION_DOWN)
+            hatY = y
+        }
+    }
+    private fun synthKey(code: Int, action: Int) { onKey(KeyEvent(action, code)) }
+
+    // ---- Left-stick flicks (sampler pitch): fire past 60 % tilt, re-arm below 30 % ----
+    private var flickArmedX = true; private var flickArmedY = true
+    private fun flicks() {
+        val x = axes[0]; val y = axes[1]
+        if (flickArmedX && abs(x) > 0.6f) { state.nudgeSemis(if (x > 0) 1 else -1); flickArmedX = false }
+        else if (abs(x) < 0.3f) flickArmedX = true
+        if (flickArmedY && abs(y) > 0.6f) { state.nudgeSemis(if (y < 0) 12 else -12); flickArmedY = false }
+        else if (abs(y) < 0.3f) flickArmedY = true
     }
 
     /** Analog trigger → punch-in: engages past 8% travel, the pressure sets X, and release snaps back. */

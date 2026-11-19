@@ -64,16 +64,32 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 
 ## Controls
 
+Everything can be driven from the Thor's buttons. **Hold SELECT** to see this map on screen.
+
+**Navigation: SELECT is Shift.** It works in every view.
+
+| SELECT + | |
+|---|---|
+| **D-pad ←/→** | top-screen view: SMP · SYN · SEQ · MIX · VIZ |
+| **D-pad ↑/↓** | bottom deck: PADS · KEYS · STEP · FX |
+| **L1 / R1** | tempo −1 / +1 BPM (hold to keep going) |
+| **A** | tap tempo |
+| **X** | metronome |
+| **Y** | glass look (full · subtle · off) |
+| **B** | diagnostics overlay |
+| *(tap SELECT alone)* | record |
+
+**B** is Back: it leaves the visualizer and closes the step editor. It never quits the app.
+
 | | Sampler view | Synth view |
 |---|---|---|
-| **A / R1** | hold = play pad | hold = play root note / chord |
-| **D-pad ←/→** | pitch ±1 st | previous/next page |
-| **D-pad ↑/↓** | pitch ±12 st | keyboard octave |
+| **D-pad** | move the pad cursor on the 4×4 grid | ←/→ page · ↑/↓ keyboard octave |
+| **A / R1** | hold = play the selected pad | hold = play root note / chord |
+| **L-stick flick** | ←/→ pitch ±1 st · ↑/↓ ±12 st | (sticks are the encoders) |
+| **Sticks** | n/a | the four encoders: L-stick X = blue, Y = green; R-stick X = white, Y = orange |
 | **X** | cycle play mode | chord mode |
 | **Y** | reset pitch | reset page |
-| **Sticks** | n/a | the four encoders: L-stick X = blue, Y = green; R-stick X = white, Y = orange |
-| **B** | reserved; consumed so it never quits the app mid-set | same |
-| **START / SELECT** | play/stop · record | same |
+| **START** | play/stop | same |
 | **L1 (hold)** | note repeat | note repeat |
 | **L2 / R2** | analog filter / stutter punch-in | same |
 
