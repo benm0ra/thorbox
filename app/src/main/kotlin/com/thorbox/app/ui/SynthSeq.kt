@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -343,7 +345,8 @@ private fun LockKnob(
     val g = state.groove
     val lock = e.locks.firstOrNull { it.param == param }
     // Unlocked knobs start from the patch's current value, so the first turn is a small change.
-    val base = SynthParams.let { val a = FloatArray(SynthId.COUNT); it.toEngine(state.patch.value, a); a[param] }
+    val patch by state.patch.collectAsState()
+    val base = remember(patch) { FloatArray(SynthId.COUNT).also { SynthParams.toEngine(patch, it) } }[param]
     val v = lock?.value ?: base
     val acc = remember { FloatArray(1) }
     Encoder(label = if (lock != null) "$label ●" else label, display = if (lock != null) fmt(v) else "—", value = toN(v).coerceIn(0f, 1f),

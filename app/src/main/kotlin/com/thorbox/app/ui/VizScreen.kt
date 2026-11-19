@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +66,7 @@ fun VizScreen(state: AppState) {
         }
         // Info chip: what's playing, in glass
         val g = state.groove
-        val s = state.sample.value
+        val s by state.sample.collectAsState()
         Row(
             Modifier.align(Alignment.TopStart).padding(12.dp).height(44.dp).glass(state, 22.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
