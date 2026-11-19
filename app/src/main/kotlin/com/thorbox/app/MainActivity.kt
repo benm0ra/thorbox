@@ -48,9 +48,19 @@ class MainActivity : ComponentActivity() {
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
+        applyLaunchExtras(intent)
         // Only after setContent: before it the window has no DecorView, and asking for its insets
         // controller crashes (NPE inside PhoneWindow) on Android 13.
         hideSystemBars()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); applyLaunchExtras(intent) }
+
+    /** `--es view DRUM --es deck FX`: open a given view/deck (used by the emulator smoke test; harmless otherwise). */
+    private fun applyLaunchExtras(i: android.content.Intent?) {
+        i?.getStringExtra("view")?.let { v -> TopView.entries.firstOrNull { it.name == v }?.let(state::selectTop) }
+        i?.getStringExtra("deck")?.let { d -> com.thorbox.model.Deck.entries.firstOrNull { it.name == d }?.let(state::selectDeck) }
+        if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
     }
 
     override fun onStart() {

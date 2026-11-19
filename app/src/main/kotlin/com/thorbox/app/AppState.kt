@@ -92,6 +92,7 @@ class AppState(private val app: Application) {
     val groove = GrooveController(this)
     val sampler = com.thorbox.app.sampler.SamplerController(this)
     val drums = com.thorbox.app.drums.DrumController(this)
+    val tilt = com.thorbox.app.input.TiltController(this, app)
 
     // ---- Look & visualizer ----
     val glass = mutableStateOf(com.thorbox.app.ui.GlassLevel.FULL)
@@ -202,10 +203,12 @@ class AppState(private val app: Application) {
         pushPatch(_patch.value)
         drums.pushAll()
         groove.pushAll()
+        tilt.onForeground(true)
         startTicker()
     }
 
     fun stopEngine() {
+        tilt.onForeground(false)
         stopTicker()
         padUp()
         releaseAllKeys()
@@ -460,6 +463,7 @@ class AppState(private val app: Application) {
 
             groove.onFrame(dt)
             drums.onFrame(telemetry.timeSec)
+            tilt.onFrame()
             input.applySticks(dt)
 
             // Visual features feed the visualizer AND the glass aurora. The 2048-point FFT only runs when

@@ -81,8 +81,11 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             HwButton("LATCH", Modifier.fillMaxHeight(), active = latchMode.value, accent = Tb.Key, minHeight = 40.dp, fontSize = 12) { latchMode.value = !latchMode.value }
+            if (state.tilt.available)
+                HwButton("TILT", Modifier.fillMaxHeight(), active = state.tilt.enabled.value, accent = Tb.Tempo, minHeight = 40.dp, fontSize = 12) {
+                    state.tilt.setEnabled(!state.tilt.enabled.value) }
             Box(Modifier.weight(1f))
-            Text(if (latchMode.value) "tap a pad to latch it" else "hold = on · release = dry",
+            Text(if (latchMode.value) "tap a pad to latch it" else if (state.tilt.enabled.value) "hold + lean to steer · shake = dice" else "hold = on · release = dry",
                 color = Tb.Muted, fontSize = 11.sp, modifier = Modifier.width(170.dp))
         }
         Canvas(
@@ -139,7 +142,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 // Glyph lives top-right, clear of the name (top-left) and the XY hint (bottom).
                 val gArea = Offset(o.x + s.width * 0.54f, o.y + 6.dp.toPx())
                 val gSize = Size(s.width * 0.42f, (s.height - 30.dp.toPx()).coerceAtLeast(12.dp.toPx()))
-                fxGlyph(p.id, gArea, gSize, on, xy[2 * p.id], xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
+                fxGlyph(p.id, gArea, gSize, on, if (on) g.fxEffX(p.id) else xy[2 * p.id], if (on) g.fxEffY(p.id) else xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
                     g.transport[0], state.viz.bass, if (on) Tb.Black else p.color)
                 if (latched and (1 shl p.id) != 0) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
                 drawText(tm, p.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), if (on) nameStyle.copy(color = Tb.Black) else nameStyle)

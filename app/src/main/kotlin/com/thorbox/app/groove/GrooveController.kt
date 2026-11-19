@@ -391,8 +391,24 @@ class GrooveController(private val app: AppState) {
 
     // ================= punch-in FX =================
 
-    fun fxDown(id: Int, x: Float, y: Float) { fxHeld.intValue = fxHeld.intValue or (1 shl id); NativeEngine.fxOn(id, x, y) }
-    fun fxMove(id: Int, x: Float, y: Float) = NativeEngine.fxMove(id, x, y)
+    // XY per effect: where the finger/trigger put it (base), plus the tilt offset when TILT is on.
+    val fxX = FloatArray(NativeEngine.Fx.COUNT) { 0.5f }
+    val fxY = FloatArray(NativeEngine.Fx.COUNT) { 0.5f }
+    private var tiltX = 0f; private var tiltY = 0f
+    fun fxEffX(id: Int) = (fxX[id] + tiltX).coerceIn(0f, 1f)
+    fun fxEffY(id: Int) = (fxY[id] + tiltY).coerceIn(0f, 1f)
+
+    fun fxDown(id: Int, x: Float, y: Float) {
+        fxX[id] = x; fxY[id] = y
+        fxHeld.intValue = fxHeld.intValue or (1 shl id); NativeEngine.fxOn(id, fxEffX(id), fxEffY(id))
+    }
+    fun fxMove(id: Int, x: Float, y: Float) { fxX[id] = x; fxY[id] = y; NativeEngine.fxMove(id, fxEffX(id), fxEffY(id)) }
+    /** Tilt offset (±0.5) applied to every held effect. */
+    fun setTilt(dx: Float, dy: Float) {
+        tiltX = dx; tiltY = dy
+        val held = fxHeld.intValue
+        for (id in 0 until NativeEngine.Fx.COUNT) if (held and (1 shl id) != 0) NativeEngine.fxMove(id, fxEffX(id), fxEffY(id))
+    }
     fun fxUp(id: Int) {
         fxHeld.intValue = fxHeld.intValue and (1 shl id).inv()
         if (fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id)

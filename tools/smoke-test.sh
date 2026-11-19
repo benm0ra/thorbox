@@ -35,11 +35,36 @@ run_case() {
   echo "::endgroup::"
 }
 
+# Visit every view and deck while playing, poke the buttons, and make sure nothing crashes.
+tour() {
+  local name=$1
+  adb logcat -c
+  for v in SYNTH DRUM SEQ MIX VIZ SAMPLER; do
+    adb shell am start -n $PKG/.MainActivity --es view $v --ez play true >/dev/null; sleep 2
+    for k in BUTTON_A DPAD_RIGHT DPAD_DOWN BUTTON_A BUTTON_X BUTTON_THUMBR BUTTON_Y BUTTON_B; do adb shell input keyevent KEYCODE_$k; done
+    sleep 1; adb exec-out screencap -p > "$OUT/$name-view-$v.png" || true
+  done
+  for d in DRUMS KEYS STEP FX PADS; do
+    adb shell am start -n $PKG/.MainActivity --es deck $d >/dev/null; sleep 2
+    adb exec-out screencap -p > "$OUT/$name-deck-$d.png" || true
+  done
+  adb logcat -d -v threadtime > "$OUT/$name-tour-logcat.txt"
+  if ! adb shell pidof $PKG >/dev/null || grep -qE "FATAL EXCEPTION|Fatal signal" "$OUT/$name-tour-logcat.txt"; then
+    echo "::error::[$name] crashed during the UI tour"
+    grep -E -A60 "FATAL EXCEPTION|Fatal signal" "$OUT/$name-tour-logcat.txt" | head -150
+    fail=1
+  else
+    echo "::notice::[$name] UI tour OK (all views + decks)"
+  fi
+}
+
 adb install -r "$APK"
 run_case single
+tour single
 # Simulate the Thor's bottom screen as a secondary display.
 adb shell settings put global overlay_display_devices 1080x1240/320
 sleep 5
 run_case dual
+tour dual
 adb shell settings delete global overlay_display_devices
 exit $fail
