@@ -55,11 +55,13 @@ private val NOTE_NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"
  */
 @Composable
 fun SeqScreen(state: AppState) {
+    val showAuto = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val g = state.groove
     val groove = g.groove.value
     val track = g.seqTrack.intValue
     val accent = kindColor(state.trackKind(track))
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // ---- transport & groove ----
         Row(Modifier.fillMaxWidth().height(56.dp).glass(state, 12.dp).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -78,6 +80,8 @@ fun SeqScreen(state: AppState) {
 
         // ---- track / lane / length / scale ----
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            HwButton("AUTO ${g.auto.lanes.value.size}", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 12,
+                active = g.auto.lanes.value.isNotEmpty(), accent = Tb.Key) { showAuto.value = true }
             // Track picker: tap to step through the tracks (each one keeps its own pattern).
             val tr = state.tracks.value[track]
             HwButton("${tr.name} ▸", Modifier.fillMaxHeight(), active = true, accent = kindColor(tr.kind), minHeight = 40.dp, fontSize = 12) {
@@ -126,6 +130,8 @@ fun SeqScreen(state: AppState) {
             HwButton("CHANCE", Modifier.fillMaxHeight(), active = gp.probSpread, accent = Tb.EncGreen, fontSize = 12) { g.gen.value = gp.copy(probSpread = !gp.probSpread) }
             Text("#${g.seed.intValue % 10000}", color = Tb.Dim, fontFamily = Tb.Mono, fontSize = 11.sp, modifier = Modifier.padding(top = 16.dp))
         }
+    }
+    if (showAuto.value) AutoSheet(state, onDone = { showAuto.value = false }, modifier = Modifier.padding(6.dp))
     }
 }
 

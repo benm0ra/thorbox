@@ -303,6 +303,20 @@ class AppState(private val app: Application) {
         val knob = SynthParams.pages.getValue(page).getOrNull(i) ?: return
         val new = knob.set(_patch.value, n.coerceIn(0f, 1f))
         if (new != _patch.value) { _patch.value = new; pushPatch(new) }
+        val t = synthTrack.intValue
+        groove.auto.touch(com.thorbox.app.groove.Automation.synthKey(t, page.ordinal, i), groove.autoArmed(), groove.transport[0], groove.loopLen(t), knob.get(new))
+    }
+
+    /** Automation playback: move knob [i] of [page] on synth track [t] (the editor follows if it's showing that track). */
+    fun applySynthKnob(t: Int, page: Int, i: Int, n: Float) {
+        val knob = SynthParams.pages.getValue(SynthPage.entries.getOrNull(page) ?: return).getOrNull(i) ?: return
+        if (t == synthTrack.intValue) {
+            val new = knob.set(_patch.value, n.coerceIn(0f, 1f))
+            if (new != _patch.value) { _patch.value = new; pushPatch(new) }
+        } else {
+            val p = synthPatches[t] ?: return
+            pushPatchTo(t, knob.set(p, n.coerceIn(0f, 1f)))
+        }
     }
 
     // Stepped knobs (LFO wave/target, whole-cent detune) snap. Adding a small drag delta to the

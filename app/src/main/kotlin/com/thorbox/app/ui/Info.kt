@@ -66,6 +66,8 @@ object Glossary {
         "■" to "Stop.",
         "●" to "Record. Whatever you play on pads or keys is written into the pattern.",
         // ---- sampler ----
+        "AUTO" to "Automation lanes: arm REC, play, and move knobs / faders / FX. Your moves loop. Open to see and clear them.",
+        "CLEAR ALL" to "Delete every automation lane.",
         "MIC" to "Record from the Thor's microphone (foley, vocals, field sounds) straight onto the pads.",
         "REC" to "Start / stop recording. Stopping saves the WAV and chops it onto this sampler track.",
         "FOLDER" to "Pick the folder on your device where your samples live.",

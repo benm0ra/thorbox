@@ -252,6 +252,7 @@ class GrooveController(private val app: AppState) {
     fun resetTrack(t: Int, name: String) {
         undo[t].clear()
         update(t) { it.copy(notes = emptyList(), lengthTicks = 16 * STEP_TICKS) }
+        auto.clearTrack(t)
         val list = channels.value.toMutableList()
         list[t] = Channel(name)
         for (k in list.indices) if (list[k].scSource == t) list[k] = list[k].copy(scSource = -1)
@@ -426,9 +427,15 @@ class GrooveController(private val app: AppState) {
 
     fun fxDown(id: Int, x: Float, y: Float) {
         fxX[id] = x; fxY[id] = y
+        auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 1f + x)
+        auto.touch(Automation.fxYKey(id), autoArmed(), transport[0], fxLoopLen(), y)
         fxHeld.intValue = fxHeld.intValue or (1 shl id); NativeEngine.fxOn(id, fxEffX(id), fxEffY(id))
     }
-    fun fxMove(id: Int, x: Float, y: Float) { fxX[id] = x; fxY[id] = y; NativeEngine.fxMove(id, fxEffX(id), fxEffY(id)) }
+    fun fxMove(id: Int, x: Float, y: Float) {
+        fxX[id] = x; fxY[id] = y; NativeEngine.fxMove(id, fxEffX(id), fxEffY(id))
+        auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 1f + x)
+        auto.touch(Automation.fxYKey(id), autoArmed(), transport[0], fxLoopLen(), y)
+    }
     /** Tilt offset (±0.5) applied to every held effect. */
     fun setTilt(dx: Float, dy: Float) {
         tiltX = dx; tiltY = dy
@@ -437,6 +444,7 @@ class GrooveController(private val app: AppState) {
     }
     fun fxUp(id: Int) {
         fxHeld.intValue = fxHeld.intValue and (1 shl id).inv()
+        auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 0f)
         if (fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id)
     }
     fun toggleLatch(id: Int) {
@@ -448,11 +456,58 @@ class GrooveController(private val app: AppState) {
 
     // ================= mixer =================
 
-    fun setChannel(i: Int, f: (Channel) -> Channel) {
+    fun setChannel(i: Int, fromAutomation: Boolean = false, f: (Channel) -> Channel) {
         val list = channels.value.toMutableList()
-        val new = f(list[i]).let { it.copy(volumeDb = it.volumeDb.coerceIn(-60f, 6f), pan = it.pan.coerceIn(-1f, 1f)) }
-        if (new == list[i]) return
+        val old = list[i]
+        val new = f(old).let { it.copy(volumeDb = it.volumeDb.coerceIn(-60f, 6f), pan = it.pan.coerceIn(-1f, 1f)) }
+        if (new == old) return
         list[i] = new; channels.value = list; pushChannel(i)
+        if (!fromAutomation) {
+            if (new.volumeDb != old.volumeDb) auto.touch(Automation.volKey(i), autoArmed(), transport[0], loopLen(i), new.volumeDb)
+            if (new.pan != old.pan) auto.touch(Automation.panKey(i), autoArmed(), transport[0], loopLen(i), new.pan)
+        }
+    }
+
+    // ================= automation =================
+    val auto = Automation()
+    /** Moves are written into lanes while REC is armed and the transport runs. */
+    fun autoArmed() = recording.value && playing.value
+    fun loopLen(track: Int) = clips.value.getOrNull(track)?.lengthTicks ?: (16 * STEP_TICKS)
+    private fun fxLoopLen() = clips.value.maxOf { it.lengthTicks }
+    private var autoFx = 0                                  // effects engaged by automation (not by a finger)
+
+    private fun applyAutomation(key: String, v: Float) {
+        val p = key.split(":")
+        if (p[0] == "fx") {
+            val id = p[1].toInt()
+            if (p.size == 3) { if (autoFx and (1 shl id) != 0) { fxY[id] = v; NativeEngine.fxMove(id, fxEffX(id), fxEffY(id)) }; return }
+            if (fxHeld.intValue and (1 shl id) != 0) return  // a finger owns it
+            if (v <= 0f) { if (autoFx and (1 shl id) != 0) { autoFx = autoFx and (1 shl id).inv(); if (fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id) } }
+            else {
+                fxX[id] = v - 1f
+                if (autoFx and (1 shl id) == 0) { autoFx = autoFx or (1 shl id); NativeEngine.fxOn(id, fxEffX(id), fxEffY(id)) }
+                else NativeEngine.fxMove(id, fxEffX(id), fxEffY(id))
+            }
+            return
+        }
+        val t = p[0].drop(1).toInt()
+        when (p[1]) {
+            "syn" -> app.applySynthKnob(t, p[2].toInt(), p[3].toInt(), v)
+            "vol" -> setChannel(t, fromAutomation = true) { it.copy(volumeDb = v) }
+            "pan" -> setChannel(t, fromAutomation = true) { it.copy(pan = v) }
+        }
+    }
+    private fun releaseAutoFx() {
+        for (id in 0 until NativeEngine.Fx.COUNT) if (autoFx and (1 shl id) != 0 && fxHeld.intValue and (1 shl id) == 0 && fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id)
+        autoFx = 0
+    }
+    private var autoWasPlaying = false
+    private fun runAutomation() {
+        val playingNow = transport[1] != 0.0
+        if (playingNow) {
+            auto.play(transport[0], { k -> if (k.startsWith("fx")) fxLoopLen() else loopLen(k.substringBefore(':').drop(1).toInt()) }, ::applyAutomation)
+        } else if (autoWasPlaying) { auto.resetPlayback(); releaseAutoFx() }
+        autoWasPlaying = playingNow
     }
     fun setMaster(db: Float) { masterDb.value = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value) }
 
@@ -477,5 +532,6 @@ class GrooveController(private val app: AppState) {
             if (t == 0) break
             onRecord(t, recBuf[0].toInt(), recBuf[1].toInt(), recBuf[2].toFloat(), recBuf[3])
         }
+        runAutomation()
     }
 }
