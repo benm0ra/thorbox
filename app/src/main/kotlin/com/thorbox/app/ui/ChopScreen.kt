@@ -59,6 +59,7 @@ fun ChopScreen(state: AppState) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             MatchBar(state)
             SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
+            GrooveStrip(state, state.samplerTrack.intValue)
             ChopControls(state)
         }
     }

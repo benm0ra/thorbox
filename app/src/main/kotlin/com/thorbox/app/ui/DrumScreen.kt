@@ -109,6 +109,8 @@ fun DrumScreen(state: AppState) {
             }
         }
 
+        GrooveStrip(state, state.drums.track, height = 34.dp)
+
         // ---- encoders ----
         Row(Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             knobs.forEachIndexed { i, k ->

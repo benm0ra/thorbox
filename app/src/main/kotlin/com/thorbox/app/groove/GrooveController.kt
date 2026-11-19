@@ -95,10 +95,22 @@ class GrooveController(private val app: AppState) {
     private fun pushClip(track: Int) { dirty[track] = true }
     private fun flushClips() { for (t in dirty.indices) if (dirty[t]) { dirty[t] = false; sendClip(t) } }
 
+    // ================= per-track groove (feel) =================
+    val feels = mutableStateOf(List(com.thorbox.model.TRACK_COUNT) { TrackFeel() })
+    fun setFeel(track: Int, f: TrackFeel) {
+        val l = feels.value.toMutableList(); l[track] = f.copy(amount = f.amount.coerceIn(0f, 1f)); feels.value = l
+        dirty[track] = true
+    }
+
     private fun sendClip(track: Int) {
         val c = clips.value[track]
-        val n = c.notes.size.coerceAtMost(512)
-        val ns = c.notes.take(n)
+        val feel = feels.value[track]
+        // The feel is applied here, on the way to the engine: stored notes stay on the grid.
+        val ns = c.notes.take(512).map { e ->
+            val (t, v) = feel.template.apply(e.tick, e.velocity, c.lengthTicks, feel.amount, e.tick + track * 977)
+            e.copy(tick = t, velocity = v)
+        }.sortedBy { it.tick }
+        val n = ns.size
         val lockIds = IntArray(2 * n) { -1 }
         val lockVals = FloatArray(2 * n)
         for (i in 0 until n) ns[i].locks.take(2).forEachIndexed { k, l -> lockIds[2 * i + k] = l.param; lockVals[2 * i + k] = l.value }
