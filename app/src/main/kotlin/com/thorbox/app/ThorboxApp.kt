@@ -9,8 +9,15 @@ class ThorboxApp : Application() {
     lateinit var state: AppState
         private set
 
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(base)
+        CrashReporter.install(this)     // first thing, so even start-up crashes are captured
+    }
+
     override fun onCreate() {
         super.onCreate()
+        // The crash screen runs in its own process and must not start the engine or UI state.
+        if (getProcessName().endsWith(":crash")) return
         state = AppState(this)
     }
 }

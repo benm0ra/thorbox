@@ -4,14 +4,13 @@ package com.thorbox.app.dual
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.thorbox.app.ScreenRole
 import com.thorbox.app.appState
 import com.thorbox.app.ui.RoleContent
+import com.thorbox.app.hideSystemBars
 import com.thorbox.app.ui.ThorboxTheme
 import java.lang.ref.WeakReference
 
@@ -22,11 +21,8 @@ class SecondScreenActivity : ComponentActivity() {
         current = WeakReference(this)
         val role = ScreenRole.valueOf(intent.getStringExtra(EXTRA_ROLE) ?: ScreenRole.DECK.name)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.insetsController?.let {
-            it.hide(WindowInsets.Type.systemBars())
-            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
         setContent { ThorboxTheme { RoleContent(role, appState) } }
+        hideSystemBars()
     }
 
     // androidx.core marks ComponentActivity.dispatchKeyEvent @RestrictTo, so lint flags the plain

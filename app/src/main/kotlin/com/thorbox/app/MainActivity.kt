@@ -32,10 +32,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.insetsController?.let {
-            it.hide(WindowInsets.Type.systemBars())
-            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
         screens = DualScreenController(this, state)
 
         lifecycleScope.launch {
@@ -52,6 +48,9 @@ class MainActivity : ComponentActivity() {
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
+        // Only after setContent: before it the window has no DecorView, and asking for its insets
+        // controller crashes (NPE inside PhoneWindow) on Android 13.
+        hideSystemBars()
     }
 
     override fun onStart() {
@@ -74,4 +73,13 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean =
         state.input.onGenericMotion(ev) || super.dispatchGenericMotionEvent(ev)
+}
+
+/** Full-screen: hide status + navigation bars (swipe to peek). Call after setContent/setContentView. */
+fun android.app.Activity.hideSystemBars() {
+    window.decorView   // forces the DecorView to exist, so the controller below is never null-backed
+    window.insetsController?.let {
+        it.hide(WindowInsets.Type.systemBars())
+        it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
 }

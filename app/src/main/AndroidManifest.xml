@@ -42,5 +42,14 @@
             android:excludeFromRecents="true"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density|uiMode|touchscreen" />
+
+        <!-- Local crash report screen. Separate process + task, so it survives the crash it reports. -->
+        <activity
+            android:name=".CrashActivity"
+            android:process=":crash"
+            android:exported="false"
+            android:taskAffinity="com.thorbox.app.crash"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
     </application>
 </manifest>
