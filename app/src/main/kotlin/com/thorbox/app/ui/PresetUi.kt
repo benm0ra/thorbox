@@ -71,7 +71,7 @@ fun PresetBar(
     Row(modifier.height(40.dp).glass(state, 12.dp).padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         HwButton("◀", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 13, onClick = onPrev)
-        Row(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Black.copy(alpha = 0.55f))
+        Row(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Void.copy(alpha = 0.55f))
             .clickable(onClick = onOpen).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(groupColor))
             Text(name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 14.sp, maxLines = 1,
@@ -117,8 +117,8 @@ fun PresetBrowser(
     modifier: Modifier = Modifier, showGroupsInSave: Boolean = true,
 ) {
     var confirmDelete by remember { mutableStateOf<String?>(null) }
-    Column(modifier.fillMaxSize().background(Color(0xF20B0B0D), RoundedCornerShape(14.dp))
-        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp)).padding(10.dp),
+    Column(modifier.fillMaxSize().background(Tb.Bg.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
+        .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, modifier = Modifier.padding(end = 6.dp))
@@ -177,7 +177,7 @@ private fun SaveSheet(groups: List<PresetGroup>, initialName: String, initialGro
             cursorBrush = SolidColor(Tb.Key),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onSave(name, group) }),
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Tb.Black).padding(12.dp),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Tb.Void).padding(12.dp),
         )
         if (groups.size > 1) {
             Text("CATEGORY", color = Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)

@@ -35,15 +35,16 @@ import com.thorbox.app.AppState
 import com.thorbox.app.groove.RepeatRate
 import com.thorbox.engine.NativeEngine
 
-private data class FxPad(val id: Int, val name: String, val x: String, val y: String, val color: Color)
+/** [slot] picks the pad colour from the current theme, so FX follow the palette too. */
+private data class FxPad(val id: Int, val name: String, val x: String, val y: String, val slot: Int) { val color: Color get() = Tb.Pads[slot] }
 private val FX_PADS = listOf(
-    FxPad(NativeEngine.Fx.STUTTER, "STUTTER", "rate", "—", Color(0xFFFF5A36)),
-    FxPad(NativeEngine.Fx.FILTER, "FILTER", "LP ◂ ▸ HP", "reso", Color(0xFF2F7BFF)),
-    FxPad(NativeEngine.Fx.TAPE_STOP, "TAPE STOP", "—", "time", Color(0xFFFFB000)),
-    FxPad(NativeEngine.Fx.CRUSH, "CRUSH", "bits", "rate", Color(0xFF9A6BFF)),
-    FxPad(NativeEngine.Fx.VINYL, "VINYL", "wow", "dust", Color(0xFFE6E23A)),
-    FxPad(NativeEngine.Fx.REVERSE, "REVERSE", "length", "—", Color(0xFF2FD1C5)),
-    FxPad(NativeEngine.Fx.GATE, "GATE", "rate", "duty", Color(0xFF1FCB6E)),
+    FxPad(NativeEngine.Fx.STUTTER, "STUTTER", "rate", "—", 0),
+    FxPad(NativeEngine.Fx.FILTER, "FILTER", "LP ◂ ▸ HP", "reso", 5),
+    FxPad(NativeEngine.Fx.TAPE_STOP, "TAPE STOP", "—", "time", 1),
+    FxPad(NativeEngine.Fx.CRUSH, "CRUSH", "bits", "rate", 6),
+    FxPad(NativeEngine.Fx.VINYL, "VINYL", "wow", "dust", 2),
+    FxPad(NativeEngine.Fx.REVERSE, "REVERSE", "length", "—", 4),
+    FxPad(NativeEngine.Fx.GATE, "GATE", "rate", "duty", 3),
 )
 
 /**
@@ -60,8 +61,8 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }        // pointerId → fx id
     val tm = rememberTextMeasurer()
-    val nameStyle = remember { TextStyle(color = Tb.Text, fontSize = 14.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
-    val hintStyle = remember { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 14.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
+    val hintStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
     val cols = 2; val rows = 4                            // 7 effects + PANIC
     val xy = remember { FloatArray(NativeEngine.Fx.COUNT * 2) { 0.5f } }      // last XY per effect (drives its glyph)

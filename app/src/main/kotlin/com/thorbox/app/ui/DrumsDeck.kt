@@ -36,8 +36,8 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }
     val tm = rememberTextMeasurer()
-    val nameStyle = remember { TextStyle(color = Tb.Black, fontSize = 15.sp, fontWeight = FontWeight.Black) }
-    val modelStyle = remember { TextStyle(color = Tb.Black.copy(alpha = 0.55f), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
+    val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 15.sp, fontWeight = FontWeight.Black) }
+    val modelStyle = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.55f), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
 
     fun cellAt(x: Float, y: Float): Pair<Int, Float> {
         val cw = dims[0].coerceAtLeast(1) / 4f; val ch = dims[1].coerceAtLeast(1) / 2f

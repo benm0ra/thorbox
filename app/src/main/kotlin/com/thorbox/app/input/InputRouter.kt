@@ -18,7 +18,7 @@ import kotlin.math.sign
  *   SHIFT + D-pad ←/→  top screen view (SMP · SYN · SEQ · MIX · VIZ)
  *   SHIFT + D-pad ↑/↓  bottom deck (PADS · KEYS · STEP · FX)
  *   SHIFT + L1 / R1    tempo −1 / +1 BPM        SHIFT + A  tap tempo
- *   SHIFT + X metronome · SHIFT + Y glass look · SHIFT + B diagnostics
+ *   SHIFT + X metronome · SHIFT + Y glass look · SHIFT + B diagnostics · SHIFT + L3 theme
  *   SELECT tapped on its own = record.  B = back (leave the visualizer, close the step editor).
  *
  * PLAYING (depends on the top view):
@@ -68,6 +68,7 @@ class InputRouter(private val state: AppState) {
             KeyEvent.KEYCODE_BUTTON_Y -> if (first) state.cycleGlass()
             KeyEvent.KEYCODE_BUTTON_B -> if (first) state.showDiagnostics.value = !state.showDiagnostics.value
             KeyEvent.KEYCODE_BUTTON_START -> if (first) g.togglePlay()
+            KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) state.cycleTheme()
             else -> return false
         }
         if (down) shiftUsed = true

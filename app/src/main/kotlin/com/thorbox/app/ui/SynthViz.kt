@@ -119,7 +119,7 @@ private fun svfMagDb(f: Float, fc: Float, res: Float): Float {
 fun FilterViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
     val live = remember { Path() }; val liveFill = remember { Path() }; val base = remember { Path() }
     val tm = rememberTextMeasurer()
-    val labelStyle = remember { TextStyle(color = Tb.Dim, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+    val labelStyle = remember(Tb.palette) { TextStyle(color = Tb.Dim, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
     Canvas(modifier) {
         tel.frame.longValue
         val w = size.width; val h = size.height
@@ -253,8 +253,8 @@ fun EnvViz(patch: SynthPatch, tel: SynthTelemetry, amp: Boolean, modifier: Modif
 fun LfoViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
     val ring = remember { Path() }; val trail = remember { Path() }
     val tm = rememberTextMeasurer()
-    val bigStyle = remember { TextStyle(color = Tb.EncOrange, fontSize = 26.sp, fontWeight = FontWeight.Black) }
-    val smallStyle = remember { TextStyle(color = Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+    val bigStyle = remember(Tb.palette) { TextStyle(color = Tb.EncOrange, fontSize = 26.sp, fontWeight = FontWeight.Black) }
+    val smallStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     Canvas(modifier) {
         tel.frame.longValue
         val w = size.width; val h = size.height

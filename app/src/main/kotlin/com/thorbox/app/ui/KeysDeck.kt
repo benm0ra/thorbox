@@ -139,7 +139,7 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
             }
             if (sample?.key == null && lock) {
                 Text("no sample key: using C MIN", color = Tb.Muted, fontSize = 10.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).background(Tb.Black).padding(horizontal = 4.dp))
+                    modifier = Modifier.align(Alignment.TopEnd).background(Tb.Void).padding(horizontal = 4.dp))
             }
         }
     }

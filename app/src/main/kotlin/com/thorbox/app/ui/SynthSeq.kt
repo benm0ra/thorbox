@@ -82,7 +82,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
     val gesture = remember { FloatArray(6) }     // downX, downY, mode (0 none, 1 resize, 2 move), tick, note, moved
     val slop = LocalViewConfiguration.current.touchSlop
     val tm = rememberTextMeasurer()
-    val label = remember { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    val label = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
     val nameCol = with(androidx.compose.ui.platform.LocalDensity.current) { 34.dp.toPx() }   // note-name column
     val rowOf = remember(rows.contentHashCode()) { HashMap<Int, Int>(rows.size * 2).apply { rows.forEachIndexed { i, n -> put(n, i) } } }
@@ -98,7 +98,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 modifier = Modifier.align(Alignment.CenterVertically))
         }
         Canvas(
-            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Tb.Black.copy(alpha = 0.8f))
+            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Tb.Void.copy(alpha = 0.8f))
                 .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
                 .pointerInteropFilter { ev ->
                     val cw = (dims[0] - nameCol) / 16f
@@ -190,7 +190,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
     val page = g.gridPage.intValue.coerceIn(0, pages - 1)
     val tel = state.telemetry
     val tm = rememberTextMeasurer()
-    val small = remember { TextStyle(color = Tb.Text, fontSize = 10.sp, fontWeight = FontWeight.Black) }
+    val small = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val keyDims = remember { IntArray(2) }
     val stepDims = remember { IntArray(2) }
     val keyFingers = remember { HashMap<Int, IntArray>() }

@@ -45,8 +45,8 @@ fun BoxScope.ControllerHud(state: AppState) {
         val view = state.topView.value
         Row(
             Modifier.padding(16.dp)
-                .background(Color(0xE6101014), RoundedCornerShape(18.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
+                .background(Tb.Bg.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                .border(1.dp, Tb.Line, RoundedCornerShape(18.dp))
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
@@ -58,6 +58,7 @@ fun BoxScope.ControllerHud(state: AppState) {
                 HudRow("A", "tap tempo")
                 HudRow("X", "metronome")
                 HudRow("Y", "glass look")
+                HudRow("L3", "theme  (${Tb.palette.label})")
                 HudRow("B", "diagnostics")
                 HudRow("release", "on its own = RECORD", dim = true)
             }

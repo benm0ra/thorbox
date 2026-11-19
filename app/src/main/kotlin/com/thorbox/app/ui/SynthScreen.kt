@@ -85,7 +85,7 @@ fun SynthScreen(state: AppState) {
             onSave = { saving = true; browsing = true }, modifier = Modifier.fillMaxWidth())
 
         // ---- hero ----
-        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Tb.Black.copy(alpha = 0.78f))) {
+        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))) {
             Crossfade(targetState = page, animationSpec = tween(160), label = "page") { pg ->
                 val m = Modifier.fillMaxSize().padding(10.dp)
                 when (pg) {

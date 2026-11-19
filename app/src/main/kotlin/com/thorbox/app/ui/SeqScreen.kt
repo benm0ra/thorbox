@@ -161,15 +161,15 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
     val slop = LocalViewConfiguration.current.touchSlop
     val gesture = remember { FloatArray(3) }          // downX, downY, dragging(0/1)
     val tm = rememberTextMeasurer()
-    val noteStyle = remember { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
-    val numStyle = remember { TextStyle(color = Tb.Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    val noteStyle = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
+    val numStyle = remember(Tb.palette) { TextStyle(color = Tb.Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
 
     fun stepAt(x: Float) = (x / dims[0].coerceAtLeast(1) * steps).toInt().coerceIn(0, steps - 1)
     fun valueAt(y: Float) = (1f - y / dims[1].coerceAtLeast(1)).coerceIn(0f, 1f)
 
     Canvas(
-        modifier.clip(RoundedCornerShape(10.dp)).background(Tb.Black.copy(alpha = 0.78f))
+        modifier.clip(RoundedCornerShape(10.dp)).background(Tb.Void.copy(alpha = 0.78f))
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
                 when (ev.actionMasked) {

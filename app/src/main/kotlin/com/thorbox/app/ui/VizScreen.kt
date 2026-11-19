@@ -56,7 +56,7 @@ enum class VizMode(val label: String) { SPECTRA("SPECTRA"), ORBIT("ORBIT"), PLAS
 fun VizScreen(state: AppState) {
     val mode = state.vizMode.value
     Box(
-        Modifier.fillMaxSize().background(Tb.Black)
+        Modifier.fillMaxSize().background(Tb.Void)
             .pointerInput(Unit) { detectTapGestures(onTap = { state.cycleViz() }) }
     ) {
         when (mode) {

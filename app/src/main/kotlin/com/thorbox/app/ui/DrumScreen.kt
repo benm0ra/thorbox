@@ -87,7 +87,7 @@ fun DrumScreen(state: AppState) {
 
         // ---- drummer | grid ----
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.weight(0.85f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Tb.Black.copy(alpha = 0.78f))) {
+            Box(Modifier.weight(0.85f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))) {
                 Drummer(state, Modifier.fillMaxSize().padding(4.dp))
             }
             Column(Modifier.weight(1.25f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -49,6 +49,9 @@ uniform float2 iPanel;      // this surface's size in px
 uniform float iGlass;       // 0 = backdrop, 1 = glass surface
 uniform float iRadius;      // corner radius px
 uniform float iMotion;      // 0..1 (SUBTLE runs slower and calmer)
+uniform float3 iBase;       // theme background (void)
+uniform float3 iT0; uniform float3 iT1; uniform float3 iT2; uniform float3 iT3;   // theme aurora tints
+uniform float iLight;       // 1 = light theme: tint the paper instead of glowing on black
 
 half3 aurora(float2 px, float t, float4 e) {
     float2 p = (px / iResolution) * 2.0 - 1.0;
@@ -60,14 +63,19 @@ half3 aurora(float2 px, float t, float4 e) {
                           cos(t * (0.05 + 0.02 * fi) + fi * 2.7) * 0.75);
         float r = 0.55 + (i == 0 ? 0.35 * e.x : 0.15 * e.y);
         float d = length(p - c);
-        half3 tint = i == 0 ? half3(0.16, 0.30, 1.0)
-                   : i == 1 ? half3(1.0, 0.24, 0.52)
-                   : i == 2 ? half3(0.08, 0.85, 0.75)
-                   :          half3(1.0, 0.42, 0.08);
+        half3 tint = half3(i == 0 ? iT0 : i == 1 ? iT1 : i == 2 ? iT2 : iT3);
         col += tint * half(exp(-(d * d) / (r * r)) * 0.5);
     }
     // Keep it dark enough for white text and AMOLED blacks; brighten on energy and beats.
     return col * half(0.28 + 0.22 * e.y + 0.30 * e.w * iMotion);
+}
+
+// Compose the aurora with the theme: glow on top of a dark base, or a gentle wash on paper.
+half3 onBase(half3 a) {
+    half3 base = half3(iBase);
+    if (iLight < 0.5) return base + a;
+    half k = clamp(dot(a, half3(0.33)) * 2.2, 0.0, 0.55);
+    return mix(base, base * 0.55 + a * 1.4, k);
 }
 
 // Signed distance to a rounded rectangle centred at 0.
@@ -78,7 +86,7 @@ float sdRound(float2 q, float2 halfSize, float r) {
 
 half4 main(float2 fragCoord) {
     float t = iTime * mix(0.35, 1.0, iMotion);
-    if (iGlass < 0.5) return half4(aurora(fragCoord, t, iEnergy), 1.0);
+    if (iGlass < 0.5) return half4(onBase(aurora(fragCoord, t, iEnergy)), 1.0);
 
     float2 q = fragCoord - iPanel * 0.5;
     float sd = sdRound(q, iPanel * 0.5, iRadius);          // ≤ 0 inside
@@ -86,9 +94,14 @@ half4 main(float2 fragCoord) {
     float2 n = normalize(q + 0.0001);
     // Lens: near the rim, sample the backdrop from further inside, so edges bend the colours.
     float2 src = iOffset + fragCoord - n * rim * rim * 26.0;
-    half3 c = aurora(src, t, iEnergy);
-    c = c * 1.45 + half3(0.045, 0.05, 0.06);                // frosted lift
-    c += half3(0.10, 0.11, 0.13) * half(rim * rim);        // edge glow
+    half3 c = onBase(aurora(src, t, iEnergy));
+    if (iLight < 0.5) {
+        c = c * 1.45 + half3(0.045, 0.05, 0.06);            // frosted lift
+        c += half3(0.10, 0.11, 0.13) * half(rim * rim);    // edge glow
+    } else {
+        c = mix(c, half3(1.0), 0.45);                       // frosted paper: lighter than the page
+        c -= half3(0.05) * half(rim * rim);                 // a soft edge shadow instead of a glow
+    }
     // Specular sheen on the top edge, like light caught in the glass
     float sheen = smoothstep(0.0, 1.0, 1.0 - fragCoord.y / max(iPanel.y, 1.0)) * 0.06;
     c += half3(sheen);
@@ -106,6 +119,13 @@ object GlassClock {
 }
 
 private fun RuntimeShader.common(w: Float, h: Float, level: GlassLevel) {
+    val p = Tb.palette
+    setFloatUniform("iBase", p.void.red, p.void.green, p.void.blue)
+    setFloatUniform("iT0", p.aurora[0].red, p.aurora[0].green, p.aurora[0].blue)
+    setFloatUniform("iT1", p.aurora[1].red, p.aurora[1].green, p.aurora[1].blue)
+    setFloatUniform("iT2", p.aurora[2].red, p.aurora[2].green, p.aurora[2].blue)
+    setFloatUniform("iT3", p.aurora[3].red, p.aurora[3].green, p.aurora[3].blue)
+    setFloatUniform("iLight", if (p.light) 1f else 0f)
     setFloatUniform("iResolution", w, h)
     setFloatUniform("iTime", GlassClock.time)
     val react = if (level == GlassLevel.FULL) 1f else 0.35f
@@ -117,7 +137,7 @@ private fun RuntimeShader.common(w: Float, h: Float, level: GlassLevel) {
 @Composable
 fun AuroraBackground(state: AppState, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val level = state.glass.value
-    if (level == GlassLevel.OFF) { Box(modifier.fillMaxSize().background(Tb.Black), content = content); return }
+    if (level == GlassLevel.OFF) { Box(modifier.fillMaxSize().background(Tb.Void), content = content); return }
     val shader = remember { RuntimeShader(AURORA_AGSL) }
     val brush = remember(shader) { ShaderBrush(shader) }
     val tel = state.telemetry

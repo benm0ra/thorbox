@@ -48,6 +48,10 @@ tour() {
     adb shell am start -n $PKG/.MainActivity --es deck $d >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-deck-$d.png" || true
   done
+  for th in cyberpunk pastel terminal grayscale studio; do        # every theme on the busiest screens
+    for v in DRUM SYNTH; do adb shell am start -n $PKG/.MainActivity --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
+    adb exec-out screencap -p > "$OUT/$name-theme-$th.png" || true
+  done
   adb logcat -d -v threadtime > "$OUT/$name-tour-logcat.txt"
   if ! adb shell pidof $PKG >/dev/null || grep -qE "FATAL EXCEPTION|Fatal signal" "$OUT/$name-tour-logcat.txt"; then
     echo "::error::[$name] crashed during the UI tour"

@@ -100,7 +100,7 @@ private fun fmtBpm(b: Float) = if (b % 1f == 0f) "${b.roundToInt()}" else String
 
 @Composable
 private fun KeyBpmChip(label: String, key: String, bpm: String) {
-    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Black.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Void.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Text(label, style = Tb.Label)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(key, color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
@@ -121,7 +121,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     val drag = remember { intArrayOf(-1, 0) }     // [marker index being dragged, moved?]
     val path = remember { Path() }
     val tm = rememberTextMeasurer()
-    val tab = remember { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
+    val tab = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val tel = state.telemetry
     val grabPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
 
@@ -133,7 +133,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     }
 
     Box(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Black.copy(alpha = 0.78f))
+        modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
                 if (frames <= 0) return@pointerInteropFilter true
@@ -231,8 +231,8 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
     val fingers = remember { HashMap<Int, Int>() }
     val tel = state.telemetry
     val tm = rememberTextMeasurer()
-    val num = remember { TextStyle(color = Tb.Black, fontSize = 16.sp, fontWeight = FontWeight.Black) }
-    val hint = remember { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 16.sp, fontWeight = FontWeight.Black) }
+    val hint = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
 
     fun cellAt(x: Float, y: Float): Pair<Int, Float> {
         val cw = dims[0].coerceAtLeast(1) / 4f; val ch = dims[1].coerceAtLeast(1) / 4f

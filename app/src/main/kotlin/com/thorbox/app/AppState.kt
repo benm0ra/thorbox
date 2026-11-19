@@ -94,6 +94,19 @@ class AppState(private val app: Application) {
     val drums = com.thorbox.app.drums.DrumController(this)
     val tilt = com.thorbox.app.input.TiltController(this, app)
 
+    // ---- Theme (persisted) ----
+    private val uiPrefs = app.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)
+    init { com.thorbox.app.ui.Tb.palette = com.thorbox.app.ui.Themes.byId(uiPrefs.getString("theme", null)) }
+    val showThemes = mutableStateOf(false)
+    fun setTheme(p: com.thorbox.app.ui.Palette) {
+        com.thorbox.app.ui.Tb.palette = p
+        uiPrefs.edit().putString("theme", p.id).apply()
+    }
+    fun cycleTheme() {
+        val all = com.thorbox.app.ui.Themes.all
+        setTheme(all[(all.indexOf(com.thorbox.app.ui.Tb.palette) + 1) % all.size])
+    }
+
     // ---- Look & visualizer ----
     val glass = mutableStateOf(com.thorbox.app.ui.GlassLevel.FULL)
     fun cycleGlass() { glass.value = com.thorbox.app.ui.GlassLevel.entries[(glass.value.ordinal + 1) % 3] }
