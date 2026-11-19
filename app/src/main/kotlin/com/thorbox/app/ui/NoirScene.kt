@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
@@ -227,7 +228,7 @@ fun androidx.compose.foundation.layout.BoxScope.HazeFilm(state: com.thorbox.app.
         val fade = if (on) 1f else (1f - (since - 4f) / 2f).coerceIn(0f, 1f)
         val r = 14.dp.toPx()
         drawRoundRect(Tb.Black.copy(alpha = 0f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r))
-        androidx.compose.ui.graphics.drawscope.clipPath(androidx.compose.ui.graphics.Path().apply {
+        clipPath(androidx.compose.ui.graphics.Path().apply {
             addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, size.width, size.height, androidx.compose.ui.geometry.CornerRadius(r)))
         }) {
             noirScene(Offset.Zero, size, now, if (on) now - times[0] else -1f, since, g.fxEffX(NativeEngine.Fx.HAZE), g.fxEffY(NativeEngine.Fx.HAZE),
