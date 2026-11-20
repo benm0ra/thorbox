@@ -235,7 +235,7 @@ private fun DrawScope.spectrum(d: AnalyzerData, tm: TextMeasurer, st: AnalyzerSt
 }
 
 private fun DrawScope.loudness(d: AnalyzerData, tm: TextMeasurer, st: AnalyzerStyles) {
-    panel("LOUDNESS · LUFS", tm, st)
+    panel("LUFS", tm, st)
     val pad = 10.dp.toPx()
     val s = d.loud[1]; val m = d.loud[0]; val i = d.loud[2]
     val peak = max(d.loud[3], d.loud[4])
@@ -250,17 +250,21 @@ private fun DrawScope.loudness(d: AnalyzerData, tm: TextMeasurer, st: AnalyzerSt
     if (m > -99f) drawLine(Tb.Text, Offset(xOf(m), by - 2.dp.toPx()), Offset(xOf(m), by + bh + 2.dp.toPx()), 2.dp.toPx())
     drawLine(Tb.Key, Offset(xOf(-14f), by + bh), Offset(xOf(-14f), by + bh + 6.dp.toPx()), 1.5f.dp.toPx())
     drawTextSafe(tm, "−14", Offset(xOf(-14f) - 8.dp.toPx(), by + bh + 6.dp.toPx()), st.axis)
-    // the rest, in a row of small readouts
-    val y = (size.height - 34.dp.toPx()).coerceAtLeast(by + 30.dp.toPx())
+    // the rest: one line each, label left, value right (fits any panel width)
     val secs = d.loud[5].toInt()
-    val cols = listOf(
-        "MOM" to lufsText(m), "INT ${secs / 60}:${String.format(Locale.US, "%02d", secs % 60)}" to lufsText(i),
-        "PEAK" to (if (peak <= -99f) "—" else String.format(Locale.US, "%.1f", peak)),
+    val rows = listOf(
+        "MOMENTARY" to lufsText(m),
+        "INTEGRATED ${secs / 60}:${String.format(Locale.US, "%02d", secs % 60)}" to lufsText(i),
+        "PEAK dBFS" to (if (peak <= -99f) "—" else String.format(Locale.US, "%.1f", peak)),
     )
-    val cw = (size.width - 2 * pad) / cols.size
-    cols.forEachIndexed { k, (lab, v) ->
-        drawTextSafe(tm, lab, Offset(pad + k * cw, y), st.label)
-        drawTextSafe(tm, v, Offset(pad + k * cw, y + 12.dp.toPx()), if (lab == "PEAK" && peak > -1f) st.value.copy(color = Tb.Warn) else st.value)
+    val lineH = 16.dp.toPx()
+    var y = (size.height - pad - rows.size * lineH).coerceAtLeast(by + bh + 22.dp.toPx())
+    for ((lab, v) in rows) {
+        drawTextSafe(tm, lab, Offset(pad, y + 2.dp.toPx()), st.label)
+        val vs = if (lab.startsWith("PEAK") && peak > -1f) st.value.copy(color = Tb.Warn) else st.value
+        val w = tm.measure(v, vs).size.width
+        drawTextSafe(tm, v, Offset(size.width - pad - w, y), vs)
+        y += lineH
     }
 }
 
@@ -288,7 +292,7 @@ private fun DrawScope.stereo(d: AnalyzerData, tm: TextMeasurer, st: AnalyzerStyl
     }
     // correlation + width on the right
     val rx = pad + gs + 14.dp.toPx(); val rw = size.width - rx - pad
-    drawTextSafe(tm, "CORRELATION", Offset(rx, 24.dp.toPx()), st.label)
+    drawTextSafe(tm, "CORR", Offset(rx, 24.dp.toPx()), st.label)
     val by = 40.dp.toPx(); val bh = 8.dp.toPx()
     drawRoundRect(Tb.Raised, Offset(rx, by), Size(rw, bh), CornerRadius(4.dp.toPx()))
     drawLine(Tb.Line, Offset(rx + rw / 2f, by - 3.dp.toPx()), Offset(rx + rw / 2f, by + bh + 3.dp.toPx()), hair)
