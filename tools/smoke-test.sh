@@ -92,7 +92,29 @@ tour() {
   fi
 }
 
+# Clean screenshots for reviewing the UI (published to the ci-shots branch by CI): Thor-top-sized
+# landscape, scratch session, demo break + a pattern on every track, playing.
+shots() {
+  local d="$OUT/shots"; mkdir -p "$d"
+  adb shell wm size 1920x1080; adb shell wm density 360; sleep 2
+  adb shell am force-stop $PKG
+  adb shell am start -W -n $PKG/$ACT --ez scratch true >/dev/null; sleep 6
+  adb shell am start -n $PKG/$ACT --ez demo true --es view SAMPLER >/dev/null; sleep 6
+  adb shell am start -n $PKG/$ACT --ez dice true --ez play true >/dev/null; sleep 3
+  adb exec-out screencap -p > "$d/sampler.png"
+  adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 3
+  for i in 1 2 3 4 5 6; do adb exec-out screencap -p > "$d/drums-$i.png"; sleep 0.35; done
+  for v in SYNTH SEQ MIX; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
+  adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
+  adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
+  adb shell am start -n $PKG/$ACT --ei settings -1 >/dev/null
+  adb shell am force-stop $PKG
+  adb shell wm size reset; adb shell wm density reset; sleep 2
+  echo "::notice::screenshots: $(ls "$d" | wc -l) files"
+}
+
 adb install -r "$APK"
+shots
 run_case single
 tour single
 # Simulate the Thor's bottom screen as a secondary display.

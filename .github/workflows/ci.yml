@@ -78,6 +78,8 @@ jobs:
     name: Launch smoke test (emulator)
     needs: [wrapper, host-tests]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -103,6 +105,22 @@ jobs:
           name: smoke-logs
           path: smoke/
           retention-days: 14
+      # The clean screenshots go to an orphan ci-shots branch (one folder per commit, newest replaces it),
+      # so reviewing the UI doesn't need artifact downloads. Same-repo branches only.
+      - name: Publish screenshots to ci-shots
+        if: always() && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          [ -d smoke/shots ] || exit 0
+          mkdir -p /tmp/shots && cp smoke/shots/*.png /tmp/shots/ 2>/dev/null || exit 0
+          cd /tmp/shots
+          echo "$SHA" > COMMIT
+          git init -q && git checkout -q -b ci-shots
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screenshots for ${SHA:0:7}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-shots
 
   # Rolling "dev" pre-release: the newest green build from this repo's own branches, at a fixed URL,
   # so the Thor dev loop (tools/thor-dev.ps1) can fetch it without anyone clicking through CI.

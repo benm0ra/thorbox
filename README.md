@@ -77,7 +77,7 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 - **DICE / MUTATE (OP-XY style).** DICE rolls a brand-new playable sound within the selected family. MUTATE nudges the current one. ↶ undoes either.
 - **808 voice.** The PITCH page has a pitch envelope (the boom) and per-oscillator octaves. The VOICE page has glide, mono legato (slides), drive and noise.
 - **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a TR-style grid, DICE BEAT, kit save/load and per-sound dice.
-- **BIG DOG, the drummer.** A bulldog in a fitted cap and a gold chain who plays exactly the kit that's loaded. Only the pieces your voices use are on stage (a cowbell voice adds a cowbell, ZAP a sparking pad, SHAKE a shaker). Drum size follows tune, glow and ripple follow decay, level sets the flash, drive roughens the ripple, and the hi-hat opens as far as the voice that hit it. Every piece flashes in its slot's colour.
+- **BIG DAWG, the drummer.** A bulldog in a fitted cap and a gold chain who plays exactly the kit that's loaded. Only the pieces your voices use are on stage (a cowbell voice adds a cowbell, ZAP a sparking pad, SHAKE a shaker). Drum size follows tune, glow and ripple follow decay, level sets the flash, drive roughens the ripple, and the hi-hat opens as far as the voice that hit it. Every piece flashes in its slot's colour.
 - **Punch-in FX.** Every FX pad has a live glyph that shows what the effect is doing. **TILT** (FX deck) lets you lean the Thor to steer held effects, and shake it to dice.
 
 ## Controls

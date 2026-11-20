@@ -34,7 +34,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /*
- * BIG DOG, the drummer: a stocky, unbothered bulldog in a fitted cap and a gold chain, who plays
+ * BIG DAWG, the drummer: a stocky, unbothered bulldog in a fitted cap and a gold chain, who plays
  * exactly the kit the drum synth has loaded.
  *
  * The kit IS the sound:
@@ -59,8 +59,8 @@ private class Hand(val restX: Float, val restY: Float) {
 }
 
 private class DrummerState {
-    val left = Hand(150f, 150f)
-    val right = Hand(250f, 150f)
+    val left = Hand(146f, 160f)
+    val right = Hand(254f, 160f)
     val pieceHit = FloatArray(Piece.entries.size) { -10f }
     val pieceSlot = IntArray(Piece.entries.size)
     val pieceVel = FloatArray(Piece.entries.size) { 1f }
@@ -76,7 +76,7 @@ private class DrummerState {
     val path = Path()
 }
 
-// Big Dog's colours: his own, not the theme's (he looks the same on every theme).
+// Big Dawg's colours: his own, not the theme's (he looks the same on every theme).
 private val COAT = Color(0xFFD9A066)
 private val COAT_DARK = Color(0xFFB07A3E)
 private val BLAZE = Color(0xFFF3E8DA)
@@ -101,12 +101,13 @@ private fun pieceFor(v: DrumVoice, slot: Int, toms: IntArray): Piece = when (v.m
 
 /** Strike point for each piece (stage units), given its size factor. */
 private fun strikeX(p: Piece): Float = when (p) {
-    Piece.SNARE, Piece.RIM -> 126f; Piece.HIHAT -> 64f; Piece.RACK_TOM -> 176f; Piece.FLOOR_TOM -> 292f
+    Piece.SNARE, Piece.RIM -> 120f; Piece.HIHAT -> 62f; Piece.RACK_TOM -> 168f; Piece.FLOOR_TOM -> 296f
     Piece.CYMBAL -> 326f; Piece.COWBELL -> 232f; Piece.ZAP -> 344f; else -> 200f
 }
+/** Paw position for a strike: just above the skin / edge, so the stick tip lands on it. */
 private fun strikeY(p: Piece): Float = when (p) {
-    Piece.SNARE -> 186f; Piece.RIM -> 190f; Piece.HIHAT -> 150f; Piece.RACK_TOM -> 160f; Piece.FLOOR_TOM -> 194f
-    Piece.CYMBAL -> 108f; Piece.COWBELL -> 158f; Piece.ZAP -> 176f; else -> 140f
+    Piece.SNARE -> 172f; Piece.RIM -> 176f; Piece.HIHAT -> 140f; Piece.RACK_TOM -> 158f; Piece.FLOOR_TOM -> 180f
+    Piece.CYMBAL -> 96f; Piece.COWBELL -> 146f; Piece.ZAP -> 162f; else -> 140f
 }
 
 /** Size from tune: −24 st ≈ 1.35×, +24 st ≈ 0.75×. */
@@ -193,28 +194,34 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             if (st.present[Piece.CYMBAL.ordinal]) cymbalStand(st, now)
             if (st.present[Piece.HIHAT.ordinal]) hihat(st, now)
 
-            // ---- Big Dog ----
+            // ---- Big Dawg ----
             val bodyY = nod * 0.6f + kickK * 2.5f
             tail(now, playing, beatPhase)
             drawRoundRect(Tb.Raised, Offset(170f, 240f), Size(60f, 10f), CornerRadius(5f))          // stool
             drawLine(Tb.Raised, Offset(200f, 250f), Offset(200f, 284f), 6f)
             body(st, now, bodyY, beatPhase, playing)
+            // Arms go BEHIND the drums (the kit hides them where it's in front); only paws + sticks
+            // are drawn over the kit, so nothing crosses the shells.
+            val beatL = if (playing) -6f * (1f - abs(sin(PI.toFloat() * beatPhase))) else 0f
+            val beatR = if (playing) -6f * (1f - abs(sin(PI.toFloat() * ((beatPhase + 0.5f) % 1f)))) else 0f
+            val lp = pawPos(st.left, now, beatL); val lx = lp.x; val ly = lp.y
+            val rp = pawPos(st.right, now, beatR); val rx = rp.x; val ry = rp.y
+            arm(182f, 166f + bodyY, lx, ly, mirror = false)
+            arm(218f, 166f + bodyY, rx, ry, mirror = true)
             head(st, now, bodyY + nod * 0.5f, sleepy, kickK)
 
             // ---- front row ----
-            if (st.present[Piece.RACK_TOM.ordinal]) tom(st, Piece.RACK_TOM, 176f, 160f, 46f, 20f, now)
+            if (st.present[Piece.RACK_TOM.ordinal]) tom(st, Piece.RACK_TOM, 168f, 168f, 44f, 20f, now)
             if (st.present[Piece.COWBELL.ordinal]) cowbell(st, now)
             if (st.present[Piece.SNARE.ordinal]) snare(st, now)
-            if (st.present[Piece.FLOOR_TOM.ordinal]) tom(st, Piece.FLOOR_TOM, 292f, 194f, 64f, 36f, now)
+            if (st.present[Piece.FLOOR_TOM.ordinal]) tom(st, Piece.FLOOR_TOM, 296f, 194f, 62f, 36f, now)
             if (st.present[Piece.ZAP.ordinal]) zapPad(st, now)
             if (st.present[Piece.KICK.ordinal]) kick(st, now, kickK, tm, logo)
 
-            // ---- forelegs + sticks (in front of everything); between hits they ride the beat ----
-            val beatL = if (playing) -7f * (1f - abs(sin(PI.toFloat() * beatPhase))) else 0f
-            val beatR = if (playing) -7f * (1f - abs(sin(PI.toFloat() * ((beatPhase + 0.5f) % 1f)))) else 0f
+            // ---- paws + sticks on top; between hits they ride the beat ----
             val shaking = st.present[Piece.SHAKER.ordinal]
-            foreleg(st.left, 176f, 170f + bodyY, now, mirror = false, groove = beatL, stick = true)
-            foreleg(st.right, 224f, 170f + bodyY, now, mirror = true, groove = beatR, stick = !shaking || now - st.pieceHit[Piece.SHAKER.ordinal] > 0.6f)
+            paw(st.left, lx, ly, now, mirror = false, stick = true)
+            paw(st.right, rx, ry, now, mirror = true, stick = !shaking || now - st.pieceHit[Piece.SHAKER.ordinal] > 0.6f)
             if (shaking) shaker(st, now)
             if (now - st.pieceHit[Piece.CLAP.ordinal] in 0f..0.25f) clapBurst(st, now)
         }
@@ -270,19 +277,19 @@ private fun DrawScope.snare(st: DrummerState, now: Float) {
     val s = sizeOf(v)
     val dt = now - st.pieceHit[Piece.SNARE.ordinal]
     val c = slotColor(st, Piece.SNARE)
-    drawLine(Tb.Line, Offset(126f, 204f), Offset(116f, 284f), 3f); drawLine(Tb.Line, Offset(126f, 204f), Offset(138f, 284f), 3f)
-    drumShell(126f, 186f, 70f * s, 20f * s, 16f, env(dt, 30f), c, envFor(dt, ringSec(v) * 0.7f) * hitGain(st.pieceVel[Piece.SNARE.ordinal], v))
+    drawLine(Tb.Line, Offset(120f, 204f), Offset(110f, 284f), 3f); drawLine(Tb.Line, Offset(120f, 204f), Offset(132f, 284f), 3f)
+    drumShell(120f, 186f, 70f * s, 20f * s, 16f, env(dt, 30f), c, envFor(dt, ringSec(v) * 0.7f) * hitGain(st.pieceVel[Piece.SNARE.ordinal], v))
     // snare wires rattle underneath for as long as it rings
     val rattle = envFor(dt, ringSec(v))
     if (rattle > 0.05f) for (i in 0 until 4) {
         val y = 204f + i * 2f + sin(now * 90f + i) * 1.5f * rattle
-        drawLine(Tb.Text.copy(alpha = rattle), Offset(126f - 26f * s, y), Offset(126f + 26f * s, y), 1f)
+        drawLine(Tb.Text.copy(alpha = rattle), Offset(120f - 26f * s, y), Offset(120f + 26f * s, y), 1f)
     }
-    ripple(st, Piece.SNARE, 126f, 186f, 35f * s, 10f * s, now)
+    ripple(st, Piece.SNARE, 120f, 186f, 35f * s, 10f * s, now)
     // RIM: a click on the hoop: the rim lights instead of the skin
     val rdt = now - st.pieceHit[Piece.RIM.ordinal]
     val rk = env(rdt, 18f)
-    if (rk > 0.02f) drawOval(slotColor(st, Piece.RIM).copy(alpha = rk), Offset(126f - 35f * s, 186f - 10f * s), Size(70f * s, 20f * s), style = Stroke(5f))
+    if (rk > 0.02f) drawOval(slotColor(st, Piece.RIM).copy(alpha = rk), Offset(120f - 35f * s, 186f - 10f * s), Size(70f * s, 20f * s), style = Stroke(5f))
 }
 
 private fun DrawScope.tom(st: DrummerState, p: Piece, cx: Float, top: Float, w: Float, depth: Float, now: Float) {
@@ -306,7 +313,7 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: androidx.
     drawCircle(lerp(Tb.Raised, c, 0.25f + 0.75f * envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.KICK.ordinal], v)), r, Offset(200f, cy), style = Stroke(9f))
     drawCircle(Tb.Text, r - 9f, Offset(200f, cy), style = Stroke(2f))
     // the band name on the front head, like every proper kick
-    val t = tm.measure("BIG DOG", logo)
+    val t = tm.measure("BIG DAWG", logo)
     drawRoundRect(MASK, Offset(200f - t.size.width / 2f - 6f, cy - t.size.height / 2f - 3f), Size(t.size.width + 12f, t.size.height + 6f), CornerRadius(6f))
     drawText(t, topLeft = Offset(200f - t.size.width / 2f, cy - t.size.height / 2f))
     // pedal beater (back paw) swings in on the hit
@@ -402,7 +409,7 @@ private fun DrawScope.clapBurst(st: DrummerState, now: Float) {
     }
 }
 
-// ----------------------------------------------------------------------------- Big Dog
+// ----------------------------------------------------------------------------- Big Dawg
 
 /** Stub tail behind the stool, wagging in time while the beat runs. */
 private fun DrawScope.tail(now: Float, playing: Boolean, beatPhase: Float) {
@@ -413,29 +420,21 @@ private fun DrawScope.tail(now: Float, playing: Boolean, beatPhase: Float) {
 }
 
 private fun DrawScope.body(st: DrummerState, now: Float, y: Float, beatPhase: Float, playing: Boolean) {
-    // barrel chest, wide and low: a bulldog sits like a fire hydrant
-    drawRoundRect(COAT, Offset(160f, 150f + y), Size(80f, 96f), CornerRadius(34f))
-    // brindle stripes on the flanks
-    for (i in 0 until 3) {
-        drawLine(COAT_DARK, Offset(166f, 176f + y + i * 16f), Offset(178f, 170f + y + i * 16f), 3f, cap = StrokeCap.Round)
-        drawLine(COAT_DARK, Offset(234f, 176f + y + i * 16f), Offset(222f, 170f + y + i * 16f), 3f, cap = StrokeCap.Round)
-    }
-    // white chest blaze
-    drawOval(BLAZE, Offset(184f, 162f + y), Size(32f, 54f))
+    // barrel chest: one clean shape with a soft outline (no clutter), white blaze down the front
+    drawRoundRect(COAT_DARK, Offset(163f, 150f + y), Size(74f, 94f), CornerRadius(32f))
+    drawRoundRect(COAT, Offset(165f, 152f + y), Size(70f, 90f), CornerRadius(30f))
+    drawOval(BLAZE, Offset(186f, 166f + y), Size(28f, 50f))
     // gold chain: swings with the beat, a heavy link pendant
     val swing = if (playing) sin(2f * PI.toFloat() * beatPhase) * 5f else 0f
     val path = st.path; path.reset()
-    path.moveTo(176f, 156f + y); path.quadraticTo(200f + swing, 196f + y, 224f, 156f + y)
-    drawPath(path, GOLD_DARK, style = Stroke(5f))
-    drawPath(path, GOLD, style = Stroke(3f))
-    for (i in 1 until 8) {                                    // link highlights along the curve
-        val t = i / 8f
-        val x = (1 - t) * (1 - t) * 176f + 2 * (1 - t) * t * (200f + swing) + t * t * 224f
-        val yy = (1 - t) * (1 - t) * (156f + y) + 2 * (1 - t) * t * (196f + y) + t * t * (156f + y)
-        drawCircle(Color.White.copy(alpha = 0.55f), 1.2f, Offset(x, yy))
-    }
-    drawRoundRect(GOLD, Offset(193f + swing * 0.8f, 176f + y), Size(14f, 16f), CornerRadius(3f))
-    drawRoundRect(GOLD_DARK, Offset(193f + swing * 0.8f, 176f + y), Size(14f, 16f), CornerRadius(3f), style = Stroke(1.5f))
+    path.moveTo(180f, 156f + y); path.quadraticTo(200f + swing, 186f + y, 220f, 156f + y)
+    drawPath(path, GOLD_DARK, style = Stroke(4f))
+    drawPath(path, GOLD, style = Stroke(2.2f))
+    // pendant: a small gold tag, swinging with the chain
+    val tx = 200f + swing * 0.7f; val ty = 172f + y
+    drawCircle(GOLD_DARK, 6.5f, Offset(tx, ty + 5f))
+    drawCircle(GOLD, 5.2f, Offset(tx, ty + 5f))
+    drawCircle(Color.White.copy(alpha = 0.6f), 1.4f, Offset(tx - 1.8f, ty + 3.2f))
 }
 
 private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boolean, kickK: Float) {
@@ -508,29 +507,42 @@ private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boole
     fittedCap(cx, cy - 6f, cy - 62f - hop, hop)
 }
 
-/** Shoulder → elbow → paw, then the stick. The paw springs from the strike point back to rest. */
-private fun DrawScope.foreleg(h: Hand, sx: Float, sy: Float, now: Float, mirror: Boolean, groove: Float, stick: Boolean) {
+/** Where a paw is now: it springs from its last strike point back to rest (slight overshoot), riding the beat. */
+private fun pawPos(h: Hand, now: Float, groove: Float): Offset {
     val dt = now - h.at
-    val k = if (dt < 0f) 1f else min(1f, dt / 0.22f).let { x -> 1f + 1.7f * (x - 1f) * (x - 1f) * (x - 1f) + 0.7f * (x - 1f) * (x - 1f) }
-    val hx = h.fromX + (h.restX - h.fromX) * k
-    val hy = h.fromY + (h.restY + groove - h.fromY) * k
+    val k = if (dt < 0f) 1f else min(1f, dt / 0.2f).let { x -> 1f + 1.7f * (x - 1f) * (x - 1f) * (x - 1f) + 0.7f * (x - 1f) * (x - 1f) }
+    return Offset(h.fromX + (h.restX - h.fromX) * k, h.fromY + (h.restY + groove - h.fromY) * k)
+}
+
+/** Upper arm + forearm, one smooth tapered limb with a soft elbow. Drawn behind the kit. */
+private fun DrawScope.arm(sx: Float, sy: Float, hx: Float, hy: Float, mirror: Boolean) {
     val dx = hx - sx; val dy = hy - sy
     val len = max(1f, sqrt(dx * dx + dy * dy))
-    val bend = max(0f, 40f - len * 0.5f)
+    val bend = max(0f, 30f - len * 0.35f)
     val side = if (mirror) 1f else -1f
     val ex = sx + dx * 0.5f + (-dy / len) * bend * side
-    val ey = sy + dy * 0.5f + (dx / len) * bend * side
-    drawLine(COAT, Offset(sx, sy), Offset(ex, ey), 16f, cap = StrokeCap.Round)
-    drawLine(COAT, Offset(ex, ey), Offset(hx, hy), 14f, cap = StrokeCap.Round)
+    val ey = sy + dy * 0.5f + (dx / len) * bend * side + 6f       // elbows hang a little
+    drawLine(COAT_DARK, Offset(sx, sy), Offset(ex, ey), 15f, cap = StrokeCap.Round)
+    drawLine(COAT_DARK, Offset(ex, ey), Offset(hx, hy), 13f, cap = StrokeCap.Round)
+    drawLine(COAT, Offset(sx, sy), Offset(ex, ey), 12f, cap = StrokeCap.Round)
+    drawLine(COAT, Offset(ex, ey), Offset(hx, hy), 10f, cap = StrokeCap.Round)
+}
+
+/** Paw + stick, on top of the kit. The stick points down at the strike and tips back up at rest. */
+private fun DrawScope.paw(h: Hand, hx: Float, hy: Float, now: Float, mirror: Boolean, stick: Boolean) {
+    val dt = now - h.at
+    val raise = if (dt < 0f) 1f else min(1f, dt / 0.2f)
     if (stick) {
-        val raise = k.coerceIn(0f, 1.2f)
-        val tipX = hx + (if (mirror) 1f else -1f) * (10f + 8f * raise)
-        val tipY = hy + 26f - 44f * raise
-        drawLine(Tb.Key, Offset(hx, hy), Offset(tipX, tipY), 4.5f, cap = StrokeCap.Round)
+        val dir = if (mirror) 1f else -1f
+        // at the hit the tip drops onto the skin (about 12 below the paw); at rest it angles up and out
+        val tipX = hx + dir * (8f + 16f * raise)
+        val tipY = hy + 12f - 30f * raise
+        drawLine(Tb.Black, Offset(hx, hy), Offset(tipX, tipY), 6f, cap = StrokeCap.Round)
+        drawLine(Tb.Key, Offset(hx, hy), Offset(tipX, tipY), 3.5f, cap = StrokeCap.Round)
     }
-    // round paw with toe lines
-    drawCircle(BLAZE, 9f, Offset(hx, hy))
-    for (i in -1..1) drawLine(COAT_DARK, Offset(hx + i * 3.5f, hy + 2f), Offset(hx + i * 3.5f, hy + 7f), 1.5f)
+    drawCircle(COAT_DARK, 8.5f, Offset(hx, hy))
+    drawCircle(BLAZE, 7f, Offset(hx, hy))
+    for (i in -1..1) drawLine(COAT_DARK.copy(alpha = 0.7f), Offset(hx + i * 3f, hy + 2f), Offset(hx + i * 3f, hy + 5.5f), 1.3f, cap = StrokeCap.Round)
 }
 
 private fun lerp(a: Color, b: Color, t: Float): Color {
