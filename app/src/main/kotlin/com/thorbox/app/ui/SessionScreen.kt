@@ -63,8 +63,7 @@ fun TopScreen(state: AppState) {
             HwButton("THEME", Modifier.fillMaxWidth(), active = state.showThemes.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 9, hPad = 2.dp) {
                 state.showThemes.value = !state.showThemes.value }
             InfoToggle(onTour = { state.showWelcome.value = true }, modifier = Modifier.fillMaxWidth())
-            Box(Modifier.weight(1f))
-            LevelMeter(state.level, Modifier.fillMaxWidth().weight(2f)
+            LevelMeter(state.level, Modifier.fillMaxWidth().weight(1f)
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { state.showDiagnostics.value = !state.showDiagnostics.value }) })
         }
         Box(Modifier.weight(1f).fillMaxHeight().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
@@ -123,9 +122,9 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
             HwButton("FOLDER", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
         }
         when {
-            root == null -> Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
-                HwButton("CHOOSE SAMPLES FOLDER", active = true, minHeight = 64.dp) { state.requestFolder() }
-            }
+            // The big CHOOSE FOLDER / RECORD lives in the empty sample area; here, just say what will appear.
+            root == null -> Text("Your samples folder shows up here.", color = Tb.Muted, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
             scanning && files.isEmpty() -> Text("Scanning…", color = Tb.Muted, modifier = Modifier.padding(12.dp))
             files.isEmpty() -> Text("No wav / mp3 files in that folder", color = Tb.Muted, modifier = Modifier.padding(12.dp))
             else -> LazyColumn(Modifier.fillMaxSize()) {

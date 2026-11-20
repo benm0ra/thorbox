@@ -25,12 +25,12 @@ import kotlin.math.roundToInt
  * the way you'd reach for swing on an MPC while the loop plays.
  */
 @Composable
-fun GrooveStrip(state: AppState, track: Int, modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp = 40.dp) {
+fun GrooveStrip(state: AppState, track: Int, modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp = 40.dp, showLabel: Boolean = true) {
     val g = state.groove
     val feel = g.feels.value[track]
     Row(modifier.fillMaxWidth().height(height).glass(state, 10.dp).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("GROOVE", color = Tb.Muted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp,
+        if (showLabel) Text("GROOVE", color = Tb.Muted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp,
             modifier = Modifier.padding(horizontal = 4.dp))
         GrooveTemplate.entries.forEach { t ->
             HwButton(t.label, Modifier.weight(1f).fillMaxHeight(), active = feel.template == t, accent = Tb.Key, minHeight = 28.dp, fontSize = 9, hPad = 2.dp) {

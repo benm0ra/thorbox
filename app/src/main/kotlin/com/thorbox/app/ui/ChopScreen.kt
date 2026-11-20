@@ -59,7 +59,7 @@ fun ChopScreen(state: AppState) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             MatchBar(state)
             SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
-            GrooveStrip(state, state.samplerTrack.intValue)
+            GrooveStrip(state, state.samplerTrack.intValue, showLabel = false)
             ChopControls(state)
         }
     }
@@ -209,7 +209,10 @@ private fun ChopControls(state: AppState) {
     val sm = state.sampler
     val mode = sm.chopMode.value
     val pad = sm.pads.value[sm.selected.intValue]
-    Row(Modifier.fillMaxWidth().height(52.dp).glass(state, 12.dp).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
+    // Two rows on the Thor's top screen: how to chop (top), then the selected pad (bottom). One row
+    // squeezed ÷4 / ÷8 / ÷16 to blank buttons and pushed + and the play mode off the edge.
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(state, 12.dp).padding(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         HwButton("AUTO", Modifier.fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12) { sm.setChopMode(ChopMode.AUTO) }
         if (mode == ChopMode.AUTO)
@@ -221,14 +224,23 @@ private fun ChopControls(state: AppState) {
         HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
-        HoldButton("▶", false, Tb.Good, Modifier.width(44.dp).fillMaxHeight()) { sm.togglePreview(it) }
-        Box(Modifier.width(4.dp))
-        // Selected pad
-        Text("PAD ${sm.selected.intValue + 1}", color = Tb.Pads[sm.selected.intValue % Tb.Pads.size], fontWeight = FontWeight.Black, fontSize = 13.sp)
-        HwButton("−", Modifier.fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
-        Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
-        HwButton("+", Modifier.fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
-        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.fillMaxHeight(), fontSize = 11) { state.cyclePlayMode() }
+        HoldButton("▶", false, Tb.Good, Modifier.width(52.dp).fillMaxHeight()) { sm.togglePreview(it) }
+    }
+    Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        val padColor = Tb.Pads[sm.selected.intValue % Tb.Pads.size]
+        Text("PAD ${sm.selected.intValue + 1}", color = padColor, fontWeight = FontWeight.Black, fontSize = 15.sp,
+            modifier = Modifier.padding(horizontal = 8.dp))
+        Text("PITCH", style = Tb.Label, color = Tb.Muted)
+        HwButton("−", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
+        Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp,
+            modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        HwButton("+", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
+        Box(Modifier.weight(1f))
+        Text("PLAY", style = Tb.Label, color = Tb.Muted)
+        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.width(120.dp).fillMaxHeight(),
+            active = true, accent = padColor, fontSize = 12) { state.cyclePlayMode() }
+    }
     }
 }
 

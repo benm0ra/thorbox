@@ -84,7 +84,7 @@ fun SeqScreen(state: AppState) {
                 active = g.auto.lanes.value.isNotEmpty(), accent = Tb.Key) { showAuto.value = true }
             // Track picker: tap to step through the tracks (each one keeps its own pattern).
             val tr = state.tracks.value[track]
-            HwButton("${tr.name} ▸", Modifier.fillMaxHeight(), active = true, accent = kindColor(tr.kind), minHeight = 40.dp, fontSize = 12) {
+            HwButton("${tr.name} ▸", Modifier.fillMaxHeight(), active = true, accent = kindColor(tr.kind), minHeight = 40.dp, fontSize = 12, hPad = 8.dp) {
                 val order = state.tracks.value.indices.filter { state.trackKind(it) != com.thorbox.model.TrackKind.EMPTY }
                 state.selectTrackForSteps(order[(order.indexOf(track) + 1) % order.size])
             }
@@ -93,19 +93,19 @@ fun SeqScreen(state: AppState) {
                 modifier = Modifier.align(androidx.compose.ui.Alignment.CenterVertically))
             if (!g.isPadTrack(track)) {
                 val grid = g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID
-                HwButton(if (grid) "GRID" else "LANES", Modifier.fillMaxHeight(), active = true, accent = Tb.EncGreen, minHeight = 40.dp, fontSize = 12) {
+                HwButton(if (grid) "GRID" else "LANES", Modifier.fillMaxHeight(), active = true, accent = Tb.EncGreen, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) {
                     g.synthEdit.value = if (grid) com.thorbox.app.groove.GrooveController.SynthEdit.LANES else com.thorbox.app.groove.GrooveController.SynthEdit.GRID
                 }
             }
-            Box(Modifier.width(6.dp))
+            Box(Modifier.width(2.dp))
             Lane.entries.forEach { l ->
                 if (l == Lane.NOTE && g.isPadTrack(track)) return@forEach
                 if (!g.isPadTrack(track) && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) return@forEach
-                HwButton(l.name, Modifier.fillMaxHeight(), active = g.lane.value == l, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12) { g.lane.value = l }
+                HwButton(l.name, Modifier.fillMaxHeight(), active = g.lane.value == l, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) { g.lane.value = l }
             }
-            Box(Modifier.width(6.dp))
+            Box(Modifier.width(2.dp))
             val steps = Steps.count(g.clips.value[track].lengthTicks)
-            listOf(8, 16, 32).forEach { n -> HwButton("$n", Modifier.fillMaxHeight(), active = steps == n, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12) { g.setLength(track, n) } }
+            listOf(8, 16, 32).forEach { n -> HwButton("$n", Modifier.fillMaxHeight(), active = steps == n, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) { g.setLength(track, n) } }
             Box(Modifier.weight(1f))
             ScaleChips(state)
         }
@@ -142,16 +142,16 @@ private fun ScaleChips(state: AppState) {
     val sample by state.sample.collectAsState()          // subscribe, so the chips update when a new sample loads
     val k = state.lockKey()
     val follow = s.followSample && sample?.key != null
-    HwButton("AUTO", Modifier.fillMaxHeight(), active = s.followSample, accent = Tb.Key, minHeight = 40.dp, fontSize = 11) {
+    HwButton("AUTO", Modifier.fillMaxHeight(), active = s.followSample, accent = Tb.Key, minHeight = 40.dp, fontSize = 11, hPad = 8.dp) {
         g.setScale(s.copy(followSample = !s.followSample, root = k.root, mode = k.mode))
     }
-    HwButton(NOTE_NAMES[k.root.ordinal], Modifier.fillMaxHeight(), enabled = !follow, minHeight = 40.dp, fontSize = 13) {
+    HwButton(NOTE_NAMES[k.root.ordinal], Modifier.fillMaxHeight(), enabled = !follow, minHeight = 40.dp, fontSize = 13, hPad = 8.dp) {
         g.setScale(s.copy(root = PitchClass.entries[(s.root.ordinal + 1) % 12], followSample = false))
     }
-    HwButton(Scales.label(k.mode), Modifier.fillMaxHeight(), enabled = !follow, minHeight = 40.dp, fontSize = 12) {
+    HwButton(Scales.label(k.mode), Modifier.fillMaxHeight(), enabled = !follow, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) {
         g.setScale(s.copy(mode = ScaleMode.entries[(s.mode.ordinal + 1) % ScaleMode.entries.size], followSample = false))
     }
-    HwButton(if (state.keyLock.value) "LOCK" else "FREE", Modifier.fillMaxHeight(), active = state.keyLock.value, accent = Tb.Key, minHeight = 40.dp, fontSize = 11) {
+    HwButton(if (state.keyLock.value) "LOCK" else "FREE", Modifier.fillMaxHeight(), active = state.keyLock.value, accent = Tb.Key, minHeight = 40.dp, fontSize = 11, hPad = 8.dp) {
         state.releaseAllKeys(); state.keyLock.value = !state.keyLock.value
     }
 }
