@@ -38,9 +38,9 @@ fun GrooveStrip(state: AppState, track: Int, modifier: Modifier = Modifier, heig
                 Info.title.value = t.label; Info.body.value = t.blurb; Info.stamp.intValue++
             }
         }
-        DragValue("FEEL", "${(feel.amount * 100).roundToInt()}%", Tb.Key, Modifier.width(62.dp).fillMaxHeight(), pxPerUnit = 300f,
+        DragValue("FEEL", "${(feel.amount * 100).roundToInt()}%", Tb.Key, Modifier.width(92.dp).fillMaxHeight(), pxPerUnit = 300f, compact = true,
             onDelta = { g.setFeel(track, feel.copy(amount = feel.amount + it)) }, onReset = { g.setFeel(track, feel.copy(amount = 1f)) })
-        DragValue("SWING", "${(g.groove.value.swing * 100).roundToInt()}%", Tb.Tempo, Modifier.width(62.dp).fillMaxHeight(), pxPerUnit = 600f,
+        DragValue("SWING", "${(g.groove.value.swing * 100).roundToInt()}%", Tb.Tempo, Modifier.width(98.dp).fillMaxHeight(), pxPerUnit = 600f, compact = true,
             onDelta = { g.setSwing(g.groove.value.swing + it) }, onReset = { g.setSwing(0.5f) })
     }
 }

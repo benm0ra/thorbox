@@ -57,6 +57,12 @@ class RolePresentation(
         }
     }
 
+    // Re-hide the bars whenever focus hops between the two screens (Android shows them again otherwise).
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        window?.insetsController?.hide(WindowInsets.Type.systemBars())
+    }
+
     // Key focus follows the last-touched display, so gamepad input can land here.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         state.input.onKey(event) || super.dispatchKeyEvent(event)

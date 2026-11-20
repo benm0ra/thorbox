@@ -203,17 +203,17 @@ private fun ChopControls(state: AppState) {
             DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(70.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })
         listOf(4, 8, 16).forEach { n ->
-            HwButton("÷$n", Modifier.fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12) { sm.setEqualCount(n) }
+            HwButton("÷$n", Modifier.weight(1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12) { sm.setEqualCount(n) }
         }
-        HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12) {
+        HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
         HoldButton("▶", false, Tb.Good, Modifier.width(44.dp).fillMaxHeight()) { sm.togglePreview(it) }
-        Box(Modifier.weight(1f))
+        Box(Modifier.width(4.dp))
         // Selected pad
         Text("PAD ${sm.selected.intValue + 1}", color = Tb.Pads[sm.selected.intValue % Tb.Pads.size], fontWeight = FontWeight.Black, fontSize = 13.sp)
         HwButton("−", Modifier.fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
-        Text(String.format(Locale.US, "%+d semi", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
+        Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
         HwButton("+", Modifier.fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
         HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.fillMaxHeight(), fontSize = 11) { state.cyclePlayMode() }
     }

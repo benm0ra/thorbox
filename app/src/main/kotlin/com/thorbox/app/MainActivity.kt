@@ -60,6 +60,11 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
     }
 
+    // Touching the other screen moves window focus there, and Android brings the status bar back on
+    // this one. Hide it again whenever focus changes, in either direction.
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); hideSystemBars() }
+    override fun onResume() { super.onResume(); hideSystemBars() }
+
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); applyLaunchExtras(intent) }
 
     /** `--es view DRUM --es deck FX`: open a given view/deck (used by the emulator smoke test; harmless otherwise). */

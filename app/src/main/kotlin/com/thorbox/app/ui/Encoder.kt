@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,7 +55,9 @@ fun Encoder(
     // NAV cursor: focus the knob, then the right stick (or A + D-pad) turns it.
     Column(modifier.navAdjustable(label) { d -> start(); delta(d); end() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Canvas(
-            Modifier.fillMaxWidth(0.82f).aspectRatio(1f)
+            // The dial takes whatever height the label + value leave, square and centred, so it can never
+            // push them off the bottom of a short row (the 1080p top screen clipped them before).
+            Modifier.weight(1f, fill = false).aspectRatio(1f, matchHeightConstraintsFirst = true)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { Info.show(label); start() },

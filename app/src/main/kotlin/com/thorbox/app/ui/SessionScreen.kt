@@ -114,10 +114,12 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
     val loading by state.loadingName.collectAsState()
 
     Column(modifier) {
-        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("SAMPLES", style = Tb.Label, modifier = Modifier.weight(1f))
-            HwButton("MIC", minHeight = 36.dp, fontSize = 12, accent = Tb.Warn) { state.openMic() }
-            HwButton("FOLDER", minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
+        // Title on its own line, buttons sharing the row under it: the panel is narrow on the Thor's
+        // top screen and "SAMPLES" used to wrap to "SAM / PLES" beside two buttons.
+        Text("SAMPLES", style = Tb.Label, maxLines = 1, modifier = Modifier.padding(start = 10.dp, top = 8.dp, end = 10.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            HwButton("MIC", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12, accent = Tb.Warn) { state.openMic() }
+            HwButton("FOLDER", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
         }
         when {
             root == null -> Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {

@@ -103,9 +103,27 @@ fun DragValue(
     pxPerUnit: Float = 300f,
     onDelta: (Float) -> Unit,
     onReset: (() -> Unit)? = null,
+    /** One line ("FEEL 100%") for short strips where the two-line version would be clipped. */
+    compact: Boolean = false,
 ) {
     val delta by androidx.compose.runtime.rememberUpdatedState(onDelta)
     val reset by androidx.compose.runtime.rememberUpdatedState(onReset)
+    if (compact) {
+        Row(
+            modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(Tb.Raised)
+                .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
+                .navAdjustable(label) { d -> delta(d) }
+                .padding(horizontal = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(label, style = Tb.Label, color = accent, maxLines = 1)
+            Text(value, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+        }
+        return
+    }
     androidx.compose.foundation.layout.Column(
         modifier
             .heightIn(min = 44.dp)
