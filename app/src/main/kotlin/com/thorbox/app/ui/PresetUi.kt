@@ -73,23 +73,26 @@ fun PresetBar(
     val spin by animateFloatAsState(rolls * 90f, spring(dampingRatio = 0.45f, stiffness = 300f), label = "die")
     Row(modifier.height(40.dp).glass(state, 12.dp).padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        HwButton("‹", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 20, hPad = 4.dp, onClick = onPrev)
+        // The name is what you're choosing by (CRATE DUST, ALIEN CHOIR…), so it gets the room: compact
+        // arrows / die / undo, and long names step the type down a size before they'd ever ellipsize.
+        HwButton("‹", Modifier.fillMaxHeight().width(32.dp), minHeight = 32.dp, fontSize = 20, hPad = 2.dp, onClick = onPrev)
         Row(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Void.copy(alpha = 0.55f))
-            .navClickable(label = "PRESETS", onClick = onOpen).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(9.dp).clip(CircleShape).background(groupColor))
-            Text(name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 14.sp, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp).weight(1f))
-            if (groupLabel != null) Text(groupLabel, color = groupColor, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
-            Text("  ▾", color = Tb.Muted, fontSize = 12.sp)
+            .navClickable(label = "PRESETS", onClick = onOpen).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(groupColor))
+            Text(name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black,
+                fontSize = when { name.length <= 8 -> 14.sp; name.length <= 11 -> 12.sp; else -> 11.sp }, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp).weight(1f))
+            if (groupLabel != null) Text(groupLabel, color = groupColor, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = 1.sp)
+            Text("▾", color = Tb.Muted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
-        HwButton("›", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 20, hPad = 4.dp, onClick = onNext)
-        Box(Modifier.fillMaxHeight().width(54.dp).clip(RoundedCornerShape(6.dp)).background(Tb.Key)
+        HwButton("›", Modifier.fillMaxHeight().width(32.dp), minHeight = 32.dp, fontSize = 20, hPad = 2.dp, onClick = onNext)
+        Box(Modifier.fillMaxHeight().width(44.dp).clip(RoundedCornerShape(6.dp)).background(Tb.Key)
             .navClickable { rolls++; onDice() }, contentAlignment = Alignment.Center) {
             Die(Modifier.size(20.dp).rotate(spin))
         }
-        HwButton(mutateLabel, Modifier.fillMaxHeight(), accent = Tb.EncGreen, minHeight = 32.dp, fontSize = 11) { rolls++; onMutate() }
-        HwButton("↶", Modifier.fillMaxHeight().width(40.dp), enabled = canUndo, minHeight = 32.dp, fontSize = 14, onClick = onUndo)
-        HwButton("SAVE", Modifier.fillMaxHeight(), accent = Tb.Good, minHeight = 32.dp, fontSize = 11, onClick = onSave)
+        HwButton(mutateLabel, Modifier.fillMaxHeight(), accent = Tb.EncGreen, minHeight = 32.dp, fontSize = 11, hPad = 8.dp) { rolls++; onMutate() }
+        HwButton("↶", Modifier.fillMaxHeight().width(34.dp), enabled = canUndo, minHeight = 32.dp, fontSize = 14, hPad = 2.dp, onClick = onUndo)
+        HwButton("SAVE", Modifier.fillMaxHeight(), accent = Tb.Good, minHeight = 32.dp, fontSize = 11, hPad = 8.dp, onClick = onSave)
     }
 }
 
