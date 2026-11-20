@@ -67,9 +67,10 @@ object Themes {
         "pastel", "PASTEL", light = true,
         void = Color(0xFFFBF6EE), bg = Color(0xFFF6EFE4), panel = Color(0xFFEFE6D8), raised = Color(0xFFE4D8C6), line = Color(0xFFD6C8B3),
         text = Color(0xFF2E2A33), muted = Color(0xFF7D7468), dim = Color(0xFFB2A796), ink = Color(0xFF2E2A33),
-        pads = listOf(Color(0xFFFF9E9E), Color(0xFFFFCB8E), Color(0xFFF2EA8A), Color(0xFFA9E8A0),
-            Color(0xFF8EE3EF), Color(0xFF9DBBFF), Color(0xFFBCAEFF), Color(0xFFFFB3EC)),
-        key = Color(0xFFFFB45C), tempo = Color(0xFF5CC7D9), good = Color(0xFF6CC48A), warn = Color(0xFFFF7A7A),
+        // A touch deeper than classic pastels: the Thor's bright panel washed the lighter set out to white.
+        pads = listOf(Color(0xFFFF8A8A), Color(0xFFFFB46B), Color(0xFFE6D24F), Color(0xFF86D97A),
+            Color(0xFF62CFE2), Color(0xFF7FA2FF), Color(0xFFA38DFF), Color(0xFFFF94DD)),
+        key = Color(0xFFF08C1F), tempo = Color(0xFF239FB8), good = Color(0xFF6CC48A), warn = Color(0xFFFF7A7A),
         encBlue = Color(0xFF7FA6FF), encGreen = Color(0xFF6CC48A), encWhite = Color(0xFF5A5560), encOrange = Color(0xFFFF9F6E),
         aurora = listOf(Color(0xFFFFB3C7), Color(0xFFA8D8FF), Color(0xFFB9F2D0), Color(0xFFFFD9A8)),
     )
