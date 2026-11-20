@@ -120,7 +120,7 @@ class MicRecorder(private val app: Context) {
                             }
                         }
                     }
-                    val g = Math.pow(10.0, gainDb.value / 20.0).toFloat()
+                    val g = Math.pow(10.0, gainDb.floatValue / 20.0).toFloat()
                     var pk = 0f
                     bb.clear()
                     for (i in 0 until n) {

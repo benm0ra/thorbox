@@ -72,8 +72,8 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
                 modifier = Modifier.border(1.dp, Tb.Line, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 1.dp))
             Box(Modifier.weight(1f))
             // GAIN: lifts a quiet mic (applied to the take, soft-limited so it can't wrap)
-            DragValue("GAIN", "+${mic.gainDb.value.roundToInt()} dB", Tb.Key, Modifier.width(120.dp).height(34.dp), pxPerUnit = 8f, compact = true,
-                onDelta = { mic.gainDb.value = (mic.gainDb.value + it).coerceIn(0f, 24f) }, onReset = { mic.gainDb.value = 0f })
+            DragValue("GAIN", "+${mic.gainDb.floatValue.roundToInt()} dB", Tb.Key, Modifier.width(120.dp).height(34.dp), pxPerUnit = 8f, compact = true,
+                onDelta = { mic.gainDb.floatValue = (mic.gainDb.floatValue + it).coerceIn(0f, 24f) }, onReset = { mic.gainDb.floatValue = 0f })
             HwButton("✕", Modifier.width(44.dp), minHeight = 34.dp, fontSize = 14, enabled = !rec && !saving) { state.showMic.value = false }
         }
 

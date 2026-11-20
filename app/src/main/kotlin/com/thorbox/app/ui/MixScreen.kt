@@ -100,7 +100,7 @@ fun MixScreen(state: AppState) {
         }
         Strip(
             state, name = "MASTER", color = Tb.EncWhite, selected = g.mixSelected.intValue == MASTER_STRIP,
-            db = g.masterDb.value, pan = null, mute = null, solo = null, meterIdx = 2 * com.thorbox.model.TRACK_COUNT,
+            db = g.masterDb.floatValue, pan = null, mute = null, solo = null, meterIdx = 2 * com.thorbox.model.TRACK_COUNT,
             onDb = { d -> g.mixSelected.intValue = MASTER_STRIP; g.setMaster(d) }, onPan = {}, onMute = {}, onSolo = {},
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )

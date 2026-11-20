@@ -191,7 +191,7 @@ app/
 
 ## Performance
 
-- **Audio:** worst case is 8 synth voices, a dense 2 × 400-event pattern with ratchets and p-locks, and all 12 punch-in FX. That uses about **1% of the real-time budget on a desktop CPU**, so expect roughly 3–5% on the Thor's cores. Measure it with `tools/bench.sh`.
+- **Audio:** worst case is 8 synth voices, 16 sampler voices, 16 drum voices with the DUST bus, a dense 2 × 400-event pattern with ratchets and p-locks, all 12 punch-in FX and the R128 loudness meter. On a desktop CPU the whole callback takes **about 1.7% of the real-time budget**, so expect roughly 5% on the Thor's cores. Measure it with `tools/bench.sh`. The UI caps canvas animation at 60 fps on 120 Hz panels (SETTINGS → LOOK → 120 HZ to lift it), and the app's code is AOT-compiled at install from a baseline profile.
   - The callback never allocates, locks or logs.
   - FFTs, time-stretching, decoding and pattern building all run off the audio thread.
 - **UI:**

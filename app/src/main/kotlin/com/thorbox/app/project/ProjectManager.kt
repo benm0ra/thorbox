@@ -305,7 +305,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
             name = name,
             transport = TransportDto(gv.bpm, gv.swing, gv.swing16, gv.quantize, gv.repeatRate.name, gv.metronome),
             scale = ScaleDto(sc.root.name, sc.mode.name, sc.followSample, app.keyLock.value),
-            masterDb = g.masterDb.value,
+            masterDb = g.masterDb.floatValue,
             tracks = tracks,
             clips = g.clips.value,
             channels = g.channels.value.map { ChannelDto(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },

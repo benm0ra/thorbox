@@ -679,7 +679,7 @@ class AppState(private val app: Application) {
     // ================= Keyboard =================
 
     fun notesForKey(index: Int): IntArray {
-        val base = 48 + 12 * keyOctave.value
+        val base = 48 + 12 * keyOctave.intValue
         if (!keyLock.value) {
             val n = base + index
             return if (chordMode.value) intArrayOf(n, n + 4, n + 7) else intArrayOf(n)
@@ -706,7 +706,7 @@ class AppState(private val app: Application) {
 
     fun releaseAllKeys() { noteRefs.fill(0); NativeEngine.synthAllOff(synthTrack.intValue) }
 
-    fun shiftOctave(d: Int) { releaseAllKeys(); keyOctave.value = (keyOctave.value + d).coerceIn(-2, 3) }
+    fun shiftOctave(d: Int) { releaseAllKeys(); keyOctave.intValue = (keyOctave.intValue + d).coerceIn(-2, 3) }
 
     // ================= Loading =================
 

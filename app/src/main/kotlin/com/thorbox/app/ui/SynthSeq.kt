@@ -197,7 +197,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
     val stepDims = remember { IntArray(2) }
     val keyFingers = remember { HashMap<Int, IntArray>() }
     val byStep = remember(clip) { Steps.byStep(clip.notes, clip.lengthTicks) }      // once per edit, not per frame
-    val keyNotes = remember(state.keyOctave.value, state.keyLock.value, state.chordMode.value, state.lockKey()) { IntArray(16) { state.notesForKey(it)[0] } }
+    val keyNotes = remember(state.keyOctave.intValue, state.keyLock.value, state.chordMode.value, state.lockKey()) { IntArray(16) { state.notesForKey(it)[0] } }
     val stepFingers = remember { HashMap<Int, Pair<Int, Long>>() }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -41,14 +41,14 @@ private val defaultsRev = androidx.compose.runtime.mutableIntStateOf(0)
  */
 @Composable
 fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
-    val tab = state.settingsTab.value
+    val tab = state.settingsTab.intValue
     Column(modifier.navModal().fillMaxSize().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(14.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("SETTINGS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp,
                 modifier = Modifier.padding(end = 10.dp))
             listOf("PROJECTS", "LOOK", "DEFAULTS", "CONTROLS", "SYSTEM").forEachIndexed { i, name ->
-                HwButton(name, minHeight = 38.dp, fontSize = 12, active = tab == i, accent = Tb.Key) { state.settingsTab.value = i }
+                HwButton(name, minHeight = 38.dp, fontSize = 12, active = tab == i, accent = Tb.Key) { state.settingsTab.intValue = i }
             }
             Box(Modifier.weight(1f))
             HwButton("✕", Modifier.width(48.dp), minHeight = 38.dp, fontSize = 14) { state.showSettings.value = false }

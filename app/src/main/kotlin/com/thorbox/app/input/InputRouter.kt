@@ -266,7 +266,7 @@ class InputRouter(private val state: AppState) {
                 }
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (down) {
                     val d = if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP) 1f else -1f
-                    if (sel == master) g.setMaster(g.masterDb.value + d) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + d) }
+                    if (sel == master) g.setMaster(g.masterDb.floatValue + d) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + d) }
                 }
                 KeyEvent.KEYCODE_BUTTON_A -> if (first && sel < master) g.setChannel(sel) { it.copy(mute = !it.mute) }
                 KeyEvent.KEYCODE_BUTTON_X -> if (first && sel < master) state.selectTrack(sel)            // open the selected track
@@ -370,7 +370,7 @@ class InputRouter(private val state: AppState) {
             val vol = -axes[1] * abs(axes[1]) * dt * 30f            // dB per second at full tilt
             val pan = axes[2] * abs(axes[2]) * dt * 1.5f
             val master = com.thorbox.app.ui.MASTER_STRIP
-            if (vol != 0f) { if (sel == master) g.setMaster(g.masterDb.value + vol) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + vol) } }
+            if (vol != 0f) { if (sel == master) g.setMaster(g.masterDb.floatValue + vol) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + vol) } }
             if (pan != 0f && sel < master) g.setChannel(sel) { it.copy(pan = it.pan + pan) }
             return
         }

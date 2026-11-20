@@ -107,7 +107,7 @@ class GrooveController(private val app: AppState) {
         NativeEngine.setPlaying(playing.value); NativeEngine.setRecording(recording.value)
         clips.value.indices.forEach(::sendClip)
         channels.value.indices.forEach(::pushChannel)
-        NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value)
+        NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.floatValue)
     }
 
     private fun pushGroove() {
@@ -327,7 +327,7 @@ class GrooveController(private val app: AppState) {
         clips.value = List(n) { t -> clipList.getOrNull(t) ?: com.thorbox.model.Clip(com.thorbox.model.ClipId("t$t"), "T${t + 1}", color = t, lengthTicks = 16 * STEP_TICKS) }
         channels.value = List(n) { t -> channelList.getOrNull(t) ?: Channel("T${t + 1}") }
         feels.value = List(n) { t -> feelList.getOrNull(t) ?: TrackFeel() }
-        masterDb.value = master
+        masterDb.floatValue = master
         auto.clearAll(); auto.lanes.value = lanes
         undo.forEach { it.clear() }; canUndo.value = false
         pushAll()
@@ -617,8 +617,8 @@ class GrooveController(private val app: AppState) {
         autoWasPlaying = playingNow
     }
     fun setMaster(db: Float, fromAutomation: Boolean = false) {
-        masterDb.value = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value)
-        if (!fromAutomation) auto.touch(Automation.MASTER, autoArmed(), transport[0], fxLoopLen(), masterDb.value)
+        masterDb.floatValue = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.floatValue)
+        if (!fromAutomation) auto.touch(Automation.MASTER, autoArmed(), transport[0], fxLoopLen(), masterDb.floatValue)
     }
 
     // ================= per frame =================
