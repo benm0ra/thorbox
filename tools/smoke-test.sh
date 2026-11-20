@@ -124,7 +124,10 @@ shots() {
   adb logcat -c || true
   adb shell am start -n $PKG/$ACT --ez recstart true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/mic-rec.png"
   adb shell am start -n $PKG/$ACT --ez recstop true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/mic-review.png"
+  sleep 4; adb exec-out screencap -p > "$d/mic-review-later.png"
   adb logcat -d -s ClamshellMic:* | tee "$d/mic-log.txt" | tail -20
+  adb logcat -d -b crash,main "*:E" | grep -i -E "clamshell|thorbox|AndroidRuntime|FATAL" | tail -30 | tee "$d/mic-errors.txt" || true
+  adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity" | head -3 | tee -a "$d/mic-errors.txt" || true
   if ! grep -q "capture: " "$d/mic-log.txt"; then echo "RECORDER FAILED: no audio was captured"; exit 1; fi
   if ! grep -q "stop: ok=true" "$d/mic-log.txt"; then echo "RECORDER FAILED: take didn't finish cleanly"; exit 1; fi
   adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1

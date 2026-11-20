@@ -123,6 +123,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
 
         if (take != null && !rec) {
             // ---- REVIEW ----
+            androidx.compose.runtime.LaunchedEffect(take) { android.util.Log.i(MicRecorder.TAG, "ui: review shown (${take.name})") }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text(clock(take.seconds), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 26.sp)

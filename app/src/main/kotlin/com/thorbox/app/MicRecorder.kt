@@ -181,6 +181,7 @@ class MicRecorder(private val app: Context) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 recording.value = false; level = 0f
                 if (result != null) take.value = result else onError(msg)
+                android.util.Log.i(TAG, "ui: recording=false, take=${result?.let { "%.1f s".format(Locale.US, it.seconds) } ?: "none ($msg)"}")
             }
         }, "clamshell-mic").also { it.start() }
     }
