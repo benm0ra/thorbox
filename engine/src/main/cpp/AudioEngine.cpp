@@ -247,7 +247,7 @@ bool AudioEngine::setPadRegion(int pad, int64_t s, int64_t e) {
 }
 bool AudioEngine::setPadGain(int pad, float g) {
     if (pad < 0 || pad >= kMaxPads) return false;
-    return mCmds.push({CmdType::SetPadGain, pad, 0, std::clamp(g, 0.f, 4.f)});
+    return mCmds.push({CmdType::SetPadGain, pad, 0, std::clamp(g, 0.f, 16.f)});
 }
 
 int AudioEngine::transients(int sampleId, float sensitivity, int maxSlices, int64_t* out) {
@@ -430,6 +430,39 @@ bool AudioEngine::getPeaks(int sampleId, int buckets, float* out) {
     return true;
 }
 
+bool AudioEngine::regionLevels(int sampleId, const int64_t* starts, const int64_t* ends, int n, float* outPeakDb, float* outLoudDb) {
+    std::shared_ptr<SampleBuffer> buf;
+    {
+        std::lock_guard<std::mutex> l(mRegMtx);
+        auto it = mRegistry.find(sampleId);
+        if (it == mRegistry.end()) return false;
+        buf = it->second.buf;
+    }
+    if (!buf || buf->frames <= 0) return false;
+    const int64_t win = std::max<int64_t>(64, (int64_t)(0.05 * buf->sampleRate)), hop = win / 2;
+    auto toDb = [](double v) { return v > 1e-9 ? (float)(20.0 * std::log10(v)) : -120.f; };
+    for (int i = 0; i < n; ++i) {
+        const int64_t a = std::clamp<int64_t>(starts[i], 0, buf->frames), e = std::clamp<int64_t>(ends[i], a, buf->frames);
+        double pk = 0.0, best = 0.0;
+        for (int64_t w0 = a; w0 < e; w0 += hop) {
+            const int64_t w1 = std::min(e, w0 + win);
+            double ss = 0.0;
+            for (int64_t f = w0; f < w1; ++f) {
+                float s = 0.f;
+                for (int c = 0; c < buf->channels; ++c) s += buf->at(c, f);
+                s /= (float)buf->channels;
+                ss += (double)s * s;
+                pk = std::max(pk, (double)std::fabs(s));
+            }
+            if (w1 > w0) best = std::max(best, ss / (double)(w1 - w0));
+            if (w1 >= e) break;
+        }
+        outPeakDb[i] = toDb(pk);
+        outLoudDb[i] = toDb(std::sqrt(best));
+    }
+    return true;
+}
+
 void AudioEngine::getSynthTelemetry(float* out, int64_t* notes) {
     for (int i = 0; i < kTel; ++i) out[i] = mTel[i].load(std::memory_order_relaxed);
     notes[0] = (int64_t)mTelNotes[0].load(std::memory_order_relaxed);
@@ -578,7 +611,7 @@ void AudioEngine::startPad(int pad, float vel, float sr) {
     if (pad < 0 || pad >= kMaxPads) return;
     PadState& p = mPads[pad];
     if (!p.buf) return;
-    // Each pad is monophonic like Koala and the SP: a retrigger fades the previous hit out over 4 ms.
+    // Each pad is monophonic, like classic samplers: a retrigger fades the previous hit out over 4 ms.
     for (auto& v : mVoices)
         if (v.active() && v.pad() == pad && !v.releasing()) v.release(4.f, sr);
     const float gain = 0.1f + 0.9f * vel * vel;   // a gentle curve: soft taps stay audible

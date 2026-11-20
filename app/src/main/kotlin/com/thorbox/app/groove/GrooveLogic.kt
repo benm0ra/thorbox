@@ -237,11 +237,11 @@ class PatternGen(seed: Int) {
         BOOM_BAP("BOOM BAP", GrooveTemplate.BOOMBAP), TRAP("TRAP", GrooveTemplate.TRAP), HOUSE("HOUSE", GrooveTemplate.HOUSE),
         BREAKS("BREAKS", GrooveTemplate.MPC60), DEMBOW("DEMBOW", null), LOFI("LO-FI", GrooveTemplate.LAZY),
         /** Soul-sample swing: kicks that skip around the 16ths, snare + clap stacked, loose hats. */
-        DRUNK("DRUNK", GrooveTemplate.DILLA),
+        DRUNK("DRUNK", GrooveTemplate.DRUNK),
         /** Sparse and heavy: a few hard kicks, a cracking snare, quiet or no hats (often a ride instead). */
         DUSTY("DUSTY", GrooveTemplate.LAZY),
         /** Raw and off-kilter: unpredictable kicks, loud snares with stray extras, rough 16th hats, a low thud. */
-        VILLAIN("VILLAIN", GrooveTemplate.SP1200),
+        VILLAIN("VILLAIN", GrooveTemplate.GRIT),
         /** Sped-up soul: bouncy kick, snare + big clap + tambourine on 2 and 4, steady 8th hats. */
         SOUL_CHOP("SOUL CHOP", GrooveTemplate.BOOMBAP),
     }

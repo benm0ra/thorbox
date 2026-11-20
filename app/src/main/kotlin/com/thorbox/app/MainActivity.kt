@@ -84,6 +84,9 @@ class MainActivity : ComponentActivity() {
         }
         i?.getStringExtra("kit")?.let { n -> state.presets.allKits().firstOrNull { it.name == n.replace('_', ' ') }?.let(state.drums::loadKit) }
         if (i?.hasExtra("drumpage") == true) state.drums.page.intValue = i.getIntExtra("drumpage", 0).coerceIn(0, 2)
+        if (i?.hasExtra("latch") == true) i.getIntExtra("latch", -1).let { id -> if (id in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.toggleLatch(id, 0.3f, 0.7f) }
+        if (i?.getBooleanExtra("dry", false) == true) state.groove.stopAll()
+        if (i?.hasExtra("fxxy") == true) state.groove.fxXyMode.value = i.getBooleanExtra("fxxy", false)
         if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }

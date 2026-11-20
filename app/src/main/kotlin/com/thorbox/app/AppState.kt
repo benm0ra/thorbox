@@ -123,7 +123,7 @@ class AppState(private val app: Application) {
     val showControllerMap = mutableStateOf(false)
 
     // ---- Settings (persisted) ----
-    /** MiniMeters-style master meter strip across the top screen. */
+    /** Master meter strip across the top screen. */
     val miniMeters = mutableStateOf(uiPrefs.getBoolean("miniMeters", false))
     fun setMiniMeters(on: Boolean) { miniMeters.value = on; uiPrefs.edit().putBoolean("miniMeters", on).apply() }
     init { com.thorbox.app.ui.Info.enabled.value = uiPrefs.getBoolean("hints", true) }
@@ -181,7 +181,7 @@ class AppState(private val app: Application) {
     fun setLibraryRoot(uri: Uri) { library.setRoot(uri); rescanLibrary() }
     fun rescanLibrary() { scope.launch { library.rescan() } }
 
-    // ---- Navigation: deck tab drives the top screen's contextual view (Ableton's "selection → detail") ----
+    // ---- Navigation: deck tab drives the top screen's contextual view (selection → detail) ----
     val deck = mutableStateOf(Deck.PADS)
     val topView = mutableStateOf(TopView.SAMPLER)
     /** Leave the visualizer back to whatever was showing before it. */
@@ -197,7 +197,7 @@ class AppState(private val app: Application) {
             Deck.PADS -> { if (topView.value == TopView.SYNTH || topView.value == TopView.DRUM) topView.value = TopView.SAMPLER; groove.seqTrack.intValue = samplerTrack.intValue }
             Deck.KEYS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.DRUM) topView.value = TopView.SYNTH; groove.seqTrack.intValue = synthTrack.intValue }
             Deck.DRUMS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.SYNTH) topView.value = TopView.DRUM; groove.seqTrack.intValue = drumTrack.intValue }
-            // The STEP deck is the synth's OP-XY step sequencer (drums have their own TR grid on DRM).
+            // The STEP deck is the synth's step sequencer (drums have their own grid on DRM).
             Deck.STEP -> { topView.value = TopView.SEQ; groove.seqTrack.intValue = synthTrack.intValue; groove.synthEdit.value = com.thorbox.app.groove.GrooveController.SynthEdit.GRID }
             else -> Unit
         }
@@ -310,7 +310,7 @@ class AppState(private val app: Application) {
         engineRunning = false
     }
 
-    // ================= Sampler pads (16, Serato-style chops) =================
+    // ================= Sampler pads (16 chops) =================
     // Wrappers kept for the gamepad and older call sites: they act on the SELECTED pad.
 
     fun padDown(velocity: Float) = padDown(sampler.selected.intValue, velocity)
@@ -452,7 +452,7 @@ class AppState(private val app: Application) {
         keyLock.value = sc.keyLock
         groove.restore(groove0, scale0, p.clips,
             p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },
-            p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.valueOf(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
+            p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.byName(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
             p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } })
 
         val f = p.focus
@@ -543,7 +543,7 @@ class AppState(private val app: Application) {
     }
 
     /**
-     * Export every track's pattern as one multi-track .mid in Downloads (drag it into Ableton).
+     * Export every track's pattern as one multi-track .mid in Downloads (drag it into your DAW).
      * Synth tracks keep their notes; sampler pads are C1 upward (MPC/Drum Rack layout); drum
      * tracks go to channel 10 with General MIDI notes so a Drum Rack maps them instantly.
      */
@@ -572,7 +572,7 @@ class AppState(private val app: Application) {
             val name = withContext(Dispatchers.IO) { LogExport.saveBytes(app, "ClamshellBeats", "mid", "audio/midi", bytes) }
             lastInput.value = if (name != null) "Saved Downloads/$name" else "MIDI export failed"
             com.thorbox.app.ui.Info.title.value = "MIDI"
-            com.thorbox.app.ui.Info.body.value = if (name != null) "Saved to Downloads: $name (${out.size} tracks, $loops× loop). Drag it into Ableton." else "Couldn't save the MIDI file."
+            com.thorbox.app.ui.Info.body.value = if (name != null) "Saved to Downloads: $name (${out.size} tracks, $loops× loop). Drag it into your DAW." else "Couldn't save the MIDI file."
             com.thorbox.app.ui.Info.stamp.intValue++
         }
     }
@@ -604,7 +604,7 @@ class AppState(private val app: Application) {
         groove.nameChannel(t, tracks.value[t].name)
     }
 
-    // ================= Synth presets + dice (OP-XY style) =================
+    // ================= Synth presets + dice ==================
 
     /** Category filter for browsing and for DICE (null = any). */
     val synthCategory = mutableStateOf<com.thorbox.model.SynthCategory?>(null)
@@ -696,9 +696,12 @@ class AppState(private val app: Application) {
     fun toggleMicRecording() {
         if (mic.recording.value) { mic.stop(); return }
         if (!hasMic()) { micPermissionRequests.tryEmit(Unit); return }
-        mic.start { uri, name ->
-            if (uri == null) { _error.value = name; return@start }
-            // Into the sampler track you're on, auto-chopped, like any other sample.
+        mic.start { msg -> _error.value = msg }
+    }
+    /** KEEP: save the take, then drop it onto the current sampler track, auto-chopped. */
+    fun keepMicTake() {
+        mic.keep { uri, name ->
+            if (uri == null) { _error.value = name; return@keep }
             if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) {
                 load(uri, name)
                 showMic.value = false
@@ -707,6 +710,8 @@ class AppState(private val app: Application) {
             lastInput.value = "Saved Music/Clamshell Beats/Field Recordings/$name"
         }
     }
+    /** REDO: throw the take away and record again straight away. */
+    fun redoMicTake() { mic.discard(); toggleMicRecording() }
     /** Load the built-in demo break (synthesized once into the cache) onto the current sampler track. */
     fun loadDemo() {
         scope.launch {

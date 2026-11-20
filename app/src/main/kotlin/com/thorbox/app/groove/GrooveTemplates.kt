@@ -5,7 +5,7 @@ import kotlin.math.roundToInt
 
 /**
  * Groove templates: the timing + accent "feel" a track plays with, applied per track on top of
- * the global swing (like MPC swing per sequence, or Ableton's groove pool per clip). Each template
+ * the global swing (like MPC swing per sequence, but per track). Each template
  * is 16 sixteenth-note slots: a timing offset in ticks (960 PPQN, + = late) and a velocity scale.
  * AMOUNT 0..1 blends from straight to the full template. The stored notes are never changed:
  * the feel is applied when the pattern is sent to the engine, so you can switch it freely.
@@ -22,11 +22,11 @@ enum class GrooveTemplate(
         IntArray(16) { if (it % 2 == 1) 58 else 0 },
         FloatArray(16) { when { it % 4 == 0 -> 1f; it % 2 == 0 -> 0.9f; else -> 0.78f } },
         slotShift = intArrayOf(0, 6, 8, 0, 0, 0, 4, 0), slotJitter = intArrayOf(2, 3, 3, 4, 4, 3, 4, 2)),
-    SP1200("SP-1200", "Gritty, tighter shuffle (≈56%) with punchy downbeats.",
+    GRIT("GRIT", "Gritty, tighter shuffle (≈56%) with punchy downbeats.",
         IntArray(16) { if (it % 2 == 1) 29 else 0 },
         FloatArray(16) { if (it % 4 == 0) 1f else 0.85f },
         slotShift = intArrayOf(0, 4, 6, 0, 0, 0, 0, 0)),
-    DILLA("DILLA", "Drunk on purpose: every drum on its own clock. Kick wanders, snare drags, the clap flams in late behind it, hats float loose.",
+    DRUNK("DRUNK", "Drunk on purpose: every drum on its own clock. Kick wanders, snare drags, the clap flams in late behind it, hats float loose.",
         intArrayOf(0, 46, 14, 52, 26, 40, 18, 58, 0, 44, 12, 50, 30, 42, 16, 60),
         floatArrayOf(1f, 0.72f, 0.86f, 0.7f, 0.95f, 0.74f, 0.84f, 0.68f, 0.98f, 0.73f, 0.85f, 0.7f, 0.96f, 0.75f, 0.83f, 0.69f), jitter = 6,
         slotShift = intArrayOf(4, 26, 44, 0, 6, 14, 20, 0), slotJitter = intArrayOf(22, 8, 10, 16, 12, 12, 14, 6)),
@@ -72,6 +72,14 @@ enum class GrooveTemplate(
     }
 
     fun next(d: Int): GrooveTemplate = entries[Math.floorMod(ordinal + d, entries.size)]
+
+    companion object {
+        /** By saved name; projects from before the rename used SP1200 / DILLA. */
+        fun byName(n: String): GrooveTemplate = when (n) {
+            "SP1200" -> GRIT; "DILLA" -> DRUNK
+            else -> entries.firstOrNull { it.name == n } ?: STRAIGHT
+        }
+    }
 }
 
 /** A track's feel. */

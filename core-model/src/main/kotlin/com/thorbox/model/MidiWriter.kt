@@ -70,7 +70,7 @@ object MidiWriter {
         for (i in n - 1 downTo 0) b.write(buf[i])
     }
 
-    /** General MIDI drum note for a drum model (Ableton Drum Rack / any GM kit). */
+    /** General MIDI drum note for a drum model (any General MIDI kit). */
     fun gmDrum(model: DrumModel, decayMs: Float): Int = when (model) {
         DrumModel.KICK -> 36; DrumModel.SNARE -> 38; DrumModel.CLAP -> 39
         DrumModel.HAT -> if (decayMs < 150f) 42 else 46

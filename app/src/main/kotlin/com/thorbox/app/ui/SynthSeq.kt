@@ -177,7 +177,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
 
 
 /**
- * Deck 3: STEP, OP-XY-style. Top: 16 in-key notes. Bottom: 16 steps of the current bar.
+ * Deck 3: STEP. Top: 16 in-key notes. Bottom: 16 steps of the current bar.
  *   tap a step = toggle it · HOLD a step + play keys = write those notes into it (a chord if you press several)
  *   HOLD a step = its components open on the top screen (ratchet, condition, nudge, velocity, p-locks)
  * Keys with no step held play live (and record while REC is on).
@@ -292,7 +292,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
 }
 
 /**
- * Shown on the top screen while a step is held (OP-XY style "hold step, turn knob").
+ * Shown on the top screen while a step is held ("hold step, turn knob").
  * Row 1: step components. Row 2: parameter locks: turn to lock that sound to this step only,
  * double-tap to clear. Locks hold until the next step without them.
  */

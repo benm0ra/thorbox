@@ -84,7 +84,7 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadRegion)(JNIEnv*, jobject, jint pad
     return gEngine && start >= 0 && end >= -1 && gEngine->setPadRegion(pad, start, end);
 }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadGain)(JNIEnv*, jobject, jint pad, jfloat g) {
-    return gEngine && finite(g) && g >= 0.f && g <= 4.f && gEngine->setPadGain(pad, g);
+    return gEngine && finite(g) && g >= 0.f && g <= 16.f && gEngine->setPadGain(pad, g);   // up to +24 dB (NORMALIZE on quiet chops)
 }
 // Safe from any thread (reads an immutable buffer).
 JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sampleId, jfloat sens, jint maxSlices, jlongArray out) {
@@ -124,6 +124,19 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeGetPeaks)(JNIEnv* env, jobject, jint sam
     const bool ok = gEngine->getPeaks(sampleId, len / 2, p);
     env->ReleaseFloatArrayElements(out, p, ok ? 0 : JNI_ABORT);
     return ok;
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeRegionLevels)(JNIEnv* env, jobject, jint sampleId, jlongArray regions, jfloatArray out) {
+    if (!gEngine || !regions || !out) return JNI_FALSE;
+    const jsize rl = env->GetArrayLength(regions), ol = env->GetArrayLength(out);
+    const int n = rl / 2;
+    if (n < 1 || n > 64 || ol < 2 * n) return JNI_FALSE;
+    jlong r[128]; env->GetLongArrayRegion(regions, 0, 2 * n, r);
+    int64_t a[64], e[64]; float pk[64], ld[64];
+    for (int i = 0; i < n; ++i) { a[i] = (int64_t)r[2 * i]; e[i] = (int64_t)r[2 * i + 1]; }
+    if (!gEngine->regionLevels(sampleId, a, e, n, pk, ld)) return JNI_FALSE;
+    jfloat o[128]; for (int i = 0; i < n; ++i) { o[2 * i] = pk[i]; o[2 * i + 1] = ld[i]; }
+    env->SetFloatArrayRegion(out, 0, 2 * n, o);
+    return JNI_TRUE;
 }
 JNIEXPORT jfloat JNICALL JNI_FN(nativePlayhead)(JNIEnv*, jobject) { return gEngine ? gEngine->playhead() : -1.f; }
 JNIEXPORT jfloat JNICALL JNI_FN(nativePeakLevel)(JNIEnv*, jobject) { return gEngine ? gEngine->peakLevel() : 0.f; }

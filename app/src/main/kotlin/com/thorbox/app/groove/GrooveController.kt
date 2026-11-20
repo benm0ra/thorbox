@@ -83,6 +83,7 @@ class GrooveController(private val app: AppState) {
 
     // ---- punch-in FX ----
     val fxLatched = mutableIntStateOf(0)                // bitmask: effects that stay on when released
+    val fxXyMode = mutableStateOf(false)                // FX deck shows one XY surface for the latched effects
     val fxHeld = mutableIntStateOf(0)                   // bitmask: effects currently touched / pressed
 
     // ---- live readouts (read in draw lambdas) ----
@@ -222,7 +223,7 @@ class GrooveController(private val app: AppState) {
     fun defaultNote(track: Int): Int = if (isPadTrack(track)) selectedPad(track) else
         clips.value[track].notes.lastOrNull()?.note ?: synthBase()
 
-    /** Pad tracks edit one pad at a time (the selected pad), like an MPC/Koala step view. Synth edits everything. */
+    /** Pad tracks edit one pad at a time (the selected pad), like an MPC step view. Synth edits everything. */
     private inline fun scoped(track: Int, notes: List<NoteEvent>, f: (List<NoteEvent>) -> List<NoteEvent>): List<NoteEvent> {
         if (!isPadTrack(track)) return f(notes)
         val pad = selectedPad(track)
@@ -251,7 +252,7 @@ class GrooveController(private val app: AppState) {
     fun diceBeat(track: Int = drumT) {
         rollInto(track, { g, c -> g.beat(Steps.count(c.lengthTicks), gen.value, avoid = lastBeat) }) { g ->
             lastBeat = g.beatStyle
-            // A style comes with its groove (DRUNK → DILLA, DUSTY → LAZY …). Only take over a straight
+            // A style comes with its groove (DRUNK beat → DRUNK feel, DUSTY → LAZY …). Only take over a straight
             // track or one the dice set last time, never a feel you picked yourself.
             val want = g.beatStyle?.feel
             val cur = feels.value[track].template
@@ -400,7 +401,7 @@ class GrooveController(private val app: AppState) {
         else c.copy(notes = c.notes.map { if (it.tick == tick && it.note == note) it.copy(note = newNote.coerceIn(0, 127)) else it })
     }
 
-    // ================= synth: OP-XY-style step entry =================
+    // ================= synth: step entry =================
 
     val heldStep = mutableIntStateOf(-1)         // the step whose components the top screen shows
     private var heldEdited = false
@@ -444,7 +445,7 @@ class GrooveController(private val app: AppState) {
         update(synthT) { c -> c.copy(notes = c.notes.map { if (Steps.stepOf(it, c.lengthTicks) == step) f(it) else it }) }
     }
 
-    /** Trig conditions, OP-XY / Elektron style: "a:b" = play on loop a of every b. */
+    /** Trig conditions: "a:b" = play on loop a of every b. */
     val conditions = listOf(1 to 0, 2 to 0, 2 to 1, 4 to 0, 4 to 1, 4 to 2, 4 to 3, 3 to 0)
     fun conditionLabel(every: Int, phase: Int) = if (every <= 1) "ALWAYS" else "${phase + 1}:$every"
 
@@ -533,10 +534,19 @@ class GrooveController(private val app: AppState) {
         auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 0f)
         if (fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id)
     }
-    fun toggleLatch(id: Int) {
+    /** The XY surface: one finger steers every latched effect at once (recorded like a normal move). */
+    fun fxMoveLatched(x: Float, y: Float) {
+        val m = fxLatched.intValue
+        for (id in 0 until NativeEngine.Fx.COUNT) if (m and (1 shl id) != 0) fxMove(id, x, y)
+    }
+    /** LATCH: on = the effect engages (at its last XY) and stays on hands-free; off = it releases (unless held). */
+    fun toggleLatch(id: Int, x: Float = fxX[id], y: Float = fxY[id]) {
         val bit = 1 shl id
         fxLatched.intValue = fxLatched.intValue xor bit
-        if (fxLatched.intValue and bit == 0 && fxHeld.intValue and bit == 0) NativeEngine.fxOff(id)
+        if (fxLatched.intValue and bit != 0) {
+            fxX[id] = x; fxY[id] = y
+            if (fxHeld.intValue and bit == 0) NativeEngine.fxOn(id, fxEffX(id), fxEffY(id))
+        } else if (fxHeld.intValue and bit == 0) NativeEngine.fxOff(id)
     }
     fun fxActiveMask(): Int = transport[12].toInt()
     fun fxHeldOrLatched(id: Int) = (fxHeld.intValue or fxLatched.intValue or autoFx) and (1 shl id) != 0

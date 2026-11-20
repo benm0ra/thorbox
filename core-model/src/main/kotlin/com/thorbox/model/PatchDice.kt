@@ -6,7 +6,7 @@ import kotlin.math.ln
 import kotlin.random.Random
 
 /**
- * OP-XY-style sound dice. DICE builds a fresh patch inside musical bounds for a category, so
+ * Sound dice. DICE builds a fresh patch inside musical bounds for a category, so
  * every roll is playable (basses stay low and mono, pads stay slow, 808s keep their boom).
  * MUTATE nudges the current patch by [amount] (0..1), keeping its character.
  * Pure and deterministic for a given seed (testable, and "undo → same roll" is possible).

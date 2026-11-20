@@ -188,7 +188,7 @@ public:
 
     void setSampleRate(float sr) { mSr = std::max(8000.f, sr); }
 
-    // A parameter lock: overrides one param until the next unlocked step (OP-XY / Elektron "p-lock").
+    // A parameter lock: overrides one param until the next unlocked step ("p-lock").
     void lockParam(int id, float v) {
         if (id < 0 || id >= kParamCount) return;
         p[id] = std::clamp(v, kRanges[id].lo, kRanges[id].hi);

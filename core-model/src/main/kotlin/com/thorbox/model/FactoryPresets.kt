@@ -133,12 +133,12 @@ object FactoryPresets {
     private val Z = DrumModel.ZAP; private val SH = DrumModel.SHAKER
 
     val kits: List<KitPreset> = listOf(
-        kit("TR-808",
+        kit("808",
             v("KICK", K, decay = 900f, tone = 0.1f, snap = 0.35f, drive = 0.05f), v("SNARE", S, tune = 2f, decay = 180f, tone = 0.55f, snap = 0.55f),
             v("CLAP", C, decay = 300f, tone = 0.4f), v("C.HAT", H, decay = 45f, snap = 0.3f, choke = 1, pan = 0.15f),
             v("O.HAT", H, decay = 450f, snap = 0.3f, choke = 1, pan = 0.15f), v("TOM", T, decay = 400f, tone = 0.4f, snap = 0.3f, pan = -0.2f),
             v("COWBELL", B, decay = 300f, snap = 0.4f, level = -4f), v("CYMBAL", Y, decay = 1800f, level = -5f, pan = 0.25f)),
-        kit("TR-909",
+        kit("909",
             v("KICK", K, tune = 2f, decay = 380f, tone = 0.5f, snap = 0.75f, drive = 0.25f), v("SNARE", S, tune = 4f, decay = 200f, tone = 0.75f, snap = 0.8f),
             v("CLAP", C, decay = 220f, tone = 0.6f), v("C.HAT", H, decay = 50f, tone = 0.8f, choke = 1),
             v("O.HAT", H, decay = 380f, tone = 0.8f, choke = 1), v("TOM", T, tune = 3f, decay = 300f, snap = 0.6f),

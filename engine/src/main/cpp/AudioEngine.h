@@ -105,6 +105,9 @@ public:
     // Returns 0 (nothing), 1 (sample loaded) or 2 (load failed). Fills out[0..10].
     int pollEvent(double* out);
     bool getPeaks(int sampleId, int buckets, float* outMinMax);
+    // Per region [starts[i], ends[i]) of a loaded sample: peak dBFS and loudness (the loudest 50 ms RMS window, dBFS).
+    // Main-thread call; reads the buffer outside the registry lock. Returns false for an unknown sample.
+    bool regionLevels(int sampleId, const int64_t* starts, const int64_t* ends, int n, float* outPeakDb, float* outLoudDb);
     float playhead() const { return mPlayhead.load(std::memory_order_relaxed); }
     float peakLevel() { return mPeak.exchange(0.f, std::memory_order_relaxed); }
     void getStats(double* out);                       // see NativeEngine.Stats for layout

@@ -30,7 +30,7 @@ class DrumKnob(val label: String, val color: EncoderColor, val get: (DrumVoice) 
  * telemetry that drives the drummer animation. Main-thread only.
  */
 class DrumController(private val app: AppState, val track: Int = 2) {
-    val kit = mutableStateOf(DrumKit(name = "TR-808", voices = com.thorbox.model.FactoryPresets.kits.first().kit.voices))
+    val kit = mutableStateOf(DrumKit(name = "808", voices = com.thorbox.model.FactoryPresets.kits.first().kit.voices))
     val selected = mutableIntStateOf(0)
     val page = mutableIntStateOf(0)             // 0 SOUND, 1 MIX (selected sound), 2 DUST (whole kit)
 

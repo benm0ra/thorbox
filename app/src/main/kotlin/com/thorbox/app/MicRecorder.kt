@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.net.Uri
@@ -17,110 +18,184 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.log10
 
 /**
- * Field recorder: the Thor's mic → a 48 kHz mono WAV in Music/Clamshell Beats/Field Recordings, then
- * straight into the current sampler track. Uses the UNPROCESSED source when the device offers it
- * (no AGC / noise suppression: what you hear is what you sample), falling back to MIC. Capped at
- * 10 minutes so memory can't run away. Recording runs on its own thread; state is read by the UI.
+ * Field recorder: the Thor's mic → a take in a private temp file. Stopping leaves the take on the
+ * table for review: KEEP saves a 48 kHz mono WAV to Music/Clamshell Beats/Field Recordings (then the
+ * app chops it onto the pads), DISCARD deletes it, REDO deletes it and records again.
+ *
+ * Input: the raw UNPROCESSED source (no AGC / noise suppression) only where the device says it
+ * really supports it; if it still delivers near-silence for the first half second (some HALs do),
+ * the recorder quietly reopens on the normal MIC source and starts over. [gainDb] (0…+24 dB) lifts a
+ * quiet source; it's applied before saving and soft-limited, so it can't wrap.
+ * Capped at 10 minutes. Capture runs on its own thread; the UI reads the volatiles every frame.
  */
 class MicRecorder(private val app: Context) {
     val recording = mutableStateOf(false)
-    /** Saving the WAV + loading it onto the pads (between ■ and the pads lighting up). */
+    /** Saving the WAV (between KEEP and the pads lighting up). */
     val saving = mutableStateOf(false)
-    // Written by the capture thread, read by the UI every frame. Plain volatiles, not Compose state:
-    // the recorder never writes snapshot state off the main thread.
-    @Volatile var level = 0f; private set          // 0..1 peak of the latest block, for the meter
+    /** A finished take waiting for KEEP / DISCARD. */
+    val take = mutableStateOf<Take?>(null)
+    /** Input gain in dB (0…24), applied to the take and the meters. */
+    val gainDb = mutableStateOf(0f)
+
+    class Take(val file: java.io.File, val bytes: Long, val seconds: Float, val name: String, val peakDb: Float, val source: String)
+
+    // Written by the capture thread, read by the UI every frame (plain volatiles, not Compose state).
+    @Volatile var level = 0f; private set          // 0..1 peak of the latest block (after gain)
+    @Volatile var peakHold = 0f; private set       // decaying peak hold for the meter
     @Volatile var seconds = 0f; private set
     @Volatile var failure: String? = null; private set
-    /**
-     * Live waveform: one (min, max) pair per [WAVE_STEP] samples, newest last, in a ring of
-     * [WAVE_COLS] columns. [waveCount] is how many columns exist so far; the UI draws the last N.
-     */
+    @Volatile var source = ""; private set          // "RAW" or "MIC": which input we ended up on
+    /** Live waveform: one (min, max) pair per [WAVE_STEP] samples, in a ring of [WAVE_COLS]. */
     val wave = FloatArray(WAVE_COLS * 2)
     @Volatile var waveCount = 0; private set
+    /** The whole take, coarse: one |peak| per [OVERVIEW_STEP] samples (for the review screen). */
+    val overview = FloatArray(OVERVIEW_COLS)
+    @Volatile var overviewCount = 0; private set
     @Volatile private var stop = false
     private var thread: Thread? = null
 
+    private fun rawSupported(): Boolean = runCatching {
+        (app.getSystemService(Context.AUDIO_SERVICE) as AudioManager).getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
+    }.getOrDefault(false)
+
     @SuppressLint("MissingPermission")   // callers check RECORD_AUDIO first (AppState.requestMic)
-    fun start(onDone: (Uri?, String) -> Unit) {
-        if (recording.value) return
+    private fun open(src: Int, rate: Int, min: Int): AudioRecord? =
+        runCatching { AudioRecord(src, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, min * 4) }
+            .getOrNull()?.takeIf { it.state == AudioRecord.STATE_INITIALIZED }
+
+    /** Start a new take (any take still under review is discarded). [onError] runs on the main thread. */
+    fun start(onError: (String) -> Unit) {
+        if (recording.value || saving.value) return
+        discard()
         val rate = 48000
         val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
-        val rec = runCatching { AudioRecord(MediaRecorder.AudioSource.UNPROCESSED, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, min * 4) }
-            .getOrNull()?.takeIf { it.state == AudioRecord.STATE_INITIALIZED }
-            ?: runCatching { AudioRecord(MediaRecorder.AudioSource.MIC, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, min * 4) }
-                .getOrNull()?.takeIf { it.state == AudioRecord.STATE_INITIALIZED }
-        if (rec == null) { onDone(null, "Couldn't open the microphone"); return }
-        stop = false; recording.value = true; seconds = 0f; level = 0f; waveCount = 0; failure = null
+        val tryRaw = rawSupported()
+        var rec = (if (tryRaw) open(MediaRecorder.AudioSource.UNPROCESSED, rate, min) else null)
+        var src = if (rec != null) "RAW" else "MIC"
+        if (rec == null) rec = open(MediaRecorder.AudioSource.MIC, rate, min)
+        if (rec == null) { onError("Couldn't open the microphone"); return }
+        stop = false; recording.value = true; seconds = 0f; level = 0f; peakHold = 0f; waveCount = 0; overviewCount = 0; failure = null; source = src
+        val name = "Field " + SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date())
         thread = Thread({
-            // PCM goes to a private temp file as it's captured: memory stays flat for 10 minutes.
             val tmp = java.io.File(app.cacheDir, "mic-${System.nanoTime()}.pcm")
             var bytes = 0L
             val buf = ShortArray(min / 2)
             val bb = ByteBuffer.allocate(buf.size * 2).order(ByteOrder.LITTLE_ENDIAN)
             val maxBytes = rate * 2L * 600
-            var uri: Uri? = null
-            val name = "Field " + SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date())
-            var colMin = 0; var colMax = 0; var colN = 0
+            var colMin = 0f; var colMax = 0f; var colN = 0
+            var ovPk = 0f; var ovN = 0
+            var takePeak = 0f
+            var r: AudioRecord = rec
+            var out = java.io.BufferedOutputStream(java.io.FileOutputStream(tmp), 1 shl 16)
+            var ok = false
             try {
-                java.io.BufferedOutputStream(java.io.FileOutputStream(tmp), 1 shl 16).use { out ->
-                    rec.startRecording()
-                    if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) error("the mic didn't start (is another app using it?)")
-                    var errors = 0
-                    while (!stop && bytes < maxBytes) {
-                        val n = rec.read(buf, 0, buf.size)
-                        if (n <= 0) {                                   // ERROR_DEAD_OBJECT etc: don't spin forever
-                            if (++errors > 50) error("the mic stopped sending audio ($n)")
-                            Thread.sleep(5); continue
-                        }
-                        errors = 0
-                        var pk = 0
-                        bb.clear()
-                        for (i in 0 until n) {
-                            val v = buf[i].toInt()
-                            if (abs(v) > pk) pk = abs(v)
-                            bb.putShort(buf[i])
-                            if (v < colMin) colMin = v; if (v > colMax) colMax = v
-                            if (++colN == WAVE_STEP) {
-                                val c = waveCount % WAVE_COLS
-                                wave[2 * c] = colMin / 32768f; wave[2 * c + 1] = colMax / 32768f
-                                waveCount++; colMin = 0; colMax = 0; colN = 0
+                r.startRecording()
+                if (r.recordingState != AudioRecord.RECORDSTATE_RECORDING) error("the mic didn't start (is another app using it?)")
+                var errors = 0
+                var probe = src == "RAW"                       // still checking the raw source isn't silent
+                var probePeak = 0
+                while (!stop && bytes < maxBytes) {
+                    val n = r.read(buf, 0, buf.size)
+                    if (n <= 0) {                                   // ERROR_DEAD_OBJECT etc: don't spin forever
+                        if (++errors > 50) error("the mic stopped sending audio ($n)")
+                        Thread.sleep(5); continue
+                    }
+                    errors = 0
+                    if (probe) {
+                        for (i in 0 until n) probePeak = maxOf(probePeak, abs(buf[i].toInt()))
+                        if (bytes + n * 2 >= rate) {             // half a second of raw input
+                            probe = false
+                            if (probePeak < 24) {                // < −62 dBFS: this HAL's raw source is dead; use MIC
+                                android.util.Log.w("ClamshellMic", "raw source silent (peak $probePeak): switching to MIC")
+                                runCatching { r.stop() }; r.release()
+                                r = open(MediaRecorder.AudioSource.MIC, rate, min) ?: error("Couldn't open the microphone")
+                                r.startRecording()
+                                src = "MIC"; source = src
+                                out.close(); out = java.io.BufferedOutputStream(java.io.FileOutputStream(tmp), 1 shl 16)
+                                bytes = 0; waveCount = 0; overviewCount = 0; takePeak = 0f
+                                continue
                             }
                         }
-                        out.write(bb.array(), 0, n * 2)
-                        bytes += n * 2
-                        level = pk / 32768f
-                        seconds = bytes / (rate * 2f)
                     }
+                    val g = Math.pow(10.0, gainDb.value / 20.0).toFloat()
+                    var pk = 0f
+                    bb.clear()
+                    for (i in 0 until n) {
+                        var v = buf[i] / 32768f * g
+                        if (g > 1f && abs(v) > 0.9f) v = (if (v > 0) 1f else -1f) * (0.9f + 0.1f * kotlin.math.tanh((abs(v) - 0.9f) / 0.1f))
+                        val av = abs(v)
+                        if (av > pk) pk = av
+                        bb.putShort((v * 32767f).toInt().coerceIn(-32768, 32767).toShort())
+                        if (v < colMin) colMin = v; if (v > colMax) colMax = v
+                        if (++colN == WAVE_STEP) {
+                            val c = waveCount % WAVE_COLS
+                            wave[2 * c] = colMin; wave[2 * c + 1] = colMax
+                            waveCount++; colMin = 0f; colMax = 0f; colN = 0
+                        }
+                        if (av > ovPk) ovPk = av
+                        if (++ovN == OVERVIEW_STEP) {
+                            if (overviewCount < OVERVIEW_COLS) { overview[overviewCount] = ovPk; overviewCount++ }
+                            ovPk = 0f; ovN = 0
+                        }
+                    }
+                    out.write(bb.array(), 0, n * 2)
+                    bytes += n * 2
+                    level = pk
+                    peakHold = maxOf(pk, peakHold * 0.97f)
+                    if (pk > takePeak) takePeak = pk
+                    seconds = bytes / (rate * 2f)
                 }
-                if (bytes > rate / 10) {
-                    android.os.Handler(android.os.Looper.getMainLooper()).post { saving.value = true }
-                    uri = save(name, tmp, bytes, rate)
-                    if (uri == null) failure = "Couldn't save the recording"
-                }
+                ok = true
             } catch (e: Exception) {
                 android.util.Log.e("ClamshellMic", "recording failed", e)
                 failure = e.message ?: e.javaClass.simpleName
-                uri = null
             } finally {
-                runCatching { rec.stop() }; rec.release()
-                tmp.delete()                                         // never leave raw audio behind
+                runCatching { out.close() }
+                runCatching { r.stop() }; r.release()
             }
+            val result = if (ok && bytes > rate / 10) Take(tmp, bytes, bytes / (rate * 2f), name, if (takePeak > 0f) 20f * log10(takePeak) else -96f, src) else null
+            if (result == null) tmp.delete()                 // never leave raw audio behind
             val msg = failure?.let { "Recording failed: $it" } ?: "Recording too short"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                recording.value = false; saving.value = false; level = 0f
-                runCatching { onDone(uri, if (uri != null) "$name.wav" else msg) }
-                    .onFailure { android.util.Log.e("ClamshellMic", "loading the recording failed", it) }
+                recording.value = false; level = 0f
+                if (result != null) take.value = result else onError(msg)
             }
         }, "clamshell-mic").also { it.start() }
     }
 
     fun stop() { stop = true }
 
+    /** Throw the take away (temp file deleted). */
+    fun discard() {
+        take.value?.file?.delete()
+        take.value = null
+        waveCount = 0; overviewCount = 0; seconds = 0f; peakHold = 0f
+    }
+
+    /** Save the take as a WAV; [onDone] gets the Uri (or null + message) on the main thread. */
+    fun keep(onDone: (Uri?, String) -> Unit) {
+        val t = take.value ?: return
+        if (saving.value) return
+        saving.value = true
+        Thread({
+            val uri = runCatching { save(t.name, t.file, t.bytes, 48000) }.getOrNull()
+            t.file.delete()
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                saving.value = false; take.value = null
+                runCatching { onDone(uri, if (uri != null) "${t.name}.wav" else "Couldn't save the recording") }
+                    .onFailure { android.util.Log.e("ClamshellMic", "loading the recording failed", it) }
+            }
+        }, "clamshell-mic-save").start()
+    }
+
     companion object {
         const val WAVE_STEP = 480          // 10 ms per column at 48 kHz
         const val WAVE_COLS = 1200         // the last 12 s
+        const val OVERVIEW_STEP = 4800     // 0.1 s per column
+        const val OVERVIEW_COLS = 6000     // 10 minutes
     }
 
     private fun save(name: String, pcm: java.io.File, pcmBytes: Long, rate: Int): Uri? {

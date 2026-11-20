@@ -58,7 +58,7 @@ data class PresetItem(val name: String, val group: Int, val user: Boolean)
 data class PresetGroup(val label: String, val color: Color)
 
 /**
- * The slim strip under a synth/drum header: ◀ NAME ▶ (tap the name to browse), then the OP-XY
+ * The slim strip under a synth/drum header: ◀ NAME ▶ (tap the name to browse), then the
  * style dice row. Every control is a big, flat, one-word button.
  */
 @Composable

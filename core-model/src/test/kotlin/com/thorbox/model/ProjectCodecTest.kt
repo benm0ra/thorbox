@@ -15,7 +15,7 @@ class ProjectCodecTest {
         tracks = listOf(TrackInfo(TrackKind.SAMPLER, "CHOPS"), TrackInfo(TrackKind.SYNTH, "808"), TrackInfo(TrackKind.DRUMS, "KIT")),
         clips = listOf(Clip(ClipId("t0"), "T1", color = 0, lengthTicks = 3840, notes = listOf(NoteEvent(tick = 240, lengthTicks = 120, note = 3, velocity = 0.8f)))),
         channels = listOf(ChannelDto("CHOPS", volumeDb = -3f, pan = 0.25f, scSource = 2, scAmount = 0.6f)),
-        feels = listOf(FeelDto("DILLA", 0.7f)),
+        feels = listOf(FeelDto("DRUNK", 0.7f)),
         automation = mapOf("t1:vol" to listOf(AutoPointDto(0, -6f), AutoPointDto(960, 0f))),
         synths = mapOf(1 to SynthPatch(name = "SUB 808")),
         kits = mapOf(2 to DrumKit(name = "SP KIT", bus = DrumBus(crunch = 0.5f, muffle = 0.3f, tape = 0.2f, dust = 0.4f))),

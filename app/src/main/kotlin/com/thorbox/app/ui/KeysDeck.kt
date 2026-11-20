@@ -34,7 +34,7 @@ import com.thorbox.app.AppState
 private val NOTE_NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 /**
- * Deck 2, the scale keyboard: a 4×4 grid laid out like an MPC/Koala (bottom-left is lowest).
+ * Deck 2, the scale keyboard: a 4×4 grid laid out like MPC pads (bottom-left is lowest).
  * With LOCK on, every pad is in key (the loaded sample's detected key), so there are no wrong notes.
  * Pads light from the engine's real sounding-note mask, so release tails glow.
  *

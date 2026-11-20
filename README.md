@@ -3,10 +3,9 @@
 # Clamshell Beats
 
 **A touch-first sampler and synth groovebox for the AYN Thor dual-screen handheld.**
-It combines Koala Sampler's zero-friction flow with Ableton Live's session/detail split across the Thor's hinge.
-Synth pages are animated in the spirit of Teenage Engineering's instruments.
+Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swing it. The big picture lives on the top screen, your hands on the bottom.
 
-> Status: **alpha**: 8-track groovebox with sampler, synth and drum synth, projects with autosave, and a field recorder. Unofficial: not affiliated with AYN, Teenage Engineering, Koala or Ableton (see NOTICE).
+> Status: **alpha**: 8-track groovebox with sampler, synth and drum synth, projects with autosave, and a field recorder. Unofficial: not affiliated with AYN or Akai Professional (see NOTICE).
 > License: **GPL-3.0-or-later**.
 
 ## What works now
@@ -15,11 +14,11 @@ Synth pages are animated in the spirit of Teenage Engineering's instruments.
 - **Projects:** the whole session (tracks, patterns, automation, mixer, sounds, kits, sampler chops) saves itself every few seconds and when the app goes to the background, and the last project reopens at launch. **⚙ → PROJECTS** has save, save as new, new, open, rename, copy and delete. Each project keeps its own copy of its samples, so it still opens if the originals move.
 - **Field recorder:** record from the Thor's mic with a live waveform, clip warning and clock. Recordings save to *Music/Clamshell Beats/Field Recordings* and land on the pads, already chopped.
 - **DEMO BREAK:** a built-in 90 BPM boom-bap break, to try the sampler before picking a folder.
-- **Automation lanes** for mixer and effect parameters, recorded live or drawn, and **MIDI export** (one track per instrument, opens in Ableton).
-- **Groove templates** per track (MPC60, SP-1200, Dilla, boom bap, trap, house) with a FEEL amount, applied to the sampler too.
+- **Automation lanes** for mixer and effect parameters, recorded live or drawn, and **MIDI export** (one track per instrument, opens in any DAW).
+- **Groove templates** per track (MPC 60, GRIT, DRUNK, LAZY, BOOM BAP, TRAP, HOUSE) with a FEEL amount; on drum tracks each drum sits on its own clock (kick, snare, clap and hats pushed differently).
 
 - **Dual-screen:** the wide 6" panel shows the *contextual view* (sampler or synth). The near-square 3.92" panel is the *Touch Deck*. Roles come from screen shape, so it works whichever panel the firmware calls primary.
-- **Serato-style chopping:**
+- **Chopping:**
   - Loading a sample auto-chops it at its transients onto **16 pads** (MPC layout: pad 1 bottom-left).
   - Drag slice markers on the waveform, or re-chop with **AUTO** (sensitivity), **÷4 / ÷8 / ÷16** equal slices, or **LAZY** (tap pads while the sample plays).
   - **KEY MATCH** moves the sample into the project key by the smallest interval (relative major/minor aware).
@@ -28,7 +27,7 @@ Synth pages are animated in the spirit of Teenage Engineering's instruments.
   - Per-pad pitch and play mode. The drum sequencer edits the selected pad.
 - **Synth sequencing:**
   - **NOTE GRID** (piano roll): rows fold to in-key notes when locked. Tap to add or remove, drag sideways for length, up/down for pitch. Stack notes for chords.
-  - **STEP deck** (OP-XY-style): tap a step to toggle it, or **hold a step and play keys** to write notes or chords into it.
+  - **STEP deck:** tap a step to toggle it, or **hold a step and play keys** to write notes or chords into it.
   - Holding a step opens its components on the top screen: **ratchet** ×1–4, **condition** (1:2, 2:4…), **nudge**, **velocity**, and **parameter locks** (cutoff, reso, env amount, decay).
 - **Sampler:**
   - Load WAV/MP3/FLAC/OGG/M4A from a samples folder you grant once.
@@ -54,7 +53,7 @@ Synth pages are animated in the spirit of Teenage Engineering's instruments.
 - **Solid where it matters:** pads, encoders, faders and step cells stay solid and high-contrast, for speed and legibility.
 - **Glass level:** FULL / SUBTLE / OFF in **⚙ → LOOK**. OFF is plain AMOLED black, which saves the most battery.
 - **Themes:** Genesis (purple + neon green, the default), Studio, Cyberpunk, Pastel, Terminal and Grayscale, in **⚙ → LOOK**.
-- **Meters strip** (**⚙ → LOOK → METERS**): a MiniMeters-style bar across the top screen with master peak L/R and hold, RMS momentary and short-term, a 48-band spectrum, a 5 s wave history and a scope.
+- **Meters strip** (**⚙ → LOOK → METERS**): a metering bar across the top screen with master peak L/R and hold, RMS momentary and short-term, a 48-band spectrum, a 5 s wave history and a scope.
 - **VIZ:** music-reactive visuals from the master output: SPECTRA (glossy bars and peak caps), ORBIT (circular scope with echo trails) and PLASMA (shader). It only opens when you choose VISUAL. Tap to change mode.
 
 ## The synth UI
@@ -74,9 +73,9 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 ## Sounds
 
 - **Synth presets.** 33 factory sounds in 7 families: 808, BASS, LEAD, KEYS, PLUCK, PAD and WEIRD. Tap the name to browse, or use ◀ ▶. SAVE stores your own presets on the device. Long-press one of YOUR presets to delete it.
-- **DICE / MUTATE (OP-XY style).** DICE rolls a brand-new playable sound within the selected family. MUTATE nudges the current one. ↶ undoes either.
+- **DICE / MUTATE.** DICE rolls a brand-new playable sound within the selected family. MUTATE nudges the current one. ↶ undoes either.
 - **808 voice.** The PITCH page has a pitch envelope (the boom) and per-oscillator octaves. The VOICE page has glide, mono legato (slides), drive and noise.
-- **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a TR-style grid, DICE BEAT, kit save/load and per-sound dice.
+- **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a step grid, DICE BEAT, kit save/load and per-sound dice.
 - **BIG DAWG, the drummer.** A bulldog in a fitted cap and a gold chain who plays exactly the kit that's loaded. Only the pieces your voices use are on stage (a cowbell voice adds a cowbell, ZAP a sparking pad, SHAKE a shaker). Drum size follows tune, glow and ripple follow decay, level sets the flash, drive roughens the ripple, and the hi-hat opens as far as the voice that hit it. Every piece flashes in its slot's colour.
 - **Punch-in FX.** Every FX pad has a live glyph that shows what the effect is doing. **TILT** (FX deck) lets you lean the Thor to steer held effects, and shake it to dice.
 
@@ -208,7 +207,7 @@ app/
 
 ## Roadmap
 
-Next: stem export (WAV per track) and resampling · scratch deck + SP-404-style DJ filter and isolator EQ · Wi-Fi Transfer + wired export of projects · Ableton Link (opt-in) · Session clip grid · strum deck · Performance Mode.
+Next: stem export (WAV per track) and resampling · scratch deck · Wi-Fi Transfer + wired export of projects · network tempo sync (opt-in) · Session clip grid · strum deck · Performance Mode.
 
 ## Contributing
 

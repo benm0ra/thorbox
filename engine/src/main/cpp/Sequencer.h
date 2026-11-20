@@ -34,7 +34,7 @@ struct Event {
     int16_t note = 0;
     float velocity = 0.8f; // 0..1
     float probability = 1.f;
-    // OP-XY-style step components
+    // Step components
     int8_t ratchet = 1;    // 1..4 retriggers spread across the note's length
     int8_t condEvery = 1;  // play on loop `condPhase` of every `condEvery` loops (1 = always)
     int8_t condPhase = 0;

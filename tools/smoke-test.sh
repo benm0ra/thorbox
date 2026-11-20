@@ -110,7 +110,13 @@ shots() {
   adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"
   adb shell am start -n $PKG/$ACT --ei fx 0 >/dev/null; sleep 0.3
   adb shell am start -n $PKG/$ACT --ei fx 8 >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/fx-on.png"
-  adb shell am start -n $PKG/$ACT --ei fx -1 --es deck PADS >/dev/null; sleep 1
+  adb shell am start -n $PKG/$ACT --ei fx -1 >/dev/null; sleep 0.5
+  adb shell am start -n $PKG/$ACT --ei latch 8 >/dev/null; sleep 0.3
+  adb shell am start -n $PKG/$ACT --ei latch 1 >/dev/null; sleep 0.3
+  adb shell am start -n $PKG/$ACT --ei latch 4 --ez fxxy true >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/fx-xy.png"
+  adb shell am start -n $PKG/$ACT --ez fxxy false --ez dry true --es deck PADS >/dev/null; sleep 1
+  adb shell am start -n $PKG/$ACT --es view SAMPLER --ez mic true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/mic.png"
+  adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
   adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"

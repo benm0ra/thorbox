@@ -50,6 +50,12 @@ int main() {
         CHECK(got && (int)lv[0] == 41 && lv[1] > 0 && (int64_t)lv[2] == 48000, "a loaded sample comes back with an id and its length");
         const int sid = (int)lv[1];
         CHECK(e.assignSample(0, sid), "the loaded sample can be put on a pad");
+        {   // NORMALIZE input: per-region peak + loudness (a steady sine: loudness = peak − 3 dB)
+            int64_t st[2] = {0, 24000}, en[2] = {24000, 48000}; float pk[2], ld[2];
+            CHECK(e.regionLevels(sid, st, en, 2, pk, ld) && pk[0] < 0.1f && pk[0] > -30.f && std::fabs((pk[0] - ld[0]) - 3.01f) < 0.3f,
+                  "region levels: peak %.1f dB, loudness %.1f dB", pk[0], ld[0]);
+            CHECK(!e.regionLevels(sid + 999, st, en, 2, pk, ld), "region levels: unknown sample → false");
+        }
         e.stretchSampleAsync(sid, 1.25, 2.0, 42);
         double sv[12] = {};
         const bool got2 = waitEvent(e, sv);

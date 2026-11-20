@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 /**
- * The info line (think Ableton's Info View, for touch): touch any button, knob or slider and a
+ * The info line (an info view, for touch): touch any button, knob or slider and a
  * strip at the bottom of the top screen says, in plain words, what it does. It fades after a few
  * seconds and never blocks a touch. One glossary covers every control, looked up by the label it
  * already shows, so nothing needs wiring per screen. The ? chip turns it off for experienced users.
@@ -81,6 +81,7 @@ object Glossary {
         "VISUAL" to "A full-screen visualizer that dances to whatever is playing. B or tap to leave.",
         "THEME" to "Change how Clamshell Beats looks: Genesis, Studio, Cyberpunk, Pastel, Terminal or Grayscale.",
         "STRETCH" to "Time-stretch the whole sample, pitch kept: SYNC to the tempo, half or double time, or FIT it to 1, 2, 4 or 8 bars.",
+        "NORMALIZE" to "Levels every chop to the same loudness (peaks kept under −1 dBFS). Tap again to put the old levels back.",
         "WARP" to "Pitch this chop without it speeding up (MPC-style). Off: turntable pitch, higher and faster.",
         "FIT" to "Stretch the sample to exactly that many bars at the project tempo.",
                 "DEMO BREAK" to "Load a built-in 90 BPM boom-bap break onto the pads, to try the sampler right away.",
@@ -103,7 +104,10 @@ object Glossary {
         "CHOOSE FOLDER" to "Pick the folder where your samples live (loops, breaks, one-shots). Clamshell Beats only reads it.",
         "RECORD" to "Record a new sample with the Thor's microphone; it lands on the pads, already chopped.",
         "MIC" to "Record from the Thor's microphone (foley, vocals, field sounds) straight onto the pads.",
-        "REC" to "Start / stop recording. Stopping saves the WAV and chops it onto this sampler track.",
+        "REC" to "Start / stop recording. When you stop, KEEP saves the WAV and chops it onto this sampler track; DISCARD throws it away.",
+        "KEEP" to "Save the take to Music/Clamshell Beats/Field Recordings and chop it onto the pads.",
+        "DISCARD" to "Throw this take away. Nothing was saved.",
+        "REDO" to "Throw this take away and record again.",
         "FOLDER" to "Pick the folder on your device where your samples live.",
         "CHOOSE SAMPLES FOLDER" to "Pick the folder on your device where your samples live.",
         "KEY MATCH" to "Re-pitch the sample into your song's key (the smallest move that fits).",
@@ -177,10 +181,11 @@ object Glossary {
         "PAN" to "Left ↔ right placement.",
         // ---- sequencer ----
         "FEEL" to "How strongly this track's groove template is applied (0% = straight).",
-        "GROOVE" to "This track's feel: MPC 60, SP-1200, DILLA, BOOM BAP, TRAP or HOUSE timing + accents.",
+        "GROOVE" to "This track's feel: MPC 60, GRIT, DRUNK, LAZY, BOOM BAP, TRAP or HOUSE timing + accents.",
         "MPC 60" to "Late 16ths (≈62% swing), soft off-beats: the classic hip-hop bounce.",
-        "SP-1200" to "Tighter, gritty shuffle (≈56%) with punchy downbeats.",
-        "DILLA" to "Drunk on purpose: late off-beats, lazy backbeat, nothing quite on the grid.",
+        "GRIT" to "Tighter, gritty shuffle (≈56%) with punchy downbeats.",
+        "DRUNK" to "Drunk on purpose: every drum on its own clock, nothing quite on the grid.",
+        "LAZY" to "Laid back: the snare drags well behind the beat.",
         "BOOM BAP" to "Head-nod swing (≈60%) with the snare sat back a hair.",
         "TRAP" to "Straight timing with rolling hat dynamics.",
         "HOUSE" to "Light shuffle and pushed off-beat 8ths, for EDM hats and chops.",
@@ -203,7 +208,7 @@ object Glossary {
         "DENSITY" to "How busy the dice makes the pattern.",
         "UNDO" to "Undo the last pattern change.",
         // ---- FX ----
-        "MIDI" to "Export all tracks as a .mid file in Downloads: drag it into Ableton (drums map to a Drum Rack).",
+        "MIDI" to "Export all tracks as a .mid file in Downloads: drag it into your DAW (drums use General MIDI notes).",
         "ADD TRACK" to "Add a track: pick a sampler, a synth or a drum machine. Up to 8 tracks.",
         "OPEN TRACK" to "Open this track in its editor (sampler, synth or drums).",
         "TRACK MENU" to "Track options: PUMP sidechain, clear the pattern, remove the track.",
@@ -212,6 +217,7 @@ object Glossary {
         "REMOVE TRACK" to "Delete this track and its pattern.",
         "CLEAR PATTERN" to "Empty this track's pattern.",
         "LATCH" to "Then tap an effect to keep it on without holding it.",
+        "XY" to "One XY pad for every latched effect: slide one finger and they all move together.",
         "ALL DRY" to "Every effect off at once, latched ones too.",
         "SAVE LOG" to "Save the app's recent log as a text file in Downloads, to send with a bug report.",
         "SHARE LOG" to "Send the app's recent log to another app (email, chat, Drive).",

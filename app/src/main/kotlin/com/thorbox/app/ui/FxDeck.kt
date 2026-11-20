@@ -63,7 +63,7 @@ private val GRID = ROWS.flatMap { it.second }
 private fun rowAccent(row: Int): Color = when (row) { 0 -> Tb.EncOrange; 1 -> Tb.EncBlue; 2 -> Tb.EncGreen; else -> Tb.Key }
 
 /**
- * Deck 4: punch-in master FX (the sampler-workstation set, played OP-XY style). Hold a pad to engage,
+ * Deck 4: punch-in master FX (the sampler-workstation set, played from XY pads). Hold a pad to engage,
  * release to snap back dry. Where your finger sits on the pad is the effect's XY: slide to sweep.
  * Several fingers = stacked effects. LATCH, then tap, keeps one on hands-free. ALL DRY kills everything.
  *
@@ -76,6 +76,9 @@ private fun rowAccent(row: Int): Color = when (row) { 0 -> Tb.EncOrange; 1 -> Tb
 fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     val g = state.groove
     val latchMode = remember { mutableStateOf(false) }
+    val xyMode = g.fxXyMode
+    val latchedNow = g.fxLatched.intValue
+    if (latchedNow == 0 && xyMode.value) xyMode.value = false            // nothing latched: back to the pads
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }        // pointerId → fx id
     val tm = rememberTextMeasurer()
@@ -105,12 +108,22 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
             if (state.tilt.available)
                 HwButton("TILT", Modifier.fillMaxHeight(), active = state.tilt.enabled.value, accent = Tb.Tempo, minHeight = 40.dp, fontSize = 12) {
                     state.tilt.setEnabled(!state.tilt.enabled.value) }
-            Text(if (latchMode.value) "tap a pad to latch it" else if (state.tilt.enabled.value) "hold + lean to steer" else "hold = on · slide = XY",
+            // XY: one surface for every latched effect (lights up once something is latched)
+            HwButton("XY", Modifier.fillMaxHeight(), active = xyMode.value, enabled = latchedNow != 0, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12) {
+                xyMode.value = !xyMode.value; if (xyMode.value) latchMode.value = false }
+            Text(when {
+                    xyMode.value -> "one finger moves them all"
+                    latchMode.value -> "tap pads to latch"
+                    state.tilt.enabled.value -> "hold + lean"
+                    latchedNow != 0 -> "XY: steer the latched ones"
+                    else -> "hold · slide"
+                },
                 color = Tb.Muted, fontSize = 11.sp, fontFamily = Tb.Mono, maxLines = 1,
                 modifier = Modifier.weight(1f).padding(start = 6.dp, top = 12.dp))
             HwButton("ALL DRY", Modifier.fillMaxHeight(), accent = Tb.Warn, minHeight = 40.dp, fontSize = 12) { g.stopAll() }
         }
-        Canvas(
+        if (xyMode.value) LatchedXY(state, Modifier.weight(1f).fillMaxWidth())
+        else Canvas(
             Modifier.weight(1f).fillMaxWidth()
                 .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
                 .pointerInteropFilter { ev ->
@@ -118,8 +131,8 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                     when (ev.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                             val id = GRID[cell(ev.getX(i), ev.getY(i))]
-                            if (latchMode.value) g.toggleLatch(id) else {
-                                val (x, y) = local(ev.getX(i), ev.getY(i))
+                            val (x, y) = local(ev.getX(i), ev.getY(i))
+                            if (latchMode.value) { xy[2 * id] = x; xy[2 * id + 1] = y; g.toggleLatch(id, x, y) } else {
                                 fingers[ev.getPointerId(i)] = id
                                 xy[2 * id] = x; xy[2 * id + 1] = y
                                 g.fxDown(id, x, y)
@@ -179,8 +192,16 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 }
 
                 // header: index + name, and the group dot (filled = engaged, ring = ready, pulsing = tail)
-                drawTextSafe(tm, String.format(java.util.Locale.US, "%02d", k + 1), o + Offset(pad, pad - 1f), idxStyle)
-                drawTextSafe(tm, FX_INFO[id]?.name ?: "?", o + Offset(pad + 20.dp.toPx(), pad - 3f), nameStyle)
+                // name between the index and the dot; long names (RESONATOR, TAPE STOP) step down a size,
+                // and on a narrow tile the index makes way, so text never runs under the dot
+                val name = FX_INFO[id]?.name ?: "?"
+                val dotRoom = 14.dp.toPx()
+                var nx = o.x + pad + 20.dp.toPx()
+                var ns = nameStyle
+                if (tm.measure(name, ns).size.width > o.x + s.width - pad - dotRoom - nx) ns = nameStyle.copy(fontSize = 10.sp, letterSpacing = 0.5.sp)
+                if (tm.measure(name, ns).size.width > o.x + s.width - pad - dotRoom - nx) nx = o.x + pad
+                else drawTextSafe(tm, String.format(java.util.Locale.US, "%02d", k + 1), o + Offset(pad, pad - 1f), idxStyle)
+                drawTextSafe(tm, name, Offset(nx, o.y + pad - 3f), ns)
                 val dot = Offset(o.x + s.width - pad - 4.dp.toPx(), o.y + pad + 6.dp.toPx())
                 if (on) drawCircle(accent, 4.dp.toPx(), dot)
                 else if (tail) drawCircle(accent.copy(alpha = 0.4f + 0.4f * sin(tel.timeSec * 8f)), 4.dp.toPx(), dot)
@@ -197,14 +218,18 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 val info = FX_INFO[id]
                 val fy = o.y + s.height - pad - 10.dp.toPx()
                 if (on) {
-                    drawTextSafe(tm, rx, Offset(o.x + pad, fy), readStyle.copy(color = accent))
-                    val w = tm.measure(ry, readStyle).size.width
-                    drawTextSafe(tm, ry, Offset(o.x + s.width - pad - w, fy), readStyle)
+                    var rs = readStyle
+                    if (tm.measure(rx, rs).size.width + tm.measure(ry, rs).size.width > s.width - 2 * pad - 6.dp.toPx()) rs = readStyle.copy(fontSize = 9.sp)
+                    drawTextSafe(tm, rx, Offset(o.x + pad, fy), rs.copy(color = accent))
+                    val w = tm.measure(ry, rs).size.width
+                    drawTextSafe(tm, ry, Offset(o.x + s.width - pad - w, fy), rs)
                 } else if (info != null) {
-                    drawTextSafe(tm, "↔ ${info.xLabel}", Offset(o.x + pad, fy), axisStyle)
-                    val t = "↕ ${info.yLabel}"
-                    val w = tm.measure(t, axisStyle).size.width
-                    drawTextSafe(tm, t, Offset(o.x + s.width - pad - w, fy), axisStyle)
+                    var a = "↔ ${info.xLabel}"; var b = "↕ ${info.yLabel}"
+                    val room = s.width - 2 * pad - 6.dp.toPx()
+                    if (tm.measure(a, axisStyle).size.width + tm.measure(b, axisStyle).size.width > room) { a = info.xLabel; b = info.yLabel }
+                    drawTextSafe(tm, a, Offset(o.x + pad, fy), axisStyle)
+                    val w = tm.measure(b, axisStyle).size.width
+                    drawTextSafe(tm, b, Offset(o.x + s.width - pad - w, fy), axisStyle)
                 }
 
                 // latched: corner brackets
@@ -217,6 +242,94 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                     drawLine(c, Offset(x1, y1), Offset(x1 - L, y1), sw); drawLine(c, Offset(x1, y1), Offset(x1, y1 - L), sw)
                 }
             }
+        }
+    }
+}
+
+/**
+ * The XY surface for latched effects: the whole deck becomes one pad. Touch and slide: every latched
+ * effect takes the same X/Y (each shown with its own marker and live readout, in its row colour).
+ * Lift: they stay latched where you left them. Tap a name chip to unlatch that one.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun LatchedXY(state: AppState, modifier: Modifier) {
+    val g = state.groove
+    val tel = state.telemetry
+    val tm = rememberTextMeasurer()
+    val dims = remember { IntArray(2) }
+    val touch = remember { FloatArray(3) { -1f } }                 // x, y, down (1/0)
+    val chipStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 11.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }
+    val readStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 10.sp, fontFamily = Tb.Mono) }
+    val chipH = remember { FloatArray(1) }
+    val chipRects = remember { ArrayList<Pair<Int, android.graphics.RectF>>() }
+
+    Canvas(modifier
+        .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+        .pointerInteropFilter { ev ->
+            val top = chipH[0]
+            fun send(px: Float, py: Float) {
+                val x = (px / dims[0].coerceAtLeast(1)).coerceIn(0f, 1f)
+                val y = (1f - (py - top) / (dims[1] - top).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                touch[0] = x; touch[1] = y; touch[2] = 1f
+                g.fxMoveLatched(x, y)
+            }
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val hit = chipRects.firstOrNull { it.second.contains(ev.x, ev.y) }
+                    if (hit != null) { g.toggleLatch(hit.first); touch[2] = 0f } else send(ev.x, ev.y)
+                }
+                MotionEvent.ACTION_MOVE -> if (touch[2] == 1f) send(ev.x, ev.y)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touch[2] = 0f
+            }
+            true
+        }) {
+        tel.frame.longValue
+        val hair = 1.dp.toPx(); val pad = 10.dp.toPx()
+        val latched = g.fxLatched.intValue
+        drawRoundRect(Tb.Void.copy(alpha = 0.92f), Offset.Zero, size, CornerRadius(10.dp.toPx()))
+        drawRoundRect(Tb.EncBlue, Offset.Zero, size, CornerRadius(10.dp.toPx()), style = Stroke(1.5f * hair))
+
+        // chips: every latched effect, name + what it's doing; tap to unlatch
+        chipRects.clear()
+        var cx = pad; var cy = pad
+        val ch = 34.dp.toPx()
+        val ids = (0 until Fx.COUNT).filter { latched and (1 shl it) != 0 }
+        for (id in ids) {
+            val row = ROWS.indexOfFirst { id in it.second }
+            val acc = rowAccent(row)
+            val name = FX_INFO[id]?.name ?: "?"
+            val (rx, ry) = fxReadout(id, g.fxEffX(id), g.fxEffY(id))
+            val w = maxOf(tm.measure(name, chipStyle).size.width, tm.measure("$rx · $ry", readStyle).size.width) + 2 * pad
+            if (cx + w > size.width - pad) { cx = pad; cy += ch + 6.dp.toPx() }
+            drawRoundRect(acc, Offset(cx, cy), Size(w, ch), CornerRadius(6.dp.toPx()), style = Stroke(1.5f * hair))
+            drawTextSafe(tm, name, Offset(cx + pad, cy + 3.dp.toPx()), chipStyle.copy(color = acc))
+            drawTextSafe(tm, "$rx · $ry", Offset(cx + pad, cy + 18.dp.toPx()), readStyle)
+            chipRects += id to android.graphics.RectF(cx, cy, cx + w, cy + ch)
+            cx += w + 6.dp.toPx()
+        }
+        val top = cy + ch + 10.dp.toPx()
+        chipH[0] = top
+
+        // the field: dot grid, axes, each effect's marker, the finger's crosshair
+        val fh = size.height - top - pad; val fw = size.width - 2 * pad
+        val step = 16.dp.toPx()
+        var yy = top + step / 2
+        while (yy < top + fh) { var xx = pad + step / 2; while (xx < pad + fw) { drawCircle(Tb.Muted.copy(alpha = 0.3f), hair, Offset(xx, yy)); xx += step }; yy += step }
+        for (id in ids) {
+            val acc = rowAccent(ROWS.indexOfFirst { id in it.second })
+            val px = pad + g.fxEffX(id) * fw; val py = top + (1f - g.fxEffY(id)) * fh
+            drawCircle(acc, 6.dp.toPx(), Offset(px, py), style = Stroke(2f * hair))
+        }
+        if (touch[2] == 1f) {
+            val px = pad + touch[0] * fw; val py = top + (1f - touch[1]) * fh
+            drawLine(Tb.Text.copy(alpha = 0.5f), Offset(px, top), Offset(px, top + fh), hair)
+            drawLine(Tb.Text.copy(alpha = 0.5f), Offset(pad, py), Offset(pad + fw, py), hair)
+            drawRect(Tb.Text, Offset(px - 6.dp.toPx(), py - 6.dp.toPx()), Size(12.dp.toPx(), 12.dp.toPx()), style = Stroke(1.5f * hair))
+        } else {
+            val hint = "touch + slide: all ${ids.size} move together · tap a name to unlatch"
+            val m = tm.measure(hint, readStyle)
+            drawTextSafe(tm, hint, Offset((size.width - m.size.width) / 2f, size.height - pad - m.size.height), readStyle)
         }
     }
 }

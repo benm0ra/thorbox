@@ -96,6 +96,8 @@ object NativeEngine {
     /** Slice region for a pad, in frames of its sample (end -1 = to the end). */
     fun setPadRegion(pad: Int, startFrame: Int, endFrame: Int) = nativeSetPadRegion(pad, startFrame, endFrame)
     fun setPadGain(pad: Int, linear: Float) = nativeSetPadGain(pad, linear)
+    /** Peak and loudness (loudest 50 ms RMS) in dBFS for each region (start, end pairs) of a sample → out[2i], out[2i+1]. */
+    fun regionLevels(sampleId: Int, regions: LongArray, out: FloatArray) = nativeRegionLevels(sampleId, regions, out)
     /** Onset frames for auto-chop (first is 0). Thread-safe: call it off the main thread. */
     fun transients(sampleId: Int, sensitivity: Float, maxSlices: Int, out: LongArray): Int = nativeGetTransients(sampleId, sensitivity, maxSlices, out)
     /** Time-stretch / pitch-shift a loaded sample on the worker. The result arrives via pollEvent as a new sample. */
@@ -221,6 +223,7 @@ object NativeEngine {
                                           flags: IntArray, lockIds: IntArray, lockVals: FloatArray): Boolean
     private external fun nativeSetPadRegion(pad: Int, start: Int, end: Int): Boolean
     private external fun nativeSetPadGain(pad: Int, g: Float): Boolean
+    private external fun nativeRegionLevels(sampleId: Int, regions: LongArray, out: FloatArray): Boolean
     private external fun nativeGetTransients(sampleId: Int, sens: Float, maxSlices: Int, out: LongArray): Int
     private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int, cropStart: Long, cropEnd: Long)
     private external fun nativeRepeatOn(track: Int, note: Int, rate: Int, vel: Float): Boolean

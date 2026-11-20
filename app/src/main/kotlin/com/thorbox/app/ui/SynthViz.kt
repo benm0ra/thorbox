@@ -34,7 +34,7 @@ import kotlin.math.pow
 import kotlin.math.sin
 
 /*
- * Page animations. Design rules (borrowed in spirit from Teenage Engineering's instruments):
+ * Page animations. Design rules:
  *  - one bold idea per page, drawn in thick flat vector strokes on black;
  *  - each param is drawn in its encoder's colour, so turning the blue knob visibly moves the blue thing;
  *  - everything reacts to the real engine (telemetry + scope), not a canned loop;

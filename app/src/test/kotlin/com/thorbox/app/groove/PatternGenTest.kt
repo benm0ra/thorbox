@@ -43,7 +43,7 @@ class PatternGenTest {
             assertTrue(dusty.count { it.note == 0 } <= 4, "DUSTY: sparse kicks")
             assertTrue(dusty.filter { it.note == 3 }.all { it.velocity <= 0.75f }, "DUSTY: quiet hats")
         }
-        assertEquals(GrooveTemplate.DILLA, PatternGen.BeatStyle.DRUNK.feel)
+        assertEquals(GrooveTemplate.DRUNK, PatternGen.BeatStyle.DRUNK.feel)
     }
 
     @Test fun drumFeelPutsEachDrumOnItsOwnClock() {
@@ -53,8 +53,8 @@ class PatternGenTest {
             assertTrue(tick in 0 until len && v in 0.05f..1f, "$t slot $slot step $step → $tick")
             if (step == 0) assertTrue(tick < STEP_TICKS / 2, "$t: the downbeat never wraps to the loop end")
         }
-        // DILLA: the snare sits behind the kick, the clap behind the snare (averaged over the jitter)
-        fun avgLate(slot: Int) = (0 until 16).map { s -> GrooveTemplate.DILLA.apply(s * STEP_TICKS, 0.8f, len, 1f, 99 + s, slot).first - s * STEP_TICKS }.average()
+        // DRUNK: the snare sits behind the kick, the clap behind the snare (averaged over the jitter)
+        fun avgLate(slot: Int) = (0 until 16).map { s -> GrooveTemplate.DRUNK.apply(s * STEP_TICKS, 0.8f, len, 1f, 99 + s, slot).first - s * STEP_TICKS }.average()
         assertTrue(avgLate(1) > avgLate(0) + 10 && avgLate(2) > avgLate(1) + 8, "kick ${avgLate(0)} snare ${avgLate(1)} clap ${avgLate(2)}")
         assertEquals(0 to 0.8f, GrooveTemplate.STRAIGHT.apply(0, 0.8f, len, 1f, 1, 1))
     }

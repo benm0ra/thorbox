@@ -33,15 +33,15 @@ private fun hz(f: Float) = if (f >= 1000f) String.format(Locale.US, "%.1fk", f /
 data class FxInfo(val name: String, val xLabel: String, val yLabel: String)
 
 val FX_INFO: Map<Int, FxInfo> = mapOf(
-    Fx.LOOPER to FxInfo("LOOPER", "LENGTH", "SPEED"),
-    Fx.FILTER to FxInfo("FILTER", "LP·HP", "RES·DRIVE"),
+    Fx.LOOPER to FxInfo("LOOPER", "LEN", "SPEED"),
+    Fx.FILTER to FxInfo("FILTER", "LP·HP", "RES"),
     Fx.TAPE_STOP to FxInfo("TAPE STOP", "STOP·SPIN", "TIME"),
     Fx.LOFI to FxInfo("LO-FI", "RATE", "BITS"),
     Fx.VINYL to FxInfo("VINYL", "WOW", "DUST"),
     Fx.SCATTER to FxInfo("SCATTER", "TYPE", "DEPTH"),
-    Fx.SLICER to FxInfo("SLICER", "PATTERN", "DUTY"),
+    Fx.SLICER to FxInfo("SLICER", "PTN", "DUTY"),
     Fx.REVERB to FxInfo("REVERB", "SIZE", "TONE"),
-    Fx.ECHO to FxInfo("ECHO", "TIME", "FEEDBACK"),
+    Fx.ECHO to FxInfo("ECHO", "TIME", "FDBK"),
     Fx.ISOLATOR to FxInfo("ISOLATOR", "BAND", "CUT"),
     Fx.CASSETTE to FxInfo("CASSETTE", "AGE", "DRIVE"),
     Fx.RESONATOR to FxInfo("RESONATOR", "NOTE", "RING"),

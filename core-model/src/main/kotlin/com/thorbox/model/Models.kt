@@ -88,7 +88,7 @@ data class Adsr(
 
 @Serializable
 data class Pad(
-    val index: Int,                  // 0..15. Row-major from the top-left, like Koala and the MPC layout.
+    val index: Int,                  // 0..15. Row-major from the top-left, like the MPC layout.
     val sampleId: SampleId? = null,
     val sliceId: SliceId? = null,    // Null plays the whole (trimmed) sample
     val trimStart: Long = 0,         // Frames, relative to the slice or sample start
@@ -247,7 +247,7 @@ data class NoteEvent(
     val note: Int,                   // Sampler: pad index 0..15. Synth: MIDI note 0..127.
     val velocity: Float,             // 0..1
     val probability: Float = 1f,
-    // OP-XY-style step components
+    // Step components
     val ratchet: Int = 1,            // 1..4 retriggers within the note
     val condEvery: Int = 1,          // play on loop condPhase+1 of every condEvery loops (1 = always)
     val condPhase: Int = 0,

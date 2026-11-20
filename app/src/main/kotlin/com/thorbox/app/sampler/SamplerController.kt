@@ -29,7 +29,7 @@ enum class StretchMode(val label: String) { OFF("OFF"), SYNC("SYNC"), HALF("HALF
 enum class ChopMode { AUTO, EQUAL, LAZY }
 
 /**
- * Serato-style sampler flow:
+ * Sampler flow:
  *   load → auto-chop to 16 pads → play. KEY MATCH / BPM SYNC re-render the sample with pitch and
  *   tempo kept independent (always from the original, so quality never degrades), and the
  *   slices follow automatically.
@@ -259,6 +259,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     }
 
     private fun applyRegions(r: List<Region>) {
+        if (r != regions.value) { normalized.value = false; preNormalize = null }   // new slices: NORMALIZE no longer applies
         regions.value = r
         pushRegions()
     }
@@ -332,6 +333,38 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         for (p in 0 until ChopLogic.PADS) { assignPad(p); pushPadModes(p, pads.value[p]) }
     }
 
+    // ================= NORMALIZE =================
+
+    /** On while the pads carry NORMALIZE gains; tapping again puts the previous levels back. */
+    val normalized = mutableStateOf(false)
+    private var preNormalize: List<PadSlot>? = null
+
+    /**
+     * NORMALIZE: every chop to the same loudness (its loudest 50 ms), using per-pad gain (±24 dB),
+     * never pushing a pad's peak above −1 dBFS. The common level is the median of what each pad can
+     * reach, so one peaky pad can't drag the rest down. Toggle: a second tap restores the old levels.
+     * Returns a one-line message for the status bar.
+     */
+    fun toggleNormalize(): String {
+        if (normalized.value) {
+            val prev = preNormalize
+            if (prev != null) for (i in pads.value.indices) updatePad(i) { it.copy(gainDb = prev.getOrNull(i)?.gainDb ?: 0f) }
+            normalized.value = false; preNormalize = null
+            return "Pad levels back as they were"
+        }
+        val regs = regions.value.take(ChopLogic.PADS)
+        if (originalId == 0 || regs.isEmpty()) return "Load a sample first"
+        val arr = LongArray(regs.size * 2) { if (it % 2 == 0) regs[it / 2].start else regs[it / 2].end }
+        val lv = FloatArray(regs.size * 2)
+        if (!NativeEngine.regionLevels(originalId, arr, lv)) return "Couldn't measure the pads"
+        val gains = NormalizeMath.gains(FloatArray(regs.size) { lv[2 * it] }, FloatArray(regs.size) { lv[2 * it + 1] })
+        preNormalize = pads.value
+        for (i in regs.indices) updatePad(i) { it.copy(gainDb = gains[i]) }
+        normalized.value = true
+        val moved = gains.count { kotlin.math.abs(it) >= 0.5f }
+        return "Normalized: $moved of ${regs.size} pads levelled (peaks kept under −1 dBFS)"
+    }
+
     /** Slices changed (re-chop, marker drag): every pad's region, and warped pads re-render their slice. */
     private fun pushRegions() { for (p in 0 until ChopLogic.PADS) assignPad(p); renderWarps() }
 
@@ -342,7 +375,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
 
     fun updatePad(i: Int, f: (PadSlot) -> PadSlot) {
         val list = pads.value.toMutableList()
-        val n = f(list[i]).let { it.copy(pitch = it.pitch.coerceIn(-24, 24), fine = it.fine.coerceIn(-100, 100), gainDb = it.gainDb.coerceIn(-24f, 6f)) }
+        val n = f(list[i]).let { it.copy(pitch = it.pitch.coerceIn(-24, 24), fine = it.fine.coerceIn(-100, 100), gainDb = it.gainDb.coerceIn(-24f, 24f)) }
         if (n == list[i]) return
         val old = list[i]
         list[i] = n; pads.value = list

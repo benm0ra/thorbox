@@ -78,7 +78,7 @@ fun TopScreen(state: AppState) {
                 TopView.MIX -> MixScreen(state)
                 TopView.VIZ -> VizScreen(state)
             }
-            // OP-XY style: holding a step on the STEP deck opens its components here, over any view.
+            // Holding a step on the STEP deck opens its components here, over any view.
             if (state.groove.heldStep.intValue >= 0)
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
         }

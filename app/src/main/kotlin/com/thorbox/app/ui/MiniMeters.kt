@@ -27,7 +27,7 @@ import kotlin.math.max
 import kotlin.math.sqrt
 
 /**
- * A MiniMeters-style strip for the top screen: the master bus at a glance while you work.
+ * A meter strip for the top screen: the master bus at a glance while you work.
  *   PEAK    L / R bars in dBFS with 1.5 s peak-hold ticks (red past −1 dB)
  *   RMS     momentary (400 ms) and short-term (3 s) RMS level of the master, in dBFS
  *   SPEC    48-band spectrum with falling peak caps

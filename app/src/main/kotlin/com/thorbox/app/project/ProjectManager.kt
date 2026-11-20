@@ -327,7 +327,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
         ),
         transport = app.startDefaults()?.let { TransportDto(bpm = it.bpm, swing = it.swing, metronome = it.click) } ?: TransportDto(),
         scale = app.startDefaults()?.let { ScaleDto(it.root.name, it.mode.name, it.follow) } ?: ScaleDto(),
-        kits = mapOf(2 to com.thorbox.model.DrumKit(name = "TR-808", voices = com.thorbox.model.FactoryPresets.kits.first().kit.voices)),
+        kits = mapOf(2 to com.thorbox.model.DrumKit(name = "808", voices = com.thorbox.model.FactoryPresets.kits.first().kit.voices)),
     )
 
     private fun meta(id: String, p: ProjectFile) =

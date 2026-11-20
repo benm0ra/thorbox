@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Punch-in master effects, modelled on the classic sampler-workstation performance set (SP-style),
-// played OP-XY-style: hold a pad to engage, release to snap back dry. Where the finger sits on the
+// played from XY pads: hold a pad to engage, release to snap back dry. Where the finger sits on the
 // pad is the effect's XY, and it can move while held. Several can stack. Header-only, Android-free.
 //
 //   LOOPER     DJ-style loop of the slice you hit:     X = length 1/4 … 1/32T   Y = speed (↓ reverse · mid 1× · ↑ up to 2×)

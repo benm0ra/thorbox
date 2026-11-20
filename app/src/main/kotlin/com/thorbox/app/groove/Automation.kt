@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import android.os.SystemClock
 
 /**
- * Automation, OP-XY style: with REC armed and the transport running, moving a synth knob, a mixer
+ * Automation: with REC armed and the transport running, moving a synth knob, a mixer
  * fader/pan or punching an FX writes a lane; on playback the lane moves the control by itself.
  * Touching a control overrides its lane for as long as you keep moving it (plus a short grace).
  *

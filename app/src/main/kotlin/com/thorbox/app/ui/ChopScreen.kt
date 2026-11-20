@@ -51,7 +51,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The sampler's top screen: Serato-style chopping.
+ * The sampler's top screen: chopping.
  *   browser | sample → project match bar | waveform with 16 coloured slices | chop modes + selected pad.
  * Waveform gestures: drag a marker to move it · tap a slice to play and select it.
  */
@@ -275,6 +275,11 @@ private fun ChopControls(state: AppState) {
         HwButton(if (pad.warp) "WARP ON" else "WARP", Modifier.width(96.dp).fillMaxHeight(), active = pad.warp, accent = Tb.Tempo, fontSize = 12) {
             state.sampler.toggleWarp(state.sampler.selected.intValue)
         }
+        // NORMALIZE: every chop to the same loudness (tap again to undo). The pad's gain shows beside it.
+        HwButton("NORMALIZE", Modifier.width(118.dp).fillMaxHeight(), active = sm.normalized.value, accent = Tb.Good, fontSize = 12) {
+            state.lastInput.value = sm.toggleNormalize()
+        }
+        if (pad.gainDb != 0f) Text(String.format(Locale.US, "%+.1f dB", pad.gainDb), color = Tb.Good, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         Box(Modifier.weight(1f))
         Text("PLAY", style = Tb.Label, color = Tb.Muted)
         HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.width(120.dp).fillMaxHeight(),

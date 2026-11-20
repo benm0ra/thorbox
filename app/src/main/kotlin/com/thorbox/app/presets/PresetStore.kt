@@ -71,7 +71,7 @@ class PresetStore(context: Context, private val scope: CoroutineScope) {
         _userKits.value = list; write(kitFile, PresetCodec.encodeKits(list))
     }
 
-    /** Factory names are reserved: saving "TR-808" makes "TR-808 2". Names are trimmed and capped. */
+    /** Factory names are reserved: saving "808" makes "808 2". Names are trimmed and capped. */
     private fun uniqueName(raw: String, reserved: List<String>): String {
         val base = raw.trim().uppercase().take(24).ifEmpty { "MY SOUND" }
         if (base !in reserved) return base
