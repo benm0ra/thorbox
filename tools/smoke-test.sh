@@ -104,6 +104,9 @@ shots() {
   adb exec-out screencap -p > "$d/sampler.png"
   adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 3
   for i in 1 2 3 4 5 6; do adb exec-out screencap -p > "$d/drums-$i.png"; sleep 0.35; done
+  adb shell am start -n $PKG/$ACT --es kit CRATE_DUST --ei drumpage 2 >/dev/null; sleep 3
+  adb exec-out screencap -p > "$d/drums-dust.png"
+  adb shell am start -n $PKG/$ACT --ei drumpage 0 >/dev/null; sleep 1
   for v in SYNTH SEQ MIX; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"

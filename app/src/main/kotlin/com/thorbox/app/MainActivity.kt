@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
         if (i?.getBooleanExtra("dice", false) == true) {                                    // fill every track with a pattern
             for (t in 0 until com.thorbox.model.TRACK_COUNT) if (state.trackKind(t) != com.thorbox.model.TrackKind.EMPTY) state.groove.diceNotes(t)
         }
+        i?.getStringExtra("kit")?.let { n -> state.presets.allKits().firstOrNull { it.name == n.replace('_', ' ') }?.let(state.drums::loadKit) }
+        if (i?.hasExtra("drumpage") == true) state.drums.page.intValue = i.getIntExtra("drumpage", 0).coerceIn(0, 2)
         if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
