@@ -9,6 +9,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 #include "Analysis.h"
 #include "Commands.h"
 #include "SampleBuffer.h"
@@ -155,6 +156,7 @@ private:
 
     // Rendering happens in chunks of kChunk frames, split at each sequencer event for sample accuracy.
     static constexpr int kChunk = 256;
+    static constexpr int kI16ScratchFrames = 2048;
     static constexpr int kStrips = kTracks;
     std::array<seq::Fire, 512> mFires{};
     std::array<std::array<float, 2 * kChunk>, kStrips> mBus{};   // per-track stereo buses
@@ -216,6 +218,11 @@ private:
     // Stream (guarded for open/close/stats; never touched by the callback's hot path)
     std::mutex mStreamMtx;
     std::shared_ptr<oboe::AudioStream> mStream;
+    // Output format actually granted (Float, or I16 on devices whose fast/MMAP path wants 16-bit).
+    bool mOutI16 = false;
+    std::vector<float> mI16Scratch;                       // float render target when the device wants I16
+    std::unique_ptr<oboe::LatencyTuner> mTuner;           // grows the buffer one burst at a time on underruns
+    void renderFloat(oboe::AudioStream* stream, float* out, int32_t numFrames);
     bool mWantRunning = false;
 
     // Registry (main + worker threads)

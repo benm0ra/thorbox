@@ -29,30 +29,60 @@ AudioEngine::~AudioEngine() {
 // ================= Lifecycle =================
 
 bool AudioEngine::openStream() {
-    oboe::AudioStreamBuilder b;
-    b.setDirection(oboe::Direction::Output)
-        ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-        ->setSharingMode(oboe::SharingMode::Exclusive)   // MMAP path when available
-        ->setFormat(oboe::AudioFormat::Float)
-        ->setChannelCount(oboe::ChannelCount::Stereo)
-        ->setUsage(oboe::Usage::Media)
-        ->setContentType(oboe::ContentType::Music)
-        ->setDataCallback(this)
-        ->setErrorCallback(this);
-    // Sample rate deliberately left unset: we take the device's native rate to avoid a
-    // resampler in the output path (which costs latency).
-    oboe::Result r = b.openStream(mStream);
-    if (r != oboe::Result::OK) { LOGW("openStream failed: %s", oboe::convertToText(r)); mStream.reset(); return false; }
+    // Ask for the lowest-latency output the device will give, most demanding first, and keep the
+    // first that lands on the exclusive (MMAP) fast path, else the one with the smallest burst.
+    // Many Qualcomm devices only grant MMAP / FAST tracks for 16-bit at the native 48 kHz with
+    // Usage::Game; Float + Media is the safe fallback (what earlier builds always used).
+    struct Try { oboe::SharingMode share; oboe::AudioFormat fmt; oboe::Usage usage; const char* name; };
+    const Try tries[] = {
+        {oboe::SharingMode::Exclusive, oboe::AudioFormat::I16,   oboe::Usage::Game,  "exclusive i16 game"},
+        {oboe::SharingMode::Exclusive, oboe::AudioFormat::Float, oboe::Usage::Game,  "exclusive float game"},
+        {oboe::SharingMode::Shared,    oboe::AudioFormat::I16,   oboe::Usage::Game,  "shared i16 game"},
+        {oboe::SharingMode::Exclusive, oboe::AudioFormat::Float, oboe::Usage::Media, "exclusive float media"},
+    };
+    std::shared_ptr<oboe::AudioStream> best;
+    const char* bestName = "";
+    for (const Try& t : tries) {
+        oboe::AudioStreamBuilder b;
+        b.setDirection(oboe::Direction::Output)
+            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
+            ->setSharingMode(t.share)
+            ->setFormat(t.fmt)
+            ->setFormatConversionAllowed(false)
+            ->setChannelCount(oboe::ChannelCount::Stereo)
+            ->setSampleRate(48000)
+            ->setSampleRateConversionQuality(oboe::SampleRateConversionQuality::None)
+            ->setUsage(t.usage)
+            ->setContentType(oboe::ContentType::Music)
+            ->setDataCallback(this)
+            ->setErrorCallback(this);
+        std::shared_ptr<oboe::AudioStream> s;
+        if (b.openStream(s) != oboe::Result::OK || !s) continue;
+        LOGI("try %s: %d Hz, burst %d, sharing %s, format %s", t.name, s->getSampleRate(), s->getFramesPerBurst(),
+             oboe::convertToText(s->getSharingMode()), oboe::convertToText(s->getFormat()));
+        const bool fmtOk = s->getFormat() == oboe::AudioFormat::Float || s->getFormat() == oboe::AudioFormat::I16;
+        if (!fmtOk) { s->close(); continue; }
+        const bool better = !best || (s->getSharingMode() == oboe::SharingMode::Exclusive && best->getSharingMode() != oboe::SharingMode::Exclusive)
+            || (s->getSharingMode() == best->getSharingMode() && s->getFramesPerBurst() < best->getFramesPerBurst());
+        if (better) { if (best) best->close(); best = s; bestName = t.name; }
+        else s->close();
+        if (best && best->getSharingMode() == oboe::SharingMode::Exclusive) break;   // can't do better than MMAP
+    }
+    if (!best) { LOGW("openStream failed for every configuration"); return false; }
+    mStream = best;
+    mOutI16 = mStream->getFormat() == oboe::AudioFormat::I16;
+    if (mOutI16 && mI16Scratch.size() < (size_t)kI16ScratchFrames * 2) mI16Scratch.assign((size_t)kI16ScratchFrames * 2, 0.f);
 
-    // Start at 2× burst: the usual low-latency sweet spot. M8 will add adaptive tuning.
-    mStream->setBufferSizeInFrames(mStream->getFramesPerBurst() * 2);
+    // Start at the smallest buffer the device allows; the tuner adds a burst whenever it underruns.
+    mStream->setBufferSizeInFrames(mStream->getFramesPerBurst());
+    mTuner = std::make_unique<oboe::LatencyTuner>(*mStream);
     mDeviceRate.store(mStream->getSampleRate());
-    LOGI("stream open: %d Hz, burst %d, buffer %d, sharing %s, api %s",
+    LOGI("stream open (%s): %d Hz, burst %d, buffer %d, sharing %s, api %s", bestName,
          mStream->getSampleRate(), mStream->getFramesPerBurst(), mStream->getBufferSizeInFrames(),
          oboe::convertToText(mStream->getSharingMode()), oboe::convertToText(mStream->getAudioApi()));
 
-    r = mStream->requestStart();
-    if (r != oboe::Result::OK) { LOGW("requestStart failed: %s", oboe::convertToText(r)); mStream->close(); mStream.reset(); return false; }
+    oboe::Result r = mStream->requestStart();
+    if (r != oboe::Result::OK) { LOGW("requestStart failed: %s", oboe::convertToText(r)); mStream->close(); mStream.reset(); mTuner.reset(); return false; }
     return true;
 }
 
@@ -66,7 +96,7 @@ bool AudioEngine::start() {
 void AudioEngine::stop() {
     std::lock_guard<std::mutex> l(mStreamMtx);
     mWantRunning = false;
-    if (mStream) { mStream->stop(); mStream->close(); mStream.reset(); }
+    if (mStream) { mStream->stop(); mStream->close(); mStream.reset(); mTuner.reset(); }
 }
 
 void AudioEngine::onErrorAfterClose(oboe::AudioStream* stream, oboe::Result error) {
@@ -688,6 +718,22 @@ static inline void atomicMax(std::atomic<float>& a, float v) {
 }
 
 oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, void* audioData, int32_t numFrames) {
+    if (mTuner) mTuner->tune();
+    if (!mOutI16) { renderFloat(stream, static_cast<float*>(audioData), numFrames); return oboe::DataCallbackResult::Continue; }
+    // 16-bit device: render float into scratch, then convert (with clipping) in slices.
+    auto* dst = static_cast<int16_t*>(audioData);
+    for (int32_t off = 0; off < numFrames; off += kI16ScratchFrames) {
+        const int32_t n = std::min<int32_t>(kI16ScratchFrames, numFrames - off);
+        renderFloat(stream, mI16Scratch.data(), n);
+        for (int32_t i = 0; i < 2 * n; ++i) {
+            const float v = std::clamp(mI16Scratch[(size_t)i], -1.f, 1.f);
+            dst[2 * off + i] = (int16_t)std::lrint(v * 32767.f);
+        }
+    }
+    return oboe::DataCallbackResult::Continue;
+}
+
+void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32_t numFrames) {
 #if defined(__aarch64__)
     // Flush denormals to zero: filter and envelope tails decaying toward 0 would otherwise hit
     // ~100× slower subnormal arithmetic and cause CPU spikes exactly when notes release.
@@ -780,5 +826,5 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     mPlayhead.store(ph, std::memory_order_relaxed);
     mTelPads.store(mask, std::memory_order_relaxed);
     mTelPlayPad.store(phPad, std::memory_order_relaxed);
-    return oboe::DataCallbackResult::Continue;
+    return;
 }
