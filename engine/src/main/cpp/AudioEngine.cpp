@@ -225,7 +225,9 @@ bool AudioEngine::drumTrigger(int track, int slot, float vel) {
     return mCmds.push(c);
 }
 bool AudioEngine::drumParam(int track, int slot, int id, float v) {
-    if (!validTrack(track) || slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount || !std::isfinite(v)) return false;
+    if (!validTrack(track) || !std::isfinite(v)) return false;
+    const bool bus = slot == drums::kBusSlot && id >= 0 && id < drums::kBusParamCount;
+    if (!bus && (slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount)) return false;
     Command c{CmdType::DrumParam, slot, id, v}; c.i1 = track;
     return mCmds.push(c);
 }

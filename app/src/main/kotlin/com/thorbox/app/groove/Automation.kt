@@ -95,7 +95,9 @@ class Automation {
             parts[1] == "syn" -> "${trackName(parts[0].drop(1).toInt())} · ${knobName(parts[2].toInt(), parts[3].toInt())}"
             parts[1] == "vol" -> "${trackName(parts[0].drop(1).toInt())} · VOLUME"
             parts[1] == "sc" -> "${trackName(parts[0].drop(1).toInt())} · PUMP"
-            parts[1] == "drm" -> "${trackName(parts[0].drop(1).toInt())} · ${com.thorbox.app.drums.DrumController.knobs(parts[3].toInt()).getOrNull(parts[4].toInt())?.label ?: "?"} ${parts[2].toInt() + 1}"
+            parts[1] == "drm" && parts[3].toInt() == com.thorbox.app.drums.DrumController.PAGE_DUST ->
+                "${trackName(parts[0].drop(1).toInt())} · ${com.thorbox.app.drums.DrumController.knobLabel(parts[3].toInt(), parts[4].toInt())}"
+            parts[1] == "drm" -> "${trackName(parts[0].drop(1).toInt())} · ${com.thorbox.app.drums.DrumController.knobLabel(parts[3].toInt(), parts[4].toInt())} ${parts[2].toInt() + 1}"
             parts[1] == "pad" -> "${trackName(parts[0].drop(1).toInt())} · PAD ${parts[2].toInt() + 1} PITCH"
             else -> "${trackName(parts[0].drop(1).toInt())} · PAN"
         }

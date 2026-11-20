@@ -120,6 +120,10 @@ object NativeEngine {
     const val DRUM_SLOTS = 8
     fun drumTrigger(track: Int, slot: Int, velocity: Float) = nativeDrumTrigger(track, slot, velocity)
     fun drumParam(track: Int, slot: Int, id: Int, value: Float) = nativeDrumParam(track, slot, id, value)
+    /** Kit-wide character bus (drums::BusParam), each 0..1; sent as the pseudo-slot DRUM_BUS_SLOT. */
+    object DrumBusParam { const val CRUNCH = 0; const val MUFFLE = 1; const val TAPE = 2; const val DUST = 3; const val COUNT = 4 }
+    const val DRUM_BUS_SLOT = 8
+    fun drumBus(track: Int, id: Int, value: Float) = nativeDrumParam(track, DRUM_BUS_SLOT, id, value)
     /** Per-slot level (0..1) and hit counters (compare with the last read to spot new hits). */
     fun drumTelemetry(track: Int, levels: FloatArray, hits: IntArray) = nativeGetDrumTelemetry(track, levels, hits)
     fun setChannel(strip: Int, param: Int, value: Float) = nativeSetChannel(strip, param, value)

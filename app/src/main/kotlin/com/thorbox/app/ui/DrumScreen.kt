@@ -68,16 +68,26 @@ fun DrumScreen(state: AppState) {
         Row(Modifier.fillMaxWidth().height(40.dp).glass(state, 12.dp).padding(horizontal = 6.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("DRUMS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 2.sp, modifier = Modifier.padding(end = 4.dp))
-            listOf("SOUND", "MIX").forEachIndexed { i, l ->
+            listOf("SOUND", "MIX", "DUST").forEachIndexed { i, l ->
+                // DUST is kit-wide; it lights amber while any of it is on, so you can see the kit is "dirty".
+                val dusty = i == DrumController.PAGE_DUST && kit.bus.let { it.crunch + it.muffle + it.tape + it.dust > 0.01f }
                 Box(Modifier.fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(if (page == i) Tb.Text else Tb.Panel)
-                    .navClickable { dc.page.intValue = i }.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                    Text(l, color = if (page == i) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
+                    .navClickable(label = l) { dc.page.intValue = i; if (i == DrumController.PAGE_DUST) Info.show("DUST") }.padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (dusty) Box(Modifier.size(6.dp).clip(CircleShape).background(Tb.Key))
+                        Text(l, color = if (page == i) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
+                    }
                 }
             }
             Box(Modifier.weight(1f))
-            Box(Modifier.size(10.dp).clip(CircleShape).background(drumColor(sel)))
-            Text(voice.name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
-            Text(voice.model.label, color = drumColor(sel), fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+            if (page == DrumController.PAGE_DUST) {
+                Text("WHOLE KIT", color = Tb.Key, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+            } else {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(drumColor(sel)))
+                Text(voice.name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                Text(voice.model.label, color = drumColor(sel), fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+            }
         }
 
         // ---- kit presets + dice ----
@@ -113,7 +123,16 @@ fun DrumScreen(state: AppState) {
 
         // ---- encoders ----
         Row(Modifier.fillMaxWidth().height(92.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            knobs.forEachIndexed { i, k ->
+            if (page == DrumController.PAGE_DUST) DrumController.busKnobs.forEachIndexed { i, k ->
+                Encoder(
+                    label = k.label, display = DrumController.busFormat(k.get(kit.bus)), value = k.get(kit.bus), color = Tb.enc(k.color), active = dragging.intValue == i,
+                    onDragStart = { dragging.intValue = i },
+                    onDelta = { d -> dc.nudgeKnob(i, d) },
+                    onDragEnd = { if (dragging.intValue == i) dragging.intValue = -1 },
+                    onReset = { dc.setKnob(i, 0f) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            } else knobs.forEachIndexed { i, k ->
                 Encoder(
                     label = k.label, display = k.format(voice), value = k.get(voice), color = Tb.enc(k.color), active = dragging.intValue == i,
                     onDragStart = { dragging.intValue = i }, onDelta = { d -> dc.nudgeKnob(i, d) },

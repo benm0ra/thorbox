@@ -271,7 +271,12 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeDrumTrigger)(JNIEnv*, jobject, jint trac
     return gEngine && slot >= 0 && slot < drums::kSlots && finite(vel) && gEngine->drumTrigger(track, slot, std::clamp(vel, 0.f, 1.f));
 }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeDrumParam)(JNIEnv*, jobject, jint track, jint slot, jint id, jfloat v) {
-    if (!gEngine || slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount || !finite(v)) return JNI_FALSE;
+    if (!gEngine || !finite(v)) return JNI_FALSE;
+    if (slot == drums::kBusSlot) {                       // kit-wide character bus, all 0..1
+        if (id < 0 || id >= drums::kBusParamCount) return JNI_FALSE;
+        return gEngine->drumParam(track, slot, id, std::clamp(v, 0.f, 1.f));
+    }
+    if (slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount) return JNI_FALSE;
     return gEngine->drumParam(track, slot, id, std::clamp(v, drums::kRanges[id].lo, drums::kRanges[id].hi));
 }
 JNIEXPORT void JNICALL JNI_FN(nativeGetDrumTelemetry)(JNIEnv* env, jobject, jint track, jfloatArray jLevels, jintArray jHits) {

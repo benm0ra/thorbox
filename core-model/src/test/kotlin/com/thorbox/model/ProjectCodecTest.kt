@@ -18,7 +18,7 @@ class ProjectCodecTest {
         feels = listOf(FeelDto("DILLA", 0.7f)),
         automation = mapOf("t1:vol" to listOf(AutoPointDto(0, -6f), AutoPointDto(960, 0f))),
         synths = mapOf(1 to SynthPatch(name = "SUB 808")),
-        kits = mapOf(2 to DrumKit(name = "SP KIT")),
+        kits = mapOf(2 to DrumKit(name = "SP KIT", bus = DrumBus(crunch = 0.5f, muffle = 0.3f, tape = 0.2f, dust = 0.4f))),
         samplers = mapOf(0 to SamplerDto(file = "t1-break.wav", sampleName = "break", regions = listOf(0L, 1000L, 1000L, 5000L),
             pads = listOf(PadDto(pitch = -2, mode = "LOOP")), chopMode = "EQUAL", equalCount = 8, keyMatch = true)),
         focus = FocusDto(samplerTrack = 0, synthTrack = 1, drumTrack = 2, seqTrack = 1),

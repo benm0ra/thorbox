@@ -127,6 +127,7 @@ object FactoryPresets {
                   drive: Float = 0f, level: Float = 0f, pan: Float = 0f, choke: Int = 0) =
         DrumVoice(name, m, tune, decay, tone, snap, drive, level, pan, choke)
     private fun kit(name: String, vararg voices: DrumVoice) = KitPreset(name, DrumKit(name, voices.toList()))
+    private fun kit(name: String, bus: DrumBus, vararg voices: DrumVoice) = KitPreset(name, DrumKit(name, voices.toList(), bus))
     private val K = DrumModel.KICK; private val S = DrumModel.SNARE; private val C = DrumModel.CLAP; private val H = DrumModel.HAT
     private val T = DrumModel.TOM; private val R = DrumModel.RIM; private val B = DrumModel.COWBELL; private val Y = DrumModel.CYMBAL
     private val Z = DrumModel.ZAP; private val SH = DrumModel.SHAKER
@@ -147,16 +148,41 @@ object FactoryPresets {
             v("CLAP", C, decay = 350f, tone = 0.5f, level = 1f), v("C.HAT", H, decay = 35f, tone = 0.9f, snap = 0.1f, choke = 1),
             v("O.HAT", H, decay = 300f, tone = 0.9f, choke = 1), v("TOM", T, tune = -5f, decay = 500f, snap = 0.5f),
             v("RIM", R, tune = 5f, decay = 60f, level = -3f), v("CYMBAL", Y, decay = 1600f, level = -6f)),
-        kit("BOOM BAP",
+        kit("BOOM BAP", DrumBus(crunch = 0.3f, tape = 0.3f),
             v("KICK", K, tune = -1f, decay = 350f, tone = 0.7f, snap = 0.6f, drive = 0.5f), v("SNARE", S, decay = 260f, tone = 0.4f, snap = 0.7f, drive = 0.4f),
             v("CLAP", C, decay = 200f, tone = 0.3f, level = -3f), v("C.HAT", H, decay = 70f, tone = 0.35f, snap = 0.6f, drive = 0.3f, choke = 1),
             v("O.HAT", H, decay = 350f, tone = 0.35f, drive = 0.3f, choke = 1), v("SHAKER", SH, decay = 120f, tone = 0.4f, snap = 0.4f, level = -5f),
             v("RIM", R, decay = 60f, tone = 0.3f), v("RIDE", Y, decay = 1200f, tone = 0.3f, level = -6f)),
-        kit("LO-FI DUST",
+        kit("LO-FI DUST", DrumBus(crunch = 0.5f, muffle = 0.35f, tape = 0.2f, dust = 0.4f),
             v("KICK", K, tune = -3f, decay = 300f, tone = 0.2f, snap = 0.3f, drive = 0.6f), v("SNARE", S, tune = -2f, decay = 240f, tone = 0.2f, snap = 0.5f, drive = 0.6f),
             v("CLAP", C, decay = 260f, tone = 0.15f, drive = 0.5f, level = -3f), v("C.HAT", H, decay = 60f, tone = 0.2f, drive = 0.5f, choke = 1),
             v("O.HAT", H, decay = 280f, tone = 0.2f, drive = 0.5f, choke = 1), v("SHAKER", SH, decay = 150f, tone = 0.2f, snap = 0.2f, level = -4f),
             v("RIM", R, tune = -4f, decay = 70f, tone = 0.2f, drive = 0.4f), v("CYMBAL", Y, decay = 900f, tone = 0.1f, drive = 0.5f, level = -7f)),
+        // ---- crate-digger kits: the kit voiced like chopped records, the DUST bus doing the sampler ----
+        // Drunk, soft-kicked soul swing: round kick, warm snare with a clap tucked under it, thin hats.
+        kit("DRUNK SWING", DrumBus(crunch = 0.35f, muffle = 0.25f, tape = 0.45f, dust = 0.15f),
+            v("KICK", K, tune = -2f, decay = 320f, tone = 0.25f, snap = 0.35f, drive = 0.2f), v("SNARE", S, tune = -1f, decay = 210f, tone = 0.35f, snap = 0.75f, drive = 0.25f),
+            v("CLAP", C, decay = 240f, tone = 0.35f, level = -4f), v("C.HAT", H, decay = 55f, tone = 0.3f, snap = 0.5f, level = -5f, pan = 0.2f, choke = 1),
+            v("O.HAT", H, decay = 300f, tone = 0.3f, level = -6f, pan = 0.2f, choke = 1), v("CONGA", T, tune = -7f, decay = 300f, tone = 0.3f, snap = 0.2f, level = -4f),
+            v("SHAKER", SH, decay = 110f, tone = 0.35f, snap = 0.3f, level = -7f, pan = -0.25f), v("RIDE", Y, decay = 1100f, tone = 0.25f, level = -9f, pan = 0.3f)),
+        // Dark, filtered, heavy: a big cracking snare over a muffled kick, record dust underneath.
+        kit("CRATE DUST", DrumBus(crunch = 0.45f, muffle = 0.45f, tape = 0.35f, dust = 0.35f),
+            v("KICK", K, tune = -3f, decay = 380f, tone = 0.15f, snap = 0.55f, drive = 0.45f, level = 1f), v("SNARE", S, tune = -2f, decay = 300f, tone = 0.3f, snap = 0.85f, drive = 0.5f),
+            v("CLAP", C, decay = 280f, tone = 0.25f, level = -5f), v("C.HAT", H, decay = 50f, tone = 0.2f, snap = 0.4f, level = -7f, choke = 1),
+            v("O.HAT", H, decay = 260f, tone = 0.2f, level = -8f, choke = 1), v("TOM", T, tune = -4f, decay = 260f, tone = 0.3f, level = -5f),
+            v("RIM", R, tune = -3f, decay = 60f, tone = 0.25f, level = -4f), v("CYMBAL", Y, decay = 900f, tone = 0.15f, level = -10f)),
+        // Raw and crunchy: loud overdriven snare, gritty hats, a low thud, heavy crush and crackle.
+        kit("VILLAIN", DrumBus(crunch = 0.65f, muffle = 0.3f, tape = 0.5f, dust = 0.5f),
+            v("KICK", K, tune = -1f, decay = 300f, tone = 0.3f, snap = 0.6f, drive = 0.6f), v("SNARE", S, tune = 1f, decay = 240f, tone = 0.45f, snap = 0.9f, drive = 0.7f, level = 1f),
+            v("CLAP", C, decay = 220f, tone = 0.4f, drive = 0.4f, level = -4f), v("C.HAT", H, decay = 45f, tone = 0.35f, snap = 0.7f, drive = 0.4f, level = -4f, choke = 1),
+            v("O.HAT", H, decay = 220f, tone = 0.35f, drive = 0.4f, level = -6f, choke = 1), v("THUD", T, tune = -9f, decay = 350f, tone = 0.2f, snap = 0.4f, level = -3f),
+            v("RIM", R, tune = 2f, decay = 55f, drive = 0.3f, level = -3f), v("CYMBAL", Y, decay = 700f, tone = 0.3f, drive = 0.4f, level = -9f)),
+        // Sped-up-soul era: punchy kick, hard snare stacked with a big clap, tambourine, crisp hats.
+        kit("SOUL CHOP", DrumBus(crunch = 0.25f, muffle = 0.12f, tape = 0.4f, dust = 0.1f),
+            v("KICK", K, decay = 340f, tone = 0.45f, snap = 0.7f, drive = 0.35f, level = 1f), v("SNARE", S, tune = 2f, decay = 230f, tone = 0.55f, snap = 0.85f, drive = 0.3f),
+            v("CLAP", C, decay = 260f, tone = 0.55f, snap = 0.7f, level = -1f), v("C.HAT", H, decay = 50f, tone = 0.55f, snap = 0.5f, level = -4f, choke = 1),
+            v("O.HAT", H, decay = 320f, tone = 0.55f, level = -6f, choke = 1), v("TOM", T, tune = -3f, decay = 320f, tone = 0.35f, level = -4f),
+            v("TAMB", SH, decay = 160f, tone = 0.75f, snap = 0.8f, level = -5f, pan = -0.2f), v("CYMBAL", Y, decay = 1400f, tone = 0.45f, level = -9f)),
         kit("HOUSE",
             v("KICK", K, tune = 1f, decay = 450f, tone = 0.45f, snap = 0.7f, drive = 0.2f), v("SNARE", S, tune = 3f, decay = 180f, tone = 0.7f, snap = 0.7f, level = -3f),
             v("CLAP", C, decay = 280f, tone = 0.55f, level = 1f), v("C.HAT", H, decay = 40f, tone = 0.75f, choke = 1, pan = -0.2f),

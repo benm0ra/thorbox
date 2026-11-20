@@ -186,8 +186,15 @@ const val DRUM_SLOTS = 8
 @Serializable data class TrackInfo(val kind: TrackKind, val name: String)
 const val TRACK_COUNT = 8
 
+/**
+ * The kit's character bus (DUST page), all 0..1, 0 = off: CRUNCH (sample-rate + bit reduction),
+ * MUFFLE (low-pass), TAPE (saturation), DUST (vinyl crackle + hiss while playing).
+ */
 @Serializable
-data class DrumKit(val name: String = "INIT KIT", val voices: List<DrumVoice> = DefaultKit.voices)
+data class DrumBus(val crunch: Float = 0f, val muffle: Float = 0f, val tape: Float = 0f, val dust: Float = 0f)
+
+@Serializable
+data class DrumKit(val name: String = "INIT KIT", val voices: List<DrumVoice> = DefaultKit.voices, val bus: DrumBus = DrumBus())
 
 object DefaultKit {
     val voices = listOf(

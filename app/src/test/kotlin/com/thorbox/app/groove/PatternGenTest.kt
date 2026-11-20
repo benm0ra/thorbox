@@ -26,10 +26,37 @@ class PatternGenTest {
     }
 
     @Test fun beatsVaryAndUseEveryStyle() {
-        val styles = HashSet<String>()
-        val rolls = (1..60).map { val g = PatternGen(it * 104729); sig(g.beat(16, p)).also { _ -> styles += g.style } }.toSet()
+        val rolls = (1..60).map { sig(PatternGen(it * 104729).beat(16, p)) }.toSet()
         assertTrue(rolls.size >= 55, "only ${rolls.size} distinct beats in 60 rolls")
-        assertEquals(PatternGen.BeatStyle.entries.size, styles.size, "styles seen: $styles")
+        val styles = (1..400).mapNotNull { val g = PatternGen(it * 7); g.beat(16, p); g.beatStyle }.toSet()
+        assertEquals(PatternGen.BeatStyle.entries.toSet(), styles)
+    }
+
+    @Test fun crateStylesKeepTheirHabits() {
+        for (seed in 1..40) {
+            val drunk = PatternGen(seed).beat(16, p, force = PatternGen.BeatStyle.DRUNK)
+            assertTrue(drunk.any { it.note == 1 && it.tick == 4 * STEP_TICKS } && drunk.any { it.note == 2 && it.tick == 4 * STEP_TICKS }, "DRUNK: snare + clap stacked on 2")
+            assertTrue(drunk.count { it.note == 0 } >= 3, "DRUNK: skippy kicks")
+            val soul = PatternGen(seed).beat(16, p, force = PatternGen.BeatStyle.SOUL_CHOP)
+            for (b in listOf(4, 12)) assertTrue(listOf(1, 2, 6).all { n -> soul.any { it.note == n && it.tick == b * STEP_TICKS } }, "SOUL CHOP: snare+clap+tamb on $b")
+            val dusty = PatternGen(seed).beat(16, p, force = PatternGen.BeatStyle.DUSTY)
+            assertTrue(dusty.count { it.note == 0 } <= 4, "DUSTY: sparse kicks")
+            assertTrue(dusty.filter { it.note == 3 }.all { it.velocity <= 0.75f }, "DUSTY: quiet hats")
+        }
+        assertEquals(GrooveTemplate.DILLA, PatternGen.BeatStyle.DRUNK.feel)
+    }
+
+    @Test fun drumFeelPutsEachDrumOnItsOwnClock() {
+        val len = 16 * STEP_TICKS
+        for (t in GrooveTemplate.entries) for (slot in -1..7) for (step in 0 until 16) {
+            val (tick, v) = t.apply(step * STEP_TICKS, 0.8f, len, 1f, 1234 + step, slot)
+            assertTrue(tick in 0 until len && v in 0.05f..1f, "$t slot $slot step $step → $tick")
+            if (step == 0) assertTrue(tick < STEP_TICKS / 2, "$t: the downbeat never wraps to the loop end")
+        }
+        // DILLA: the snare sits behind the kick, the clap behind the snare (averaged over the jitter)
+        fun avgLate(slot: Int) = (0 until 16).map { s -> GrooveTemplate.DILLA.apply(s * STEP_TICKS, 0.8f, len, 1f, 99 + s, slot).first - s * STEP_TICKS }.average()
+        assertTrue(avgLate(1) > avgLate(0) + 10 && avgLate(2) > avgLate(1) + 8, "kick ${avgLate(0)} snare ${avgLate(1)} clap ${avgLate(2)}")
+        assertEquals(0 to 0.8f, GrooveTemplate.STRAIGHT.apply(0, 0.8f, len, 1f, 1, 1))
     }
 
     /** The old pad dice gave the same steps every time when "step 1 always hits" was on. */

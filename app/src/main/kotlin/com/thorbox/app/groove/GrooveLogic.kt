@@ -232,7 +232,19 @@ class PatternGen(seed: Int) {
 
     // ------------------------------------------------------------------ drum machine beat
 
-    enum class BeatStyle(val label: String) { BOOM_BAP("BOOM BAP"), TRAP("TRAP"), HOUSE("HOUSE"), BREAKS("BREAKS"), DEMBOW("DEMBOW"), LOFI("LO-FI") }
+    /** Beat styles. [feel] is the groove the style is meant to be played with (set on roll if the track is straight). */
+    enum class BeatStyle(val label: String, val feel: GrooveTemplate?) {
+        BOOM_BAP("BOOM BAP", GrooveTemplate.BOOMBAP), TRAP("TRAP", GrooveTemplate.TRAP), HOUSE("HOUSE", GrooveTemplate.HOUSE),
+        BREAKS("BREAKS", GrooveTemplate.MPC60), DEMBOW("DEMBOW", null), LOFI("LO-FI", GrooveTemplate.LAZY),
+        /** Soul-sample swing: kicks that skip around the 16ths, snare + clap stacked, loose hats. */
+        DRUNK("DRUNK", GrooveTemplate.DILLA),
+        /** Sparse and heavy: a few hard kicks, a cracking snare, quiet or no hats (often a ride instead). */
+        DUSTY("DUSTY", GrooveTemplate.LAZY),
+        /** Raw and off-kilter: unpredictable kicks, loud snares with stray extras, rough 16th hats, a low thud. */
+        VILLAIN("VILLAIN", GrooveTemplate.SP1200),
+        /** Sped-up soul: bouncy kick, snare + big clap + tambourine on 2 and 4, steady 8th hats. */
+        SOUL_CHOP("SOUL CHOP", GrooveTemplate.BOOMBAP),
+    }
 
     /**
      * A whole beat for the drum machine (slots: 0 kick, 1 snare, 2 clap, 3 closed hat, 4 open hat,
@@ -255,10 +267,18 @@ class PatternGen(seed: Int) {
         val bars = ((steps + 15) / 16).coerceAtLeast(1)
         // one kick/hat idea for the loop; later bars re-roll a little of it
         var kicks = emptySet<Int>()
-        val hatRate = when (st) { BeatStyle.TRAP -> pick(1, 1, 2); BeatStyle.HOUSE, BeatStyle.DEMBOW -> pick(1, 2); else -> if (chance(0.3f + 0.4f * d)) 1 else 2 }
-        val openOff = chance(if (st == BeatStyle.HOUSE) 0.85f else 0.35f)
-        val clap = chance(0.5f)
+        val hatRate = when (st) {
+            BeatStyle.TRAP -> pick(1, 1, 2); BeatStyle.HOUSE, BeatStyle.DEMBOW -> pick(1, 2)
+            BeatStyle.VILLAIN -> pick(1, 2); BeatStyle.SOUL_CHOP, BeatStyle.DRUNK, BeatStyle.DUSTY -> 2
+            else -> if (chance(0.3f + 0.4f * d)) 1 else 2
+        }
+        val noHats = st == BeatStyle.DUSTY && chance(0.45f)                      // naked drums, ride keeps time
+        val openOff = chance(when (st) { BeatStyle.HOUSE -> 0.85f; BeatStyle.SOUL_CHOP, BeatStyle.DUSTY -> 0.15f; else -> 0.35f })
+        val clap = when (st) { BeatStyle.DRUNK, BeatStyle.SOUL_CHOP -> true; BeatStyle.DUSTY, BeatStyle.VILLAIN -> chance(0.2f); else -> chance(0.5f) }
+        val ghosty = st in setOf(BeatStyle.BREAKS, BeatStyle.BOOM_BAP, BeatStyle.LOFI, BeatStyle.DRUNK, BeatStyle.VILLAIN)
         val rollSteps = if (st == BeatStyle.TRAP) extras((0 until 16).filter { it % 2 == 1 || it in setOf(6, 14) }, 1 + (d * 3).roundToInt()) else emptySet()
+        val loose16 = if (st == BeatStyle.DRUNK) extras(listOf(3, 7, 9, 13, 15), 1 + (d * 2).roundToInt()) else emptySet()   // drunk hat pickups
+        val stray = if (st == BeatStyle.VILLAIN && chance(0.6f)) setOf(pick(7, 10, 15)) else emptySet()                      // the odd extra snare
         for (bar in 0 until bars) {
             if (bar == 0 || chance(0.5f)) kicks = when (st) {
                 BeatStyle.BOOM_BAP -> setOf(0) + extras(listOf(3, 7, 8, 10, 11, 14), 1 + (d * 2.5f).roundToInt())
@@ -267,6 +287,12 @@ class PatternGen(seed: Int) {
                 BeatStyle.BREAKS -> setOf(0, 10) + extras(listOf(2, 6, 7, 11, 13), (d * 2f).roundToInt())
                 BeatStyle.DEMBOW -> setOf(0, 4, 8, 12)
                 BeatStyle.LOFI -> setOf(0) + extras(listOf(5, 7, 9, 10, 13), 1 + (d * 1.5f).roundToInt())
+                // skippy kicks on the 16ths around beat 3, often doubled
+                BeatStyle.DRUNK -> setOf(0) + extras(listOf(3, 6, 7, 9, 10, 11, 14), 2 + (d * 1.5f).roundToInt()).let {
+                    if (chance(0.5f)) it + pick(10, 11) + pick(10, 11) else it }
+                BeatStyle.DUSTY -> setOf(0) + extras(listOf(7, 8, 10, 11, 14), 1 + (if (chance(d)) 1 else 0))
+                BeatStyle.VILLAIN -> setOf(0) + extras(listOf(2, 3, 6, 8, 10, 13), 1 + (d * 2f).roundToInt())
+                BeatStyle.SOUL_CHOP -> setOf(0) + extras(listOf(6, 8, 10, 11), 1 + (if (chance(d)) 1 else 0))
             }
             val fill = bars > 1 && bar == bars - 1 && chance(0.6f)
             for (b in 0 until 16) {
@@ -276,29 +302,50 @@ class PatternGen(seed: Int) {
                     hit(s, pick(1, 1, 5), 0.6f + 0.1f * (b - 12), ratchet = if (b == 15 && chance(0.4f)) 2 else 1)
                     continue
                 }
-                if (b in kicks) hit(s, 0, if (b == 0) 1f else 0.82f)
+                if (b in kicks) hit(s, 0, if (b == 0) 1f else if (st == BeatStyle.DRUNK) 0.7f + rnd.nextFloat() * 0.2f else 0.82f)
                 when (st) {
                     BeatStyle.TRAP -> if (b == 8) { hit(s, 1, 0.95f); if (clap) hit(s, 2, 0.85f) }
                     BeatStyle.DEMBOW -> if (b in setOf(3, 6, 11, 14)) hit(s, 1, 0.9f)
-                    else -> if (b == 4 || b == 12) { hit(s, 1, 0.95f); if (clap || st == BeatStyle.HOUSE) hit(s, 2, 0.8f) }
+                    else -> if (b == 4 || b == 12) {
+                        hit(s, 1, if (st == BeatStyle.DUSTY || st == BeatStyle.VILLAIN) 1f else 0.95f)
+                        if (clap || st == BeatStyle.HOUSE) hit(s, 2, if (st == BeatStyle.SOUL_CHOP) 0.95f else 0.8f)
+                        if (st == BeatStyle.SOUL_CHOP) hit(s, 6, 0.75f)                  // tambourine on the backbeat
+                    }
                 }
+                if (b in stray) hit(s, 1, 0.62f)
                 // ghosts: quiet snares in the cracks
-                if (st == BeatStyle.BREAKS || st == BeatStyle.BOOM_BAP || st == BeatStyle.LOFI)
-                    if (b in setOf(7, 9, 15) && chance(0.35f * d)) hit(s, 1, 0.35f, prob = if (p.probSpread) 0.6f else 1f)
-                // hats
-                val open = openOff && b % 4 == 2 && st != BeatStyle.TRAP
-                if (open) hit(s, 4, 0.8f)
-                else if (st == BeatStyle.LOFI && b % 2 == 1 && chance(0.6f)) Unit         // lazy, gappy hats
-                else if (b % hatRate == 0) {
-                    val ratchet = if (b in rollSteps) pick(2, 3, 3, 4) else if (hatRate == 1 && chance(0.06f * d)) 2 else 1
-                    hit(s, 3, if (b % 4 == 0) 0.85f else 0.55f + rnd.nextFloat() * 0.15f, ratchet = ratchet)
+                if (ghosty && b in setOf(7, 9, 15) && chance(0.35f * d)) hit(s, 1, 0.35f, prob = if (p.probSpread) 0.6f else 1f)
+                // hats (or the ride)
+                if (noHats) { if (b % 2 == 0) hit(s, 7, if (b % 4 == 0) 0.55f else 0.4f) }
+                else {
+                    val open = openOff && b % 4 == 2 && st != BeatStyle.TRAP
+                    if (open) hit(s, 4, 0.8f)
+                    else if (st == BeatStyle.LOFI && b % 2 == 1 && chance(0.6f)) Unit         // lazy, gappy hats
+                    else if (b % hatRate == 0 || b in loose16) {
+                        val ratchet = if (b in rollSteps) pick(2, 3, 3, 4) else if (hatRate == 1 && chance(0.06f * d)) 2 else 1
+                        val vel = when (st) {
+                            BeatStyle.VILLAIN -> 0.35f + rnd.nextFloat() * 0.55f                // rough, uneven
+                            BeatStyle.DUSTY -> if (b % 4 == 0) 0.6f else 0.42f                  // quiet
+                            BeatStyle.DRUNK -> if (b in loose16) 0.4f else if (b % 4 == 0) 0.75f else 0.55f
+                            else -> if (b % 4 == 0) 0.85f else 0.55f + rnd.nextFloat() * 0.15f
+                        }
+                        hit(s, 3, vel, ratchet = ratchet)
+                    }
                 }
-                if (st == BeatStyle.TRAP && b == 14 && chance(0.4f)) hit(s, 4, 0.7f)
+                if ((st == BeatStyle.TRAP || st == BeatStyle.DRUNK) && b == 14 && chance(0.4f)) hit(s, 4, 0.7f)
                 // colour
-                if (chance(0.06f * d)) hit(s, 5, 0.75f, prob = 0.75f)
-                if (chance((if (st == BeatStyle.HOUSE || st == BeatStyle.DEMBOW) 0.14f else 0.07f) * d)) hit(s, 6, 0.7f, prob = if (p.probSpread) 0.5f else 1f)
+                when (st) {
+                    BeatStyle.VILLAIN -> if (b in setOf(10, 14) && chance(0.3f)) hit(s, 5, 0.8f)                   // low thud
+                    BeatStyle.DRUNK -> if (b % 4 == 2 && chance(0.5f * d)) hit(s, 6, 0.45f)                         // shaker on the "and"
+                    BeatStyle.SOUL_CHOP -> if (b % 4 == 2 && chance(0.4f)) hit(s, 6, 0.5f)                           // tambourine 8ths
+                    BeatStyle.DUSTY -> if (b == 14 && chance(0.3f)) hit(s, 6, 0.6f)                                  // one rim knock
+                    else -> {
+                        if (chance(0.06f * d)) hit(s, 5, 0.75f, prob = 0.75f)
+                        if (chance((if (st == BeatStyle.HOUSE || st == BeatStyle.DEMBOW) 0.14f else 0.07f) * d)) hit(s, 6, 0.7f, prob = if (p.probSpread) 0.5f else 1f)
+                    }
+                }
             }
-            if (bar == 0 && chance(0.4f)) hit(0, 7, 0.7f)
+            if (bar == 0 && !noHats && chance(if (st == BeatStyle.DUSTY || st == BeatStyle.DRUNK) 0.2f else 0.4f)) hit(0, 7, 0.7f)
         }
         return out.sortedBy { it.tick }
     }

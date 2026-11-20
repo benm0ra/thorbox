@@ -46,6 +46,7 @@ class GrooveController(private val app: AppState) {
     val rollStamp = mutableIntStateOf(0)
     private val entropy = java.security.SecureRandom()
     private var lastBeat: PatternGen.BeatStyle? = null
+    private val autoFeel = arrayOfNulls<GrooveTemplate>(com.thorbox.model.TRACK_COUNT)
     private var lastMelody: PatternGen.MelodyStyle? = null
     private fun freshSeed(): Int { seed.intValue = entropy.nextInt() and 0x7fffffff; return seed.intValue }
 
@@ -130,9 +131,10 @@ class GrooveController(private val app: AppState) {
     private fun sendClip(track: Int) {
         val c = clips.value[track]
         val feel = feels.value[track]
+        val drums = app.trackKind(track) == com.thorbox.model.TrackKind.DRUMS
         // The feel is applied here, on the way to the engine: stored notes stay on the grid.
         val ns = c.notes.take(512).map { e ->
-            val (t, v) = feel.template.apply(e.tick, e.velocity, c.lengthTicks, feel.amount, e.tick + track * 977)
+            val (t, v) = feel.template.apply(e.tick, e.velocity, c.lengthTicks, feel.amount, e.tick + track * 977, if (drums) e.note else -1)
             e.copy(tick = t, velocity = v)
         }.sortedBy { it.tick }
         val n = ns.size
@@ -247,7 +249,19 @@ class GrooveController(private val app: AppState) {
     }
     /** Dice a whole beat: kick on the grid, backbeat snare/clap, busy hats, sprinkles of the rest. */
     fun diceBeat(track: Int = drumT) {
-        rollInto(track, { g, c -> g.beat(Steps.count(c.lengthTicks), gen.value, avoid = lastBeat) }) { lastBeat = it.beatStyle }
+        rollInto(track, { g, c -> g.beat(Steps.count(c.lengthTicks), gen.value, avoid = lastBeat) }) { g ->
+            lastBeat = g.beatStyle
+            // A style comes with its groove (DRUNK → DILLA, DUSTY → LAZY …). Only take over a straight
+            // track or one the dice set last time, never a feel you picked yourself.
+            val want = g.beatStyle?.feel
+            val cur = feels.value[track].template
+            if (want != null && (cur == GrooveTemplate.STRAIGHT || cur == autoFeel[track])) {
+                if (cur != want) setFeel(track, feels.value[track].copy(template = want))
+                autoFeel[track] = want
+            }
+        }
+        val f = feels.value[track].template
+        if (f != GrooveTemplate.STRAIGHT) rollName.value = "${rollName.value} · ${f.label}"
     }
 
     /**

@@ -133,6 +133,9 @@ int main() {
         e.setChannel(8, 0, 0.f);
         CHECK(!e.setChannel(9, 0, 0.f) && !e.drumTrigger(2, 8, 1.f) && !e.drumParam(2, 0, 99, 1.f) && !e.drumTrigger(8, 0, 1.f)
               && !e.synthNoteOn(8, 60, 1.f) && !e.setTrackType(3, 7), "out-of-range track / strip / slot / param rejected");
+        CHECK(e.drumParam(2, drums::kBusSlot, drums::Muffle, 0.4f) && !e.drumParam(2, drums::kBusSlot, 9, 0.4f) && !e.drumParam(2, drums::kBusSlot + 1, 0, 0.4f),
+              "drum character bus params accepted, bad ones rejected");
+        e.drumParam(2, drums::kBusSlot, drums::Muffle, 0.f);
         e.setRecording(true); render(e, 256); e.pollEvent(ev); while (e.pollRecord(rec)) {}
         e.setPattern(2, nullptr);
         e.drumTrigger(2, 5, 0.9f); render(e, 256); e.pollEvent(ev);

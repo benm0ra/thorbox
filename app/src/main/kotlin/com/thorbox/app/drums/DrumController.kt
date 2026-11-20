@@ -17,6 +17,10 @@ import java.util.Locale
 import kotlin.math.cbrt
 import kotlin.math.roundToInt
 
+/** One kit-wide encoder on the DUST page: normalized position ↔ bus field. */
+class BusKnob(val label: String, val color: EncoderColor, val get: (com.thorbox.model.DrumBus) -> Float,
+              val set: (com.thorbox.model.DrumBus, Float) -> com.thorbox.model.DrumBus, val blurb: String)
+
 /** One drum encoder: normalized position ↔ voice field. */
 class DrumKnob(val label: String, val color: EncoderColor, val get: (DrumVoice) -> Float, val set: (DrumVoice, Float) -> DrumVoice, val format: (DrumVoice) -> String)
 
@@ -28,7 +32,7 @@ class DrumKnob(val label: String, val color: EncoderColor, val get: (DrumVoice) 
 class DrumController(private val app: AppState, val track: Int = 2) {
     val kit = mutableStateOf(DrumKit(name = "TR-808", voices = com.thorbox.model.FactoryPresets.kits.first().kit.voices))
     val selected = mutableIntStateOf(0)
-    val page = mutableIntStateOf(0)             // 0 SOUND, 1 MIX
+    val page = mutableIntStateOf(0)             // 0 SOUND, 1 MIX (selected sound), 2 DUST (whole kit)
 
     // Animation telemetry, read in draw lambdas: level per slot and the clock time of its last hit.
     val levels = FloatArray(DRUM_SLOTS)
@@ -39,13 +43,14 @@ class DrumController(private val app: AppState, val track: Int = 2) {
     private var primed = false
 
     private val sent = Array(DRUM_SLOTS) { FloatArray(DrumParam.COUNT) { Float.NaN } }
+    private val sentBus = FloatArray(NativeEngine.DrumBusParam.COUNT) { Float.NaN }
     private val undo = ArrayDeque<DrumKit>()
     val canUndo = mutableStateOf(false)
     private var seed = (android.os.SystemClock.uptimeMillis() and 0x7fffffff).toInt()
 
     // ---------------- engine sync ----------------
 
-    fun pushAll() { sent.forEach { it.fill(Float.NaN) }; push() }
+    fun pushAll() { sent.forEach { it.fill(Float.NaN) }; sentBus.fill(Float.NaN); push() }
 
     private fun push() {
         val voices = kit.value.voices
@@ -60,6 +65,11 @@ class DrumController(private val app: AppState, val track: Int = 2) {
             send(s, DrumParam.LEVEL_DB, v.levelDb.coerceIn(-40f, 6f))
             send(s, DrumParam.PAN, v.pan.coerceIn(-1f, 1f))
             send(s, DrumParam.CHOKE, v.choke.coerceIn(0, 4).toFloat())
+        }
+        val b = kit.value.bus
+        floatArrayOf(b.crunch, b.muffle, b.tape, b.dust).forEachIndexed { id, x ->
+            val v = x.coerceIn(0f, 1f)
+            if (sentBus[id] != v && NativeEngine.drumBus(track, id, v)) sentBus[id] = v
         }
     }
     private fun send(slot: Int, id: Int, v: Float) {
@@ -102,8 +112,20 @@ class DrumController(private val app: AppState, val track: Int = 2) {
         list[slot] = new
         setKit(kit.value.copy(voices = list), undoable = false)   // knob turns don't flood undo
     }
-    fun knobValue(i: Int): Float = knobs(page.intValue)[i].get(kit.value.voices[selected.intValue])
+    fun knobValue(i: Int): Float =
+        if (page.intValue == PAGE_DUST) busKnobs[i].get(kit.value.bus) else knobs(page.intValue)[i].get(kit.value.voices[selected.intValue])
+    private fun setBus(i: Int, n: Float) {
+        val k = busKnobs.getOrNull(i) ?: return
+        val nb = k.set(kit.value.bus, n.coerceIn(0f, 1f))
+        if (nb != kit.value.bus) setKit(kit.value.copy(bus = nb), undoable = false)
+    }
     fun setKnob(i: Int, n: Float) {
+        if (page.intValue == PAGE_DUST) {
+            setBus(i, n)
+            val g = app.groove
+            g.auto.touch(com.thorbox.app.groove.Automation.drumKey(track, 0, PAGE_DUST, i), g.autoArmed(), g.transport[0], g.loopLen(track), knobValue(i))
+            return
+        }
         val k = knobs(page.intValue).getOrNull(i) ?: return
         updateVoice(selected.intValue) { k.set(it, n.coerceIn(0f, 1f)) }
         // Record it (REC + play), except MODEL: swapping the drum model mid-loop isn't a sweep.
@@ -114,12 +136,13 @@ class DrumController(private val app: AppState, val track: Int = 2) {
     }
     /** Automation playback: set a knob on any sound, whatever page / sound is on screen. */
     fun setKnobAt(slot: Int, page: Int, i: Int, n: Float) {
+        if (page == PAGE_DUST) { setBus(i, n); return }
         val k = knobs(page).getOrNull(i) ?: return
         updateVoice(slot) { k.set(it, n.coerceIn(0f, 1f)) }
     }
     // Stepped knobs (MODEL) snap; keep an unsnapped shadow so slow drags still move them.
-    private val shadow = FloatArray(2 * 4) { Float.NaN }
-    private val shadowSnapped = FloatArray(2 * 4) { Float.NaN }
+    private val shadow = FloatArray(3 * 4) { Float.NaN }
+    private val shadowSnapped = FloatArray(3 * 4) { Float.NaN }
     fun nudgeKnob(i: Int, d: Float) {
         val slot = page.intValue * 4 + i
         val cur = knobValue(i)
@@ -188,5 +211,21 @@ class DrumController(private val app: AppState, val track: Int = 2) {
                 { val p = (it.pan * 100).roundToInt(); if (p == 0) "C" else if (p < 0) "L${-p}" else "R$p" }),
         )
         fun knobs(page: Int) = if (page == 0) soundKnobs else mixKnobs
+
+        const val PAGE_DUST = 2
+        /** The DUST page: the kit through a sampler, a tape machine and a record. */
+        val busKnobs = listOf(
+            BusKnob("CRUNCH", EncoderColor.BLUE, { it.crunch }, { b, n -> b.copy(crunch = n) },
+                "Sample-rate + bit-depth crush. Around 50% is the classic 26 kHz / 12-bit sampler grit."),
+            BusKnob("MUFFLE", EncoderColor.GREEN, { it.muffle }, { b, n -> b.copy(muffle = n) },
+                "Low-pass over the whole kit: the filtered, dug-from-a-record drum sound."),
+            BusKnob("TAPE", EncoderColor.WHITE, { it.tape }, { b, n -> b.copy(tape = n) },
+                "Tape saturation: glues the kit, rounds the kick, fattens the snare."),
+            BusKnob("DUST", EncoderColor.ORANGE, { it.dust }, { b, n -> b.copy(dust = n) },
+                "Vinyl crackle and hiss under the beat. Only while it plays; fades out when you stop."),
+        )
+        fun busFormat(v: Float) = if (v <= 0.005f) "OFF" else pct(v)
+        /** Encoder label for automation lanes and hints, any page. */
+        fun knobLabel(page: Int, i: Int): String = if (page == PAGE_DUST) busKnobs.getOrNull(i)?.label ?: "?" else knobs(page).getOrNull(i)?.label ?: "?"
     }
 }

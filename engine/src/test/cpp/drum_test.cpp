@@ -86,6 +86,58 @@ int main() {
         d.trigger(-1, 1); d.trigger(8, 1); d.trigger(0, 1);
         CHECK(d.param(0, Decay) == 4000.f && std::isfinite(d.param(0, Tune)) && finite(run(d, 4800)), "invalid input ignored / clamped");
     }
+    // ---------------- character bus ----------------
+    {   // All bus controls at 0 is a true bypass (bit-identical to a kit that never touched the bus).
+        DrumSynth a = one(Snare), b = one(Snare);
+        b.setParam(kBusSlot, Crunch, 0.7f); b.setParam(kBusSlot, Crunch, 0.f);
+        a.trigger(0, 1.f); b.trigger(0, 1.f);
+        auto oa = run(a, 9600), ob = run(b, 9600);
+        bool same = true; for (size_t i = 0; i < oa.size(); ++i) same &= oa[i] == ob[i];
+        CHECK(same, "bus at zero = bypass");
+    }
+    {   // MUFFLE takes the top off: a hat loses most of its energy.
+        DrumSynth a = one(Hat, 300), b = one(Hat, 300);
+        b.setParam(kBusSlot, Muffle, 1.f);
+        a.trigger(0, 1.f); b.trigger(0, 1.f);
+        auto oa = run(a, 9600), ob = run(b, 9600);
+        const double ra = rms(oa, 0, oa.size()), rb = rms(ob, 0, ob.size());
+        CHECK(rb < 0.3 * ra, "muffle darkens (hat rms %.3f → %.3f)", ra, rb);
+    }
+    {   // CRUNCH: sample-and-hold steps and coarse levels.
+        DrumSynth d = one(Kick, 800); d.setParam(kBusSlot, Crunch, 1.f);
+        d.trigger(0, 1.f); auto o = run(d, 9600);
+        int held = 0; for (int i = 1; i < 9600; ++i) held += o[2 * i] == o[2 * (i - 1)];
+        CHECK(finite(o) && held > 9600 / 2, "crunch holds samples (%d of 9600 repeated)", held);
+        DrumSynth h = one(Kick, 800); h.setParam(kBusSlot, Crunch, 0.5f);
+        h.trigger(0, 1.f); auto oh = run(h, 9600);
+        int held2 = 0; for (int i = 1; i < 9600; ++i) held2 += oh[2 * i] == oh[2 * (i - 1)];
+        CHECK(held2 > 9600 / 5 && held2 < held, "crunch 50%% is gentler (%d repeated)", held2);
+    }
+    {   // TAPE: thicker but bounded.
+        DrumSynth a = one(Kick, 400), b = one(Kick, 400);
+        b.setParam(kBusSlot, Tape, 1.f);
+        a.trigger(0, 0.3f); b.trigger(0, 0.3f);
+        auto oa = run(a, 9600), ob = run(b, 9600);
+        CHECK(finite(ob) && peak(ob) < 2.0 && rms(ob, 0, ob.size()) > rms(oa, 0, oa.size()), "tape thickens, stays bounded (peak %.2f)", peak(ob));
+    }
+    {   // DUST: crackle while the kit plays, silence a few seconds after it stops.
+        DrumSynth d = one(Rim, 30); d.setParam(kBusSlot, Dust, 1.f);
+        auto quiet = run(d, 4800);
+        CHECK(peak(quiet) < 1e-6, "dust is silent before anything plays");
+        d.trigger(0, 1.f); run(d, 2400);                       // rim is long gone after 50 ms
+        auto mid = run(d, SR);                                 // 0.05 .. 1.05 s: crackle + hiss
+        CHECK(!d.active(0) && rms(mid, 0, mid.size()) > 1e-4 && peak(mid) < 0.6, "dust crackles while playing (rms %.5f)", rms(mid, 0, mid.size()));
+        run(d, 4 * SR);
+        auto after = run(d, SR);
+        CHECK(peak(after) < 1e-4, "dust fades out after the kit stops (peak %.6f)", peak(after));
+    }
+    {   // Bus garbage: NaN ignored, clamped, unknown id ignored, readback.
+        DrumSynth d = one(Kick);
+        d.setParam(kBusSlot, Crunch, NAN); d.setParam(kBusSlot, Muffle, 7.f); d.setParam(kBusSlot, 9, 1.f); d.setParam(kBusSlot + 1, Crunch, 1.f);
+        CHECK(d.param(kBusSlot, Crunch) == 0.f && d.param(kBusSlot, Muffle) == 1.f, "bus params validated");
+        d.trigger(0, 1.f); CHECK(finite(run(d, 48000)), "bus output finite");
+    }
+
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }
