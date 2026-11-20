@@ -5,11 +5,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.unit.dp
-import com.thorbox.engine.NativeEngine
 import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
@@ -203,35 +198,6 @@ private fun drawHazeWord(cell: (Int, Int, Color, Float) -> Unit, x0: Int, y0: In
     HAZE_GLYPHS.forEachIndexed { gi, g -> for (r in 0 until 5) for (cc in 0 until 3) if (g[r][cc] == '1') cell(x0 + gi * 4 + cc, y0 + r, c, a) }
 }
 
-/** Top-screen panel for HAZE's film: appears while HAZE is on (and while her smoke drifts away). */
-@androidx.compose.runtime.Composable
-fun androidx.compose.foundation.layout.BoxScope.HazeFilm(state: com.thorbox.app.AppState) {
-    val tel = state.telemetry
-    val g = state.groove
-    val times = androidx.compose.runtime.remember { FloatArray(3) { -1000f } }   // [0] engaged at, [1] released at, [2] was on (1/0)
-    androidx.compose.foundation.Canvas(androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.BottomEnd)
-        .padding(end = 10.dp, bottom = 52.dp).size(width = 320.dp, height = 200.dp)) {
-        tel.frame.longValue
-        val now = tel.timeSec
-        val on = g.fxActiveMask() and (1 shl NativeEngine.Fx.HAZE) != 0 && g.fxHeldOrLatched(NativeEngine.Fx.HAZE)
-        if (on && times[2] == 0f) times[0] = now
-        if (!on && times[2] == 1f) times[1] = now
-        times[2] = if (on) 1f else 0f
-        val since = now - times[1]
-        if (!on && since > 6f) return@Canvas
-        val fade = if (on) 1f else (1f - (since - 4f) / 2f).coerceIn(0f, 1f)
-        val r = 14.dp.toPx()
-        drawRoundRect(Tb.Black.copy(alpha = 0f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r))
-        clipPath(filmClip.apply {
-            reset()
-            addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, size.width, size.height, androidx.compose.ui.geometry.CornerRadius(r)))
-        }) {
-            noirScene(Offset.Zero, size, now, if (on) now - times[0] else -1f, since, g.fxEffX(NativeEngine.Fx.HAZE), g.fxEffY(NativeEngine.Fx.HAZE),
-                state.viz.bass, Tb.Pads[7], full = true)
-            if (fade < 1f) drawRect(Tb.Void.copy(alpha = 1f - fade))
-        }
-    }
-}
 
 private val HAZE_GLYPHS = arrayOf(
     arrayOf("1.1", "1.1", "111", "1.1", "1.1"),   // H
@@ -239,4 +205,3 @@ private val HAZE_GLYPHS = arrayOf(
     arrayOf("111", "..1", ".1.", "1..", "111"),   // Z
     arrayOf("111", "1..", "11.", "1..", "111"),   // E
 )
-private val filmClip = androidx.compose.ui.graphics.Path()

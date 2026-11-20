@@ -55,14 +55,23 @@ fun BoxScope.ControllerHud(state: AppState) {
                 HudRow("◀ ▶", "view  ${TopView.entries.joinToString(" · ") { short(it) }}")
                 HudRow("▲ ▼", "deck  PADS · KEYS · DRUMS · STEP · FX")
                 HudRow("L1 R1", "tempo −1 / +1")
-                HudRow("A", "NAV cursor: reach any button")
+                HudRow("A", "NAV cursor: reach anything")
                 HudRow("X", "tap tempo")
                 HudRow("Y", "metronome")
                 HudRow("L3 / R3", "theme / glass look")
                 HudRow("B", "diagnostics")
                 HudRow("release", "on its own = RECORD", dim = true)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (state.input.navMode.value) Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                HudTitle("NAV", Tb.Key)
+                HudRow("D-pad / L-stick", "move the ring")
+                HudRow("A", "press")
+                HudRow("R-stick / A+D-pad", "turn knob · slider · fader")
+                HudRow("L1 / R1", "top / bottom screen")
+                HudRow("L2 / R2", "prev / next top view")
+                HudRow("X / Y", "prev / next bottom deck")
+                HudRow("B", "leave NAV")
+            } else Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 HudTitle(short(view), accent(view))
                 contextRows(view).forEach { (k, v) -> HudRow(k, v) }
                 HudTitle("ALWAYS", Tb.Muted)

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import com.thorbox.app.synth.SynthPage
 import com.thorbox.app.synth.SynthParams
 
@@ -73,7 +74,7 @@ fun SynthScreen(state: AppState) {
                 val on = p == page
                 Box(Modifier.fillMaxHeight().clip(RoundedCornerShape(5.dp))
                     .background(if (on) Tb.Text else Tb.Panel)
-                    .clickable { state.synthPage.value = p }
+                    .navClickable { state.synthPage.value = p }
                     .padding(horizontal = 9.dp), contentAlignment = Alignment.Center) {
                     Text(p.label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                 }

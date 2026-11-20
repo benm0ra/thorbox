@@ -54,27 +54,10 @@ class MainActivity : ComponentActivity() {
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
-        registerNavTargets()
         applyLaunchExtras(intent)
         // Only after setContent: before it the window has no DecorView, and asking for its insets
         // controller crashes (NPE inside PhoneWindow) on Android 13.
         hideSystemBars()
-    }
-
-    /**
-     * NAV cursor targets. This window always serves its own role; with no second screen showing it
-     * serves both (top + bottom are squeezed in here). NAV keys skip our router (super = framework).
-     */
-    private fun composeRoot(): android.view.View? = findViewById<android.view.ViewGroup>(android.R.id.content)?.getChildAt(0)
-    @android.annotation.SuppressLint("RestrictedApi")   // same false positive as dispatchKeyEvent below
-    private fun registerNavTargets() {
-        val sink: (KeyEvent) -> Boolean = { ev -> super.dispatchKeyEvent(ev) }
-        val focus: () -> Unit = { composeRoot()?.let { it.isFocusableInTouchMode = true; it.requestFocus() } }
-        val mine = screens.activityRole().ordinal
-        state.input.registerNav(mine, sink, focus)
-        lifecycleScope.launch {
-            screens.secondShowing.collect { second -> if (!second) state.input.registerNav(1 - mine, sink, focus) }
-        }
     }
 
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); applyLaunchExtras(intent) }
@@ -87,6 +70,7 @@ class MainActivity : ComponentActivity() {
         i?.getStringExtra("deck")?.let { d -> com.thorbox.model.Deck.entries.firstOrNull { it.name == d }?.let(state::selectDeck) }
         i?.getStringExtra("add")?.let { k -> com.thorbox.model.TrackKind.entries.firstOrNull { it.name == k }?.let(state::addTrack) }
         if (i?.hasExtra("fx") == true) i.getIntExtra("fx", -1).let { id -> if (id >= 0) state.groove.fxDown(id, 0.6f, 0.6f) else for (k in 0 until 8) state.groove.fxUp(k) }
+        if (i?.hasExtra("nav") == true) state.input.setNav(i.getBooleanExtra("nav", false))
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
     }

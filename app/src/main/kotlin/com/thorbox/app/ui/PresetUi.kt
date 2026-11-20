@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 
 /** One browsable item (a synth preset or a drum kit). */
 data class PresetItem(val name: String, val group: Int, val user: Boolean)
@@ -72,7 +73,7 @@ fun PresetBar(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         HwButton("‹", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 20, hPad = 4.dp, onClick = onPrev)
         Row(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Void.copy(alpha = 0.55f))
-            .clickable(onClick = onOpen).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            .navClickable(label = "PRESETS", onClick = onOpen).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(groupColor))
             Text(name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 14.sp, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp).weight(1f))
@@ -81,7 +82,7 @@ fun PresetBar(
         }
         HwButton("›", Modifier.fillMaxHeight().width(40.dp), minHeight = 32.dp, fontSize = 20, hPad = 4.dp, onClick = onNext)
         Box(Modifier.fillMaxHeight().width(54.dp).clip(RoundedCornerShape(6.dp)).background(Tb.Key)
-            .clickable { rolls++; onDice() }, contentAlignment = Alignment.Center) {
+            .navClickable { rolls++; onDice() }, contentAlignment = Alignment.Center) {
             Die(Modifier.size(20.dp).rotate(spin))
         }
         HwButton(mutateLabel, Modifier.fillMaxHeight(), accent = Tb.EncGreen, minHeight = 32.dp, fontSize = 11) { rolls++; onMutate() }
@@ -139,7 +140,7 @@ fun PresetBrowser(
                     val asking = confirmDelete == item.name
                     Box(Modifier.height(52.dp).clip(RoundedCornerShape(8.dp))
                         .background(if (asking) Tb.Warn else if (on) Tb.Text else Tb.Panel)
-                        .combinedClickable(
+                        .navClickable(
                             onClick = { if (asking) { onDelete(item); confirmDelete = null } else { confirmDelete = null; onPick(item) } },
                             onLongClick = { if (item.user) confirmDelete = item.name })
                         .padding(horizontal = 10.dp, vertical = 6.dp)) {
@@ -160,7 +161,7 @@ fun PresetBrowser(
 @Composable
 private fun Chip(label: String, color: Color, on: Boolean, onClick: () -> Unit) {
     Box(Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(if (on) color else Tb.Raised)
-        .clickable(onClick = onClick).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+        .navClickable(onClick = onClick).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
         Text(label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
     }
 }

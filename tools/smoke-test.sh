@@ -53,6 +53,12 @@ tour() {
   for k in SYNTH DRUMS SAMPLER SYNTH DRUMS; do adb shell am start -n $PKG/$ACT --es add $k >/dev/null; sleep 1; done
   for v in MIX SYNTH DRUM SEQ SAMPLER; do adb shell am start -n $PKG/$ACT --es view $v --ez play true >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-8tracks-$v.png" || true; done
+  # NAV cursor: walk both screens with the buttons only (move, press, switch screen, flip views/decks)
+  adb shell am start -n $PKG/$ACT --ez nav true >/dev/null; sleep 1
+  for k in DPAD_DOWN DPAD_RIGHT DPAD_RIGHT BUTTON_R1 DPAD_DOWN DPAD_RIGHT BUTTON_L1 BUTTON_R2 DPAD_DOWN BUTTON_Y DPAD_LEFT BUTTON_L2 DPAD_UP; do
+    adb shell input keyevent KEYCODE_$k; done
+  adb exec-out screencap -p > "$OUT/$name-nav.png" || true
+  adb shell am start -n $PKG/$ACT --ez nav false >/dev/null; sleep 1
   # HAZE + its pixel film, then release (the smoke tail keeps drawing for a few seconds)
   adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3
   adb exec-out screencap -p > "$OUT/$name-haze.png" || true

@@ -146,8 +146,10 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 // Glyph lives top-right, clear of the name (top-left) and the XY hint (bottom).
                 val gArea = Offset(o.x + s.width * 0.54f, o.y + 6.dp.toPx())
                 val gSize = Size(s.width * 0.42f, (s.height - 30.dp.toPx()).coerceAtLeast(12.dp.toPx()))
-                if (p.id == NativeEngine.Fx.HAZE) noirScene(gArea, gSize, tel.timeSec, if (on) tel.timeSec - since[p.id] else -1f,
-                    tel.timeSec - offAt[p.id], g.fxEffX(p.id), g.fxEffY(p.id), state.viz.bass, Tb.Pads[7], full = false)
+                // HAZE's film lives in its own pad (never over the other screen): it fills the pad while HAZE is on.
+                if (p.id == NativeEngine.Fx.HAZE) noirScene(if (on) o + Offset(4.dp.toPx(), 26.dp.toPx()) else gArea,
+                    if (on) Size(s.width - 8.dp.toPx(), s.height - 30.dp.toPx()) else gSize, tel.timeSec, if (on) tel.timeSec - since[p.id] else -1f,
+                    tel.timeSec - offAt[p.id], g.fxEffX(p.id), g.fxEffY(p.id), state.viz.bass, Tb.Pads[7], full = on)
                 else fxGlyph(p.id, gArea, gSize, on, if (on) g.fxEffX(p.id) else xy[2 * p.id], if (on) g.fxEffY(p.id) else xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
                     g.transport[0], state.viz.bass, if (on) Tb.Black else p.color)
                 if (latched and (1 shl p.id) != 0) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))

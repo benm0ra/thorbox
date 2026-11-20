@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navAdjustable
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -51,7 +53,8 @@ fun Encoder(
     val end by rememberUpdatedState(onDragEnd)
     val reset by rememberUpdatedState(onReset)
 
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    // NAV cursor: focus the knob, then the right stick (or A + D-pad) turns it.
+    Column(modifier.navAdjustable(label) { d -> start(); delta(d); end() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Canvas(
             Modifier.fillMaxWidth(0.82f).aspectRatio(1f)
                 .pointerInput(Unit) {

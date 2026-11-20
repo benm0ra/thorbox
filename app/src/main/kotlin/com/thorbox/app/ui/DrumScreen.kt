@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import com.thorbox.app.drums.DrumController
 import com.thorbox.engine.NativeEngine
 import com.thorbox.model.DRUM_SLOTS
@@ -69,7 +70,7 @@ fun DrumScreen(state: AppState) {
             Text("DRUMS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 2.sp, modifier = Modifier.padding(end = 4.dp))
             listOf("SOUND", "MIX").forEachIndexed { i, l ->
                 Box(Modifier.fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(if (page == i) Tb.Text else Tb.Panel)
-                    .clickable { dc.page.intValue = i }.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                    .navClickable { dc.page.intValue = i }.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
                     Text(l, color = if (page == i) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                 }
             }
@@ -161,7 +162,7 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
                 val on = dc.selected.intValue == s
                 Box(Modifier.weight(1f).fillMaxWidth().padding(end = 3.dp).clip(RoundedCornerShape(4.dp))
                     .background(if (on) drumColor(s) else drumColor(s).copy(alpha = 0.28f))
-                    .clickable { dc.hit(s, 0.85f); dc.release(s) }, contentAlignment = Alignment.Center) {
+                    .navClickable { dc.hit(s, 0.85f); dc.release(s) }, contentAlignment = Alignment.Center) {
                     Text(dc.kit.value.voices[s].name.take(4), color = if (on) Tb.Black else Tb.Text, fontSize = 8.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }

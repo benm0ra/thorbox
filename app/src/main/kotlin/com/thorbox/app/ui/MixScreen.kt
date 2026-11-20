@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navAdjustable
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.runtime.setValue
@@ -35,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.sqrt
@@ -84,7 +87,7 @@ fun MixScreen(state: AppState) {
         Column(Modifier.width(56.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (tracks.any { it.kind == com.thorbox.model.TrackKind.EMPTY }) {
             Box(Modifier.width(56.dp).weight(1f).clip(RoundedCornerShape(14.dp)).border(2.dp, Tb.Line, RoundedCornerShape(14.dp))
-                .clickable { Info.show("ADD TRACK"); adding = true }, contentAlignment = Alignment.Center) {
+                .navClickable { Info.show("ADD TRACK"); adding = true }, contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+", color = Tb.Text, fontSize = 34.sp, fontWeight = FontWeight.Black)
                     Text("TRACK", color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
@@ -126,7 +129,7 @@ fun AddTrackSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modi
             kinds.forEach { (k, title, sub) ->
                 val c = kindColor(k)
                 Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(c)
-                    .clickable { state.addTrack(k); onDone() }.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                    .navClickable { state.addTrack(k); onDone() }.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     KindIcon(k, Modifier.size(44.dp))
                     Column {
                         Text(title, color = Tb.Black, fontWeight = FontWeight.Black, fontSize = 18.sp, letterSpacing = 1.sp)
@@ -219,9 +222,9 @@ private fun Strip(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(name, color = color, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp, maxLines = 1,
-                modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.clickable { Info.show("OPEN TRACK"); onName() } else Modifier))
+                modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.navClickable { Info.show("OPEN TRACK"); onName() } else Modifier))
             if (onMenu != null) Text(" ⋯", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 14.sp,
-                modifier = Modifier.clickable { Info.show("TRACK MENU"); onMenu() })
+                modifier = Modifier.navClickable { Info.show("TRACK MENU"); onMenu() })
         }
         if (pump > 0f && scIdx >= 0) {
             // PUMP chip: live ducking bar (how far the sidechain is pulling this track down right now)
@@ -238,6 +241,7 @@ private fun Strip(
         val dbNow = db
         Canvas(
             Modifier.weight(1f).fillMaxWidth()
+                .navAdjustable("$name VOLUME") { d -> onDb(faderToDb((dbToFader(db) + d).coerceIn(0f, 1f))) }
                 .pointerInput(Unit) {
                     detectDragGestures { change, _ ->
                         change.consume()

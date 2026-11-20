@@ -80,7 +80,7 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 
 | SELECT + | |
 |---|---|
-| **A** | **NAV cursor** on/off. The D-pad moves a ring over *every* on-screen control, A presses, L1/R1 switch between the top and bottom screens, and B leaves NAV. |
+| **A** | **NAV cursor** on/off, to reach *every* control on both screens without touching: D-pad or left stick move the ring · A presses · the right stick (or A held + D-pad) turns the focused knob, slider or fader · L1/R1 jump to the top/bottom screen · L2/R2 previous/next top view · X/Y previous/next bottom deck · START play · B leaves NAV. |
 | **D-pad ←/→** | top-screen view: SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL |
 | **D-pad ↑/↓** | bottom deck: PADS · KEYS · DRUMS · STEP · FX |
 | **L1 / R1** | tempo −1 / +1 BPM (hold to keep going) |

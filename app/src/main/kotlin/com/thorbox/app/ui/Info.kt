@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navClickable
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -212,7 +214,7 @@ fun BoxScope.InfoLine(onTour: () -> Unit = {}) {
     // ? : explanations on/off (stays out of the way, bottom-right)
     Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).size(26.dp).clip(CircleShape)
         .background(if (Info.enabled.value) Tb.Raised else Tb.Panel)
-        .combinedClickable(onLongClick = onTour) { Info.enabled.value = !Info.enabled.value; if (!Info.enabled.value) Info.body.value = null },
+        .navClickable(onLongClick = onTour) { Info.enabled.value = !Info.enabled.value; if (!Info.enabled.value) Info.body.value = null },
         contentAlignment = Alignment.Center) {
         Text("?", color = if (Info.enabled.value) Tb.Key else Tb.Dim, fontWeight = FontWeight.Black, fontSize = 13.sp)
     }
@@ -227,7 +229,7 @@ fun BoxScope.NavBadge(state: com.thorbox.app.AppState, thisScreen: Int) {
     Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).clip(RoundedCornerShape(14.dp))
         .background(if (here) Tb.Key else Tb.Raised).padding(horizontal = 12.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Text(if (here) "NAV  ·  D-pad move  ·  A press  ·  ${if (thisScreen == 0) "R1 bottom screen" else "L1 top screen"}  ·  B done"
+        Text(if (here) "NAV  ·  move: D-pad / L-stick  ·  A press  ·  R-stick turn  ·  ${if (thisScreen == 0) "R1 bottom" else "L1 top"}  ·  L2/R2 view  ·  B done"
              else "NAV is on the ${if (thisScreen == 0) "bottom" else "top"} screen  (${if (thisScreen == 0) "L1" else "R1"} to come here)",
             color = if (here) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 0.5.sp)
     }

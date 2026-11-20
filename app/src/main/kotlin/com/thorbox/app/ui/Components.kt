@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navAdjustable
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -47,6 +49,14 @@ fun HwButton(
     val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     androidx.compose.runtime.LaunchedEffect(focused) { if (focused) Info.show(text) }
+    // NAV cursor: while focused, A presses this button (works on either screen, no key routing needed).
+    val nav = com.thorbox.app.input.LocalNavHandle.current
+    val click by androidx.compose.runtime.rememberUpdatedState(onClick)
+    androidx.compose.runtime.DisposableEffect(focused, nav, enabled) {
+        val a: () -> Unit = { if (enabled) { Info.show(text); click() } }
+        if (focused && nav != null) { nav.action = a; nav.adjust = null }
+        onDispose { if (nav != null && nav.action === a) nav.action = null }
+    }
     Box(
         modifier
             .heightIn(min = minHeight)
@@ -102,6 +112,7 @@ fun DragValue(
             .clip(RoundedCornerShape(6.dp))
             .background(Tb.Raised)
             .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
+            .navAdjustable(label) { d -> delta(d) }
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.Center,
     ) {

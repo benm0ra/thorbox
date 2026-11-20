@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 
 /**
  * Theme picker: one card per theme, each drawn IN its own palette (paper, panel, the 8 pad
@@ -47,7 +48,7 @@ fun ThemePicker(state: AppState, modifier: Modifier = Modifier) {
                 val on = p == Tb.palette
                 Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(p.void)
                     .border(if (on) 3.dp else 1.dp, if (on) p.text else p.line, RoundedCornerShape(12.dp))
-                    .clickable { state.setTheme(p) }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    .navClickable { state.setTheme(p) }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(p.label, color = p.text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp,
                         fontFamily = if (p.monoUi) FontFamily.Monospace else null)
                     Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp)).background(p.panel).padding(6.dp)) {

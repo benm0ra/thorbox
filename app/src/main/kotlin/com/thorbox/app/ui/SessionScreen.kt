@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import com.thorbox.app.LoadedSample
 import com.thorbox.app.TopView
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -84,7 +85,6 @@ fun TopScreen(state: AppState) {
     }
     InfoLine(onTour = { state.showWelcome.value = true })   // plain-words explanation of whatever you just touched
     NavBadge(state, 0)
-    HazeFilm(state)        // HAZE's pixel film, while it's on
     if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
@@ -134,7 +134,7 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
                     Column(
                         Modifier.fillMaxWidth().height(52.dp)
                             .background(if (isCurrent) Tb.Raised.copy(alpha = 0.85f) else Color.Transparent)
-                            .clickable { state.load(item) }       // one tap: load + analyse onto the pad
+                            .navClickable { state.load(item) }       // one tap: load + analyse onto the pad
                             .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.Center,
                     ) {

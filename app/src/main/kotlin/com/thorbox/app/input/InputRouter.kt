@@ -17,8 +17,10 @@ import kotlin.math.sign
  * NAVIGATION (works everywhere). SELECT is SHIFT: hold it to see this map on screen.
  *   SHIFT + D-pad ←/→  top screen view (SMP · SYN · SEQ · MIX · VIZ)
  *   SHIFT + D-pad ↑/↓  bottom deck (PADS · KEYS · STEP · FX)
- *   SHIFT + A          NAV cursor on/off: D-pad moves a ring over every on-screen control, A presses,
- *                      L1/R1 = top/bottom screen, B leaves NAV. Touch-free access to everything.
+ *   SHIFT + A          NAV cursor on/off, for touch-free access to everything:
+ *                        D-pad / left stick move the ring · A press · right stick (or hold A + D-pad) turns knobs,
+ *                        sliders and faders · L1 / R1 top / bottom screen · L2 / R2 previous / next top view ·
+ *                        X / Y previous / next bottom deck · START play · B leave NAV
  *   SHIFT + L1 / R1    tempo −1 / +1 BPM        SHIFT + X  tap tempo
  *   SHIFT + Y metronome · SHIFT + B diagnostics · SHIFT + L3 theme · SHIFT + R3 glass look
  *   SELECT tapped on its own = record.  B = back (leave the visualizer, close the step editor).
@@ -49,30 +51,88 @@ class InputRouter(private val state: AppState) {
     val navMode = androidx.compose.runtime.mutableStateOf(false)
     /** 0 = top screen (SESSION role), 1 = bottom screen (DECK role). */
     val navScreen = androidx.compose.runtime.mutableIntStateOf(0)
-    private val navSinks = arrayOfNulls<(KeyEvent) -> Boolean>(2)
-    private val navFocus = arrayOfNulls<() -> Unit>(2)
-    /** A window registers where NAV key events for a screen role go (and how to give it focus). */
-    fun registerNav(role: Int, sink: (KeyEvent) -> Boolean, focus: () -> Unit) { navSinks[role] = sink; navFocus[role] = focus }
-    fun unregisterNav(role: Int) { navSinks[role] = null; navFocus[role] = null }
+    private val navHandles = arrayOfNulls<NavHandle>(2)
+    /** Each window registers its handle for the screen role(s) it shows. */
+    fun registerNavHandle(role: Int, h: NavHandle) { navHandles[role] = h }
+    fun unregisterNavHandle(role: Int, h: NavHandle) { if (navHandles[role] === h) navHandles[role] = null }
+    private fun handle(): NavHandle? = navHandles[navScreen.intValue] ?: navHandles[1 - navScreen.intValue]
+    private var aHeld = false
+
     fun setNav(on: Boolean) {
         navMode.value = on
-        if (on) navFocus[navScreen.intValue]?.invoke()
+        if (on) land() else navHandles.forEach { it?.clear?.invoke() }
         state.lastInput.value = if (on) "NAV ON" else "NAV OFF"
     }
+    /** Make sure something on the current screen has the cursor. */
+    private fun land() {
+        val h = handle() ?: return
+        h.wake()
+        if (h.action == null && h.adjust == null) h.move(androidx.compose.ui.focus.FocusDirection.Next)
+    }
+    private fun navMove(dir: androidx.compose.ui.focus.FocusDirection) {
+        val h = handle() ?: return
+        if (h.move(dir)) return
+        h.wake()
+        if (!h.move(dir) && h.action == null && h.adjust == null) h.move(androidx.compose.ui.focus.FocusDirection.Next)
+    }
     private fun navKey(e: KeyEvent, first: Boolean, up: Boolean): Boolean {
-        fun send(code: Int) = navSinks[navScreen.intValue]?.invoke(KeyEvent(e.downTime, e.eventTime, e.action, code, e.repeatCount)) ?: false
+        val down = e.action == KeyEvent.ACTION_DOWN
+        val FD = androidx.compose.ui.focus.FocusDirection
         when (e.keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> send(e.keyCode)
-            KeyEvent.KEYCODE_BUTTON_A -> send(KeyEvent.KEYCODE_DPAD_CENTER)
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (down) {
+                val adj = handle()?.adjust
+                if (aHeld && adj != null) {
+                    // Hold A on a knob/slider: the D-pad turns it (up/right = more), in fine steps.
+                    adj(if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP || e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 0.02f else -0.02f)
+                } else navMove(when (e.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_UP -> FD.Up; KeyEvent.KEYCODE_DPAD_DOWN -> FD.Down
+                    KeyEvent.KEYCODE_DPAD_LEFT -> FD.Left; else -> FD.Right
+                })
+            }
+            KeyEvent.KEYCODE_BUTTON_A -> { if (first) { aHeld = true; handle()?.action?.invoke() } else if (up) aHeld = false }
             KeyEvent.KEYCODE_BUTTON_B -> if (first) setNav(false)
+            // L1 / R1: jump to the top / bottom screen.
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
                 val target = if (e.keyCode == KeyEvent.KEYCODE_BUTTON_L1) 0 else 1
-                if (navSinks[target] != null) { navScreen.intValue = target; navFocus[target]?.invoke() }
+                navScreen.intValue = target; land()
+            }
+            // L2 / R2: previous / next top view (SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL).
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> if (first) {
+                state.selectTop(cycle(TopView.entries, state.topView.value, if (e.keyCode == KeyEvent.KEYCODE_BUTTON_R2) 1 else -1))
+                if (navScreen.intValue == 0) land()
+            }
+            // X / Y: previous / next bottom deck.
+            KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y -> if (first) {
+                val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
+                state.selectDeck(cycle(decks, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_BUTTON_Y) 1 else -1))
+                if (navScreen.intValue == 1) land()
             }
             KeyEvent.KEYCODE_BUTTON_START -> if (first) state.groove.togglePlay()
             else -> Unit
         }
         return true
+    }
+
+    // Left stick in NAV: moves the cursor like the D-pad, with auto-repeat. Right stick: turns the focused control.
+    private var stickDir = 0
+    private var stickNext = 0L
+    private fun navSticks(dt: Float) {
+        val x = axes[0]; val y = axes[1]
+        val dir = when {
+            kotlin.math.max(abs(x), abs(y)) < 0.55f -> 0
+            abs(x) > abs(y) -> if (x > 0) 4 else 3
+            else -> if (y > 0) 2 else 1
+        }
+        val now = android.os.SystemClock.uptimeMillis()
+        if (dir != 0 && (dir != stickDir || now >= stickNext)) {
+            val FD = androidx.compose.ui.focus.FocusDirection
+            navMove(when (dir) { 1 -> FD.Up; 2 -> FD.Down; 3 -> FD.Left; else -> FD.Right })
+            stickNext = now + if (dir != stickDir) 280L else 120L
+        }
+        stickDir = dir
+        val adj = handle()?.adjust ?: return
+        val d = (axes[2] - axes[3])                       // right stick: right / up = more
+        if (d != 0f) adj(d * abs(d) * dt * 0.8f)
     }
 
     /** SELECT is held (the on-screen control map shows after a short hold). */
@@ -316,6 +376,7 @@ class InputRouter(private val state: AppState) {
      *  full deflection sweeps a whole knob in about 1.2 s, and the curve is squared for fine control near centre. */
     fun applySticks(dt: Float) {
         if (dt <= 0f) return
+        if (navMode.value) { navSticks(dt); return }
         if (state.topView.value == TopView.MIX) {
             val g = state.groove; val sel = g.mixSelected.intValue
             val vol = -axes[1] * abs(axes[1]) * dt * 30f            // dB per second at full tilt

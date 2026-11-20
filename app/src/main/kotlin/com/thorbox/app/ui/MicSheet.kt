@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import java.util.Locale
 
 /**
@@ -49,7 +50,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             // The button: red dot → square while recording, pulsing with the input level.
             Box(Modifier.size(110.dp).clip(CircleShape).background(if (rec) Tb.Warn else Tb.Raised)
-                .clickable { Info.show("REC"); state.toggleMicRecording() }, contentAlignment = Alignment.Center) {
+                .navClickable { Info.show("REC"); state.toggleMicRecording() }, contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(56.dp)) {
                     state.telemetry.frame.longValue
                     if (rec) drawRoundRect(Tb.Black, cornerRadius = CornerRadius(8.dp.toPx()))
