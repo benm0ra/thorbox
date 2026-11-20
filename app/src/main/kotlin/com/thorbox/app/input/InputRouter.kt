@@ -74,7 +74,10 @@ class InputRouter(private val state: AppState) {
                 })
             }
             KeyEvent.KEYCODE_BUTTON_A -> { if (first) { aHeld = true; Nav.press() } else if (up) aHeld = false }
-            KeyEvent.KEYCODE_BUTTON_B -> if (first) setNav(false)
+            // B closes an open sheet first; with nothing open it leaves NAV.
+            KeyEvent.KEYCODE_BUTTON_B -> if (first) {
+                if (state.showSettings.value || state.showControllerMap.value || state.showMic.value) back() else setNav(false)
+            }
             // L1 / R1: jump to the top / bottom screen.
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
                 val target = if (e.keyCode == KeyEvent.KEYCODE_BUTTON_L1) 0 else 1
@@ -155,6 +158,9 @@ class InputRouter(private val state: AppState) {
     /** B: step back out of whatever is layered on top. Never quits the app mid-set. */
     private fun back() {
         when {
+            state.showControllerMap.value -> state.showControllerMap.value = false
+            state.showSettings.value -> state.showSettings.value = false
+            state.showMic.value && !state.mic.recording.value && !state.mic.saving.value -> state.showMic.value = false
             state.groove.heldStep.intValue >= 0 -> state.groove.heldStep.intValue = -1
             state.topView.value == TopView.VIZ -> state.exitViz()
         }

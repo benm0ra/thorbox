@@ -39,7 +39,8 @@ import kotlinx.coroutines.delay
 fun BoxScope.ControllerHud(state: AppState) {
     val held = state.input.shiftHeld.value
     var show by remember { mutableStateOf(false) }
-    LaunchedEffect(held) { if (held) { delay(280); show = true } else show = false }
+    val pinned = state.showControllerMap.value                 // SETTINGS → CONTROLS → SHOW
+    LaunchedEffect(held, pinned) { if (pinned) show = true else if (held) { delay(280); show = true } else show = false }
 
     AnimatedVisibility(show, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
         val view = state.topView.value

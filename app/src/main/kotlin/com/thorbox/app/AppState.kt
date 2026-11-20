@@ -116,10 +116,50 @@ class AppState(private val app: Application) {
     // ---- Theme (persisted) ----
     private val uiPrefs = app.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)
     init { com.thorbox.app.ui.Tb.palette = com.thorbox.app.ui.Themes.byId(uiPrefs.getString("theme", null)) }
-    val showThemes = mutableStateOf(false)
+    /** SETTINGS sheet (top screen): look, meters, start-up defaults, controls, system / debug. */
+    val showSettings = mutableStateOf(false)
+    val settingsTab = mutableStateOf(0)
+    /** The controller map pinned open from SETTINGS (normally it shows while SELECT is held). B closes it. */
+    val showControllerMap = mutableStateOf(false)
+
+    // ---- Settings (persisted) ----
+    /** MiniMeters-style master meter strip across the top screen. */
+    val miniMeters = mutableStateOf(uiPrefs.getBoolean("miniMeters", false))
+    fun setMiniMeters(on: Boolean) { miniMeters.value = on; uiPrefs.edit().putBoolean("miniMeters", on).apply() }
+    init { com.thorbox.app.ui.Info.enabled.value = uiPrefs.getBoolean("hints", true) }
+    fun setHints(on: Boolean) {
+        com.thorbox.app.ui.Info.enabled.value = on; if (!on) com.thorbox.app.ui.Info.body.value = null
+        uiPrefs.edit().putBoolean("hints", on).apply()
+    }
+
+    /** Start-up defaults: the tempo, swing, key and click a fresh launch begins with. */
+    data class StartDefaults(val bpm: Float, val swing: Float, val root: com.thorbox.model.PitchClass, val mode: com.thorbox.model.ScaleMode, val follow: Boolean, val click: Boolean)
+    fun startDefaults(): StartDefaults? {
+        val bpm = uiPrefs.getFloat("defBpm", -1f).takeIf { it > 0f } ?: return null
+        return StartDefaults(bpm, uiPrefs.getFloat("defSwing", 0.5f),
+            runCatching { com.thorbox.model.PitchClass.valueOf(uiPrefs.getString("defRoot", "C")!!) }.getOrDefault(com.thorbox.model.PitchClass.C),
+            runCatching { com.thorbox.model.ScaleMode.valueOf(uiPrefs.getString("defMode", "MINOR")!!) }.getOrDefault(com.thorbox.model.ScaleMode.MINOR),
+            uiPrefs.getBoolean("defFollow", true), uiPrefs.getBoolean("defClick", false))
+    }
+    fun saveStartDefaults() {
+        val g = groove.groove.value; val k = groove.scale.value
+        uiPrefs.edit().putFloat("defBpm", g.bpm).putFloat("defSwing", g.swing).putString("defRoot", k.root.name)
+            .putString("defMode", k.mode.name).putBoolean("defFollow", k.followSample).putBoolean("defClick", g.metronome).apply()
+        lastInput.value = "Saved as start-up defaults"
+    }
+    fun clearStartDefaults() {
+        uiPrefs.edit().remove("defBpm").remove("defSwing").remove("defRoot").remove("defMode").remove("defFollow").remove("defClick").apply()
+        lastInput.value = "Start-up defaults cleared"
+    }
     /** First-run welcome; long-press the ? chip to see it again. */
     val showWelcome = mutableStateOf(!uiPrefs.getBoolean("welcomed", false))
     fun finishWelcome() { showWelcome.value = false; uiPrefs.edit().putBoolean("welcomed", true).apply() }
+    init {
+        startDefaults()?.let { d ->
+            groove.groove.value = groove.groove.value.copy(bpm = d.bpm, swing = d.swing, metronome = d.click)
+            groove.scale.value = com.thorbox.app.groove.ScaleSetting(d.root, d.mode, d.follow)
+        }
+    }
     fun setTheme(p: com.thorbox.app.ui.Palette) {
         com.thorbox.app.ui.Tb.palette = p
         uiPrefs.edit().putString("theme", p.id).apply()
@@ -582,6 +622,14 @@ class AppState(private val app: Application) {
                 if (topView.value != TopView.SAMPLER) selectTop(TopView.SAMPLER)    // see it land on the pads
             } else _error.value = "Saved $name. Add a SAMPLE track (MIXER → + TRACK) to chop it."
             lastInput.value = "Saved Music/Clamshell Beats/Field Recordings/$name"
+        }
+    }
+    /** Load the built-in demo break (synthesized once into the cache) onto the current sampler track. */
+    fun loadDemo() {
+        scope.launch {
+            val f = withContext(Dispatchers.IO) { runCatching { com.thorbox.app.sampler.DemoBreak.write(app.cacheDir) }.getOrNull() }
+            if (f == null) { _error.value = "Couldn't make the demo break"; return@launch }
+            load(Uri.fromFile(f), "Demo break (90 BPM)")
         }
     }
     fun load(item: LibraryItem) {

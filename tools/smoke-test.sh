@@ -60,6 +60,21 @@ tour() {
   adb exec-out screencap -p > "$OUT/$name-nav.png" || true
   adb shell am start -n $PKG/$ACT --ez nav false >/dev/null; sleep 1
   # HAZE + its pixel film, then release (the smoke tail keeps drawing for a few seconds)
+  # Sampler end to end: the demo break goes through load → analysis → auto-chop → pads, then plays.
+  adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS --ez demo true >/dev/null; sleep 5
+  adb exec-out screencap -p > "$OUT/$name-sampler-demo.png" || true
+  if ! adb shell pidof $PKG >/dev/null; then echo "::error::[$name] app died loading the demo break"; adb logcat -d -b crash | tail -60; fail=1
+  elif ! adb logcat -d | grep -q "loaded Demo break"; then echo "::error::[$name] demo break never finished loading"; adb logcat -d | grep -i thorbox | tail -30; fail=1
+  else echo "::notice::[$name] sampler: demo break loaded and chopped"; fi
+  for t in 0 1 2 3; do                                   # SETTINGS pages, then the meters strip + recorder sheet
+    adb shell am start -n $PKG/$ACT --ei settings $t >/dev/null; sleep 2
+    adb exec-out screencap -p > "$OUT/$name-settings-$t.png" || true
+  done
+  adb shell am start -n $PKG/$ACT --ei settings -1 --ez meters true --es view SYNTH --ez play true >/dev/null; sleep 3
+  adb exec-out screencap -p > "$OUT/$name-meters.png" || true
+  adb shell am start -n $PKG/$ACT --ez meters false --ez mic true >/dev/null; sleep 2
+  adb exec-out screencap -p > "$OUT/$name-mic.png" || true
+  adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3
   adb exec-out screencap -p > "$OUT/$name-haze.png" || true
   adb shell am start -n $PKG/$ACT --ei fx -1 >/dev/null; sleep 3

@@ -194,10 +194,11 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
             androidx.compose.foundation.layout.Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("No sample yet", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                Text("Pick a folder of loops and breaks, or record one with the mic.", color = Tb.Muted, fontSize = 13.sp)
+                Text("Pick a folder of loops and breaks, record one with the mic, or try the demo break.", color = Tb.Muted, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     HwButton("CHOOSE FOLDER", active = true, minHeight = 48.dp, fontSize = 13) { state.requestFolder() }
                     HwButton("RECORD", accent = Tb.Warn, active = true, minHeight = 48.dp, fontSize = 13) { state.openMic() }
+                    HwButton("DEMO BREAK", accent = Tb.EncGreen, active = true, minHeight = 48.dp, fontSize = 13) { state.loadDemo() }
                 }
             }
         }

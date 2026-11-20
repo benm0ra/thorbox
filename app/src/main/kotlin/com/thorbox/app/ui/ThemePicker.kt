@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
-import com.thorbox.app.input.navModal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,21 +35,13 @@ import com.thorbox.app.input.navClickable
  * colours, a type sample), so you see the theme before you pick it. Tapping applies it live.
  */
 @Composable
-fun ThemePicker(state: AppState, modifier: Modifier = Modifier) {
-    Column(modifier.navModal().fillMaxSize().background(Tb.Bg.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("THEME", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp)
-            Box(Modifier.weight(1f))
-            Text("SELECT + L3 cycles", color = Tb.Dim, fontSize = 11.sp, modifier = Modifier.padding(end = 10.dp))
-            HwButton("✕", Modifier.width(44.dp), minHeight = 34.dp, fontSize = 14) { state.showThemes.value = false }
-        }
-        Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+fun ThemeGrid(state: AppState, modifier: Modifier = Modifier) {
+        Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Themes.all.forEach { p ->
                 val on = p == Tb.palette
                 Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(p.void)
                     .border(if (on) 3.dp else 1.dp, if (on) p.text else p.line, RoundedCornerShape(12.dp))
-                    .navClickable { state.setTheme(p) }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    .navClickable(label = p.label) { state.setTheme(p) }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(p.label, color = p.text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp,
                         fontFamily = if (p.monoUi) FontFamily.Monospace else null)
                     Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp)).background(p.panel).padding(6.dp)) {
@@ -66,5 +57,4 @@ fun ThemePicker(state: AppState, modifier: Modifier = Modifier) {
                 }
             }
         }
-    }
 }

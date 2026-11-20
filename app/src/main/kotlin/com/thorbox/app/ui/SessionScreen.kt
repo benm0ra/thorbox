@@ -60,13 +60,15 @@ fun TopScreen(state: AppState) {
             }
             // Transport: always visible whatever view you're in
             HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth(), active = state.groove.playing.value, accent = Tb.Good, minHeight = 40.dp, fontSize = 14) { state.groove.togglePlay() }
-            HwButton("THEME", Modifier.fillMaxWidth(), active = state.showThemes.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 9, hPad = 2.dp) {
-                state.showThemes.value = !state.showThemes.value }
+            HwButton("SET", Modifier.fillMaxWidth(), active = state.showSettings.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 10, hPad = 2.dp) {
+                state.showSettings.value = !state.showSettings.value }
             InfoToggle(onTour = { state.showWelcome.value = true }, modifier = Modifier.fillMaxWidth())
             LevelMeter(state.level, Modifier.fillMaxWidth().weight(1f)
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { state.showDiagnostics.value = !state.showDiagnostics.value }) })
         }
-        Box(Modifier.weight(1f).fillMaxHeight().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (state.miniMeters.value) MiniMeters(state, Modifier.fillMaxWidth())       // SETTINGS → LOOK → METERS
+        Box(Modifier.weight(1f).fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
             when (view) {
                 TopView.SAMPLER -> ChopScreen(state)
                 TopView.SYNTH -> SynthScreen(state)
@@ -79,13 +81,14 @@ fun TopScreen(state: AppState) {
             if (state.groove.heldStep.intValue >= 0)
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
         }
+        }
     }
     InfoLine()   // plain-words explanation of whatever you just touched
     NavBadge(state, 0)
     if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
-    if (state.showThemes.value) ThemePicker(state, Modifier.padding(10.dp))
+    if (state.showSettings.value) SettingsSheet(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls
     }
 }
