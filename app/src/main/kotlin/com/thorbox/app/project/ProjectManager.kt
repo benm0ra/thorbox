@@ -66,6 +66,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
 
     /** Reopen the last project (once per launch). Skipped if opening it crashed the app last time. */
     fun restoreLastSession() {
+        if (scratch) return
         val id = currentId.value ?: run { refreshList(); return }
         if (prefs.getBoolean("opening", false)) {
             prefs.edit().putBoolean("opening", false).apply()
@@ -75,7 +76,22 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
         open(id, quiet = true)
     }
 
+    /**
+     * Scratch session (debug screenshot / demo tours): the current project is saved, then a blank
+     * session runs with saving switched off, so nothing the tour does touches your projects. The
+     * next launch reopens your project as usual.
+     */
+    fun enterScratch() {
+        if (scratch) return
+        saveIfChanged()
+        scratch = true
+        stopAutosave()
+        app.applyProject(blank()) { null }
+    }
+    private var scratch = false
+
     fun startAutosave() {
+        if (scratch) return
         if (autosaveJob?.isActive == true) return
         autosaveJob = scope.launch {
             while (isActive) {
@@ -88,6 +104,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
 
     /** Save now if anything changed since the last save (app going to the background, autosave tick). */
     fun saveIfChanged() {
+        if (scratch) return
         val snap = snapshot(currentName.value)
         val json = ProjectCodec.encode(snap.copy(savedAt = 0))
         if (json == lastSavedJson) return
@@ -191,6 +208,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
     // ================= snapshot ⇄ disk =================
 
     private fun write(snap0: ProjectFile, json0: String?, auto: Boolean) {
+        if (scratch) { if (!auto) app.setError("This is a scratch session (a demo tour): it isn't saved."); return }
         val id = currentId.value ?: newId().also { currentId.value = it }
         val name = currentName.value
         status.value = "Saving…"
