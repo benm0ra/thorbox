@@ -173,7 +173,7 @@ class AppState(private val app: Application) {
     val glass = mutableStateOf(com.thorbox.app.ui.GlassLevel.FULL)
     fun cycleGlass() { glass.value = com.thorbox.app.ui.GlassLevel.entries[(glass.value.ordinal + 1) % 3] }
     val viz = com.thorbox.app.viz.VizData()
-    val vizMode = mutableStateOf(com.thorbox.app.ui.VizMode.SPECTRA)
+    val vizMode = mutableStateOf(com.thorbox.app.ui.VizMode.ANALYZER)
     fun cycleViz() { vizMode.value = com.thorbox.app.ui.VizMode.entries[(vizMode.value.ordinal + 1) % com.thorbox.app.ui.VizMode.entries.size] }
     // The visualizer only opens when asked for (VISUAL in the rail); it never takes over the screen on its own.
     private var viewBeforeViz = TopView.SAMPLER

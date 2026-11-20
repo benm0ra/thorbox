@@ -257,12 +257,28 @@ JNIEXPORT void JNICALL JNI_FN(nativeGetVisual)(JNIEnv* env, jobject, jfloatArray
     if (!gEngine || !jBands || !jWave || !jEnergy || env->GetArrayLength(jEnergy) < 3) return;
     const int nb = std::min<jsize>(env->GetArrayLength(jBands), viz::kMaxBands);
     const int nw = std::min<jsize>(env->GetArrayLength(jWave), viz::kFft);
-    float b[viz::kMaxBands], w[viz::kFft], e[3];
+    const int ne = env->GetArrayLength(jEnergy) >= 5 ? 5 : 3;
+    float b[viz::kMaxBands], w[viz::kFft], e[5] = {};
     if (nb < 1) return;
-    gEngine->getVisual(b, nb, w, nw, e);
+    gEngine->getVisual(b, nb, w, nw, e, ne);
     env->SetFloatArrayRegion(jBands, 0, nb, b);
     env->SetFloatArrayRegion(jWave, 0, nw, w);
-    env->SetFloatArrayRegion(jEnergy, 0, 3, e);
+    env->SetFloatArrayRegion(jEnergy, 0, ne, e);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeGetLoudness)(JNIEnv* env, jobject, jfloatArray out) {
+    if (!gEngine || !out || env->GetArrayLength(out) < 6) return;
+    float o[6]; gEngine->getLoudness(o);
+    env->SetFloatArrayRegion(out, 0, 6, o);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeResetLoudness)(JNIEnv*, jobject) { if (gEngine) gEngine->resetLoudness(); }
+JNIEXPORT jint JNICALL JNI_FN(nativeGetStereo)(JNIEnv* env, jobject, jfloatArray jMid, jfloatArray jSide) {
+    if (!gEngine || !jMid || !jSide) return 0;
+    const int n = std::min<jsize>(std::min(env->GetArrayLength(jMid), env->GetArrayLength(jSide)), (jsize)2048);   // = AudioEngine::kScope
+    float m[2048], sd[2048];
+    const int got = gEngine->getStereo(m, sd, n);
+    env->SetFloatArrayRegion(jMid, 0, got, m);
+    env->SetFloatArrayRegion(jSide, 0, got, sd);
+    return got;
 }
 
 JNIEXPORT jint JNICALL JNI_FN(nativePollRecord)(JNIEnv* env, jobject, jdoubleArray out) {

@@ -106,7 +106,7 @@ shots() {
   adb shell am start -n $PKG/$ACT --es kit CRATE_DUST --ei drumpage 2 >/dev/null; sleep 3
   adb exec-out screencap -p > "$d/drums-dust.png"
   adb shell am start -n $PKG/$ACT --ei drumpage 0 >/dev/null; sleep 1
-  for v in SYNTH SEQ MIX; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
+  for v in SYNTH SEQ MIX VIZ; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
   adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"
   adb shell am start -n $PKG/$ACT --ei fx 0 >/dev/null; sleep 0.3
   adb shell am start -n $PKG/$ACT --ei fx 8 >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/fx-on.png"

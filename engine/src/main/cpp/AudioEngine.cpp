@@ -737,7 +737,9 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
         const float l = std::clamp(out[2 * i] * mMasterGain, -1.f, 1.f);
         const float r = std::clamp(out[2 * i + 1] * mMasterGain, -1.f, 1.f);
         mL = std::max(mL, std::fabs(l)); mR = std::max(mR, std::fabs(r));
+        mMasterSide[tw & (kScope - 1)].store(0.5f * (l - r), std::memory_order_relaxed);
         mMasterTap[(tw++) & (kScope - 1)].store(0.5f * (l + r), std::memory_order_relaxed);
+        mLoud.process(l, r);
         out[2 * i] = std::clamp(l + mClickBus[2 * i], -1.f, 1.f);         // click: monitoring only, after master
         out[2 * i + 1] = std::clamp(r + mClickBus[2 * i + 1], -1.f, 1.f);
     }
@@ -745,14 +747,31 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
     mMasterTapWrite.store(tw, std::memory_order_release);
 }
 
-void AudioEngine::getVisual(float* bands, int nBands, float* wave, int nWave, float* energy3) {
+void AudioEngine::getVisual(float* bands, int nBands, float* wave, int nWave, float* energy, int nEnergy) {
     const uint32_t w = mMasterTapWrite.load(std::memory_order_acquire);
     for (int i = 0; i < viz::kFft; ++i)
         mVizIn[i] = mMasterTap[(w - (uint32_t)viz::kFft + (uint32_t)i) & (kScope - 1)].load(std::memory_order_relaxed);
     const float sr = (float)mDeviceRate.load(std::memory_order_relaxed);
-    mSpectrum.analyze(mVizIn.data(), sr, bands, nBands, &energy3[0], &energy3[1], &energy3[2]);
+    mSpectrum.analyze(mVizIn.data(), sr, bands, nBands, &energy[0], &energy[1], &energy[2],
+                      nEnergy >= 5 ? &energy[3] : nullptr, nEnergy >= 5 ? &energy[4] : nullptr);
     nWave = std::clamp(nWave, 0, viz::kFft);
     for (int i = 0; i < nWave; ++i) wave[i] = mVizIn[viz::kFft - nWave + i];
+}
+
+void AudioEngine::getLoudness(float* out) const {
+    out[0] = mLoud.momentary(); out[1] = mLoud.shortTerm(); out[2] = mLoud.integrated();
+    out[3] = mLoud.peakDbL(); out[4] = mLoud.peakDbR(); out[5] = mLoud.seconds();
+}
+
+int AudioEngine::getStereo(float* mid, float* side, int n) const {
+    n = std::clamp(n, 0, (int)kScope);
+    const uint32_t w = mMasterTapWrite.load(std::memory_order_acquire);
+    for (int i = 0; i < n; ++i) {
+        const uint32_t k = (w - (uint32_t)n + (uint32_t)i) & (kScope - 1);
+        mid[i] = mMasterTap[k].load(std::memory_order_relaxed);
+        side[i] = mMasterSide[k].load(std::memory_order_relaxed);
+    }
+    return n;
 }
 
 static inline void atomicMax(std::atomic<float>& a, float v) {
@@ -790,6 +809,7 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
     const float sr = (float)stream->getSampleRate();
     for (auto& sy : mSynths) sy.setSampleRate(sr);
     for (auto& d : mDrums) d.setSampleRate(sr);
+    mLoud.setSampleRate(sr);
     for (auto& s : mStrips) { s.peakL = s.peakR = 0.f; s.scGainMin = 1.f; }
     mMasterPeakL = mMasterPeakR = 0.f;
     uint32_t w = mScopeWrite.load(std::memory_order_relaxed);

@@ -152,7 +152,13 @@ object NativeEngine {
 
     /** Visualizer: FFT of the master output into [bands] (≤64, 0..1, log 30 Hz–16 kHz), latest
      *  [wave] samples, and [energy] = bass, mid, treble. Runs the FFT on the calling (main) thread. */
+    /** energy: [0..2] bass/mid/high 0..1; if it has ≥ 5 slots, also [3] dominant Hz (0 = none) and [4] its dBFS. */
     fun visual(bands: FloatArray, wave: FloatArray, energy: FloatArray) = nativeGetVisual(bands, wave, energy)
+    /** Master loudness (R128): [0] momentary, [1] short-term, [2] integrated LUFS, [3]/[4] peak L/R dBFS, [5] seconds. −100 = nothing yet. */
+    fun loudness(out: FloatArray) = nativeGetLoudness(out)
+    fun resetLoudness() = nativeResetLoudness()
+    /** The last n master samples as mid/side (n = min of the array sizes, ≤ 2048). Returns n. */
+    fun stereo(mid: FloatArray, side: FloatArray): Int = nativeGetStereo(mid, side)
 
     /** Takes ownership of [fd] (a detached ParcelFileDescriptor). The result arrives via [pollEvent]. */
     fun loadSample(fd: Int, requestId: Int) = nativeLoadSampleFd(fd, requestId)
@@ -240,4 +246,7 @@ object NativeEngine {
     private external fun nativeGetDrumTelemetry(track: Int, levels: FloatArray, hits: IntArray)
     private external fun nativePollRecord(out: DoubleArray): Int
     private external fun nativeGetVisual(bands: FloatArray, wave: FloatArray, energy: FloatArray)
+    private external fun nativeGetLoudness(out: FloatArray)
+    private external fun nativeResetLoudness()
+    private external fun nativeGetStereo(mid: FloatArray, side: FloatArray): Int
 }

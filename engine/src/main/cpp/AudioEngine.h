@@ -20,6 +20,7 @@
 #include "Sequencer.h"
 #include "MasterFx.h"
 #include "Spectrum.h"
+#include "Loudness.h"
 
 // Results the worker hands back to the UI (via pollEvent). Non-RT, so a mutex is fine here.
 struct WorkerResult {
@@ -91,7 +92,13 @@ public:
     int pollRecord(double* out4);
     void getTransport(double* out20);   // [12] = active punch-in FX bitmask, [15]/[19] echo/reverb tails, [16..17] drum meters, [18] drum activity mask
     // Visualizer (main thread): FFT of the latest master output. energy3 = bass, mid, treble (0..1).
-    void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy3);
+    // energy: [0..2] bass/mid/high; when nEnergy ≥ 5 also [3] dominant frequency (Hz, 0 = none), [4] its level (dBFS)
+    void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy, int nEnergy = 3);
+    // Master loudness: [0] momentary, [1] short-term, [2] integrated (LUFS), [3]/[4] peak L/R since reset (dBFS), [5] seconds measured
+    void getLoudness(float* out6) const;
+    void resetLoudness() { mLoud.reset(); }
+    // The last n master samples as mid (L+R)/2 and side (L−R)/2, oldest first (n ≤ kScope)
+    int getStereo(float* mid, float* side, int n) const;
 
     // ---- Sample management (main thread) ----
     void loadSampleAsync(int fd, int requestId);      // takes ownership of fd
@@ -198,6 +205,8 @@ private:
     // Master output tap for the visualizer (mono, post-fader), and the main-thread analyzer.
     std::array<std::atomic<float>, kScope> mMasterTap{};
     std::atomic<uint32_t> mMasterTapWrite{0};
+    std::array<std::atomic<float>, kScope> mMasterSide{};   // (L−R)/2, written alongside mMasterTap (mid)
+    meter::Loudness mLoud;                                  // R128 loudness of the master (audio thread writes, UI reads atomics)
     viz::Spectrum mSpectrum;                   // main-thread only
     std::array<float, viz::kFft> mVizIn{};     // main-thread only
 
