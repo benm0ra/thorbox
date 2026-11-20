@@ -135,11 +135,8 @@ class AppState(private val app: Application) {
     val viz = com.thorbox.app.viz.VizData()
     val vizMode = mutableStateOf(com.thorbox.app.ui.VizMode.SPECTRA)
     fun cycleViz() { vizMode.value = com.thorbox.app.ui.VizMode.entries[(vizMode.value.ordinal + 1) % com.thorbox.app.ui.VizMode.entries.size] }
-    /** Show the visualizer automatically once music has played for a while with no touches on the top screen. */
-    val vizAuto = mutableStateOf(true)
-    private var lastTopTouch = 0L
+    // The visualizer only opens when asked for (VISUAL in the rail); it never takes over the screen on its own.
     private var viewBeforeViz = TopView.SAMPLER
-    fun noteTopTouch() { lastTopTouch = SystemClock.uptimeMillis() }
 
     fun setLibraryRoot(uri: Uri) { library.setRoot(uri); rescanLibrary() }
     fun rescanLibrary() { scope.launch { library.rescan() } }
@@ -148,7 +145,7 @@ class AppState(private val app: Application) {
     val deck = mutableStateOf(Deck.PADS)
     val topView = mutableStateOf(TopView.SAMPLER)
     /** Leave the visualizer back to whatever was showing before it. */
-    fun exitViz() { if (topView.value == TopView.VIZ) topView.value = viewBeforeViz; noteTopTouch() }
+    fun exitViz() { if (topView.value == TopView.VIZ) topView.value = viewBeforeViz }
 
     fun selectDeck(d: Deck) {
         if (d == Deck.STRUM) return   // not built yet
@@ -687,14 +684,6 @@ class AppState(private val app: Application) {
             com.thorbox.app.ui.GlassClock.time += dt
             com.thorbox.app.ui.GlassClock.bass = viz.bass; com.thorbox.app.ui.GlassClock.mid = viz.mid
             com.thorbox.app.ui.GlassClock.high = viz.high; com.thorbox.app.ui.GlassClock.beat = viz.beat
-            val nowMs = SystemClock.uptimeMillis()
-            if (lastTopTouch == 0L) lastTopTouch = nowMs
-            val musicPlaying = groove.playing.value || level.floatValue > 0.05f
-            if (!musicPlaying) lastTopTouch = maxOf(lastTopTouch, nowMs - 25_000)   // the idle timer only runs while music plays
-            if (vizAuto.value && topView.value != TopView.VIZ && musicPlaying && nowMs - lastTopTouch > 30_000) {
-                viewBeforeViz = topView.value; topView.value = TopView.VIZ
-            }
-
             val now = SystemClock.uptimeMillis()
             if (now - lastStatsAt > 500) { lastStatsAt = now; _stats.value = NativeEngine.stats() }
             Choreographer.getInstance().postFrameCallback(this)

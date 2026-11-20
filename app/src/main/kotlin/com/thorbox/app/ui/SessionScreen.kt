@@ -46,10 +46,7 @@ import java.util.Locale
 @Composable
 fun TopScreen(state: AppState) {
     val view = state.topView.value
-    // Every touch on the top screen resets the visualizer's idle timer (observed, never consumed).
-    AuroraBackground(state, Modifier.pointerInput(Unit) {
-        awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); state.noteTopTouch() } }
-    }) {
+    AuroraBackground(state, Modifier) {
     Row(Modifier.fillMaxSize().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.width(64.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp)) {

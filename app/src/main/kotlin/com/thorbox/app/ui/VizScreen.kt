@@ -76,12 +76,9 @@ fun VizScreen(state: AppState) {
             Text(state.lockKey().label().uppercase(), color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
             s?.let { Text(it.name.substringBeforeLast('.'), color = Tb.Muted, fontSize = 12.sp, maxLines = 1) }
         }
-        // Look settings live here: glass level (FULL / SUBTLE / OFF) and visualizer auto-start.
+        // Look settings live here: glass level (FULL / SUBTLE / OFF).
         Row(Modifier.align(Alignment.BottomStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             HwButton("GLASS ${state.glass.value.name}", Modifier.glass(state, 8.dp), fontSize = 11) { state.cycleGlass() }
-            HwButton(if (state.vizAuto.value) "AUTO ON" else "AUTO OFF", Modifier.glass(state, 8.dp), active = state.vizAuto.value, accent = Tb.EncBlue, fontSize = 11) {
-                state.vizAuto.value = !state.vizAuto.value
-            }
         }
         Column(Modifier.align(Alignment.BottomEnd).padding(14.dp), horizontalAlignment = Alignment.End) {
             Text("tap to change", color = Tb.Dim, fontSize = 10.sp)

@@ -93,7 +93,7 @@ fun PresetBar(
 
 /** A flat die face (five pips), drawn, not an emoji: same look on every firmware. */
 @Composable
-private fun Die(modifier: Modifier) {
+internal fun Die(modifier: Modifier) {
     androidx.compose.foundation.Canvas(modifier) {
         val r = size.minDimension
         drawRoundRect(Tb.Black, cornerRadius = androidx.compose.ui.geometry.CornerRadius(r * 0.22f))

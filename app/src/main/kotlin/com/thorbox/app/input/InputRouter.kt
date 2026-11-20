@@ -148,7 +148,7 @@ class InputRouter(private val state: AppState) {
         when (e.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) {
                 val v = cycle(TopView.entries, state.topView.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1)
-                state.selectTop(v); state.noteTopTouch()
+                state.selectTop(v)
             }
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (first) {
                 val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
@@ -196,7 +196,6 @@ class InputRouter(private val state: AppState) {
         val up = e.action == KeyEvent.ACTION_UP
         if (first) {
             state.lastInput.value = KeyEvent.keyCodeToString(e.keyCode).removePrefix("KEYCODE_")
-            state.noteTopTouch()      // using the buttons counts as activity: don't auto-jump to the visualizer
         }
         val synth = state.topView.value == TopView.SYNTH
         val g = state.groove
@@ -231,7 +230,7 @@ class InputRouter(private val state: AppState) {
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (down) dc.selected.intValue = (dc.selected.intValue + 1) % slots
                 KeyEvent.KEYCODE_BUTTON_A -> if (first) g.drumToggle(g.cursor.intValue % steps, dc.selected.intValue)
                 KeyEvent.KEYCODE_BUTTON_R1 -> if (first) dc.hit(dc.selected.intValue, 0.9f) else if (up) dc.release(dc.selected.intValue)
-                KeyEvent.KEYCODE_BUTTON_X -> if (first) g.diceBeat()
+                KeyEvent.KEYCODE_BUTTON_X -> if (first) g.diceNotes(g.drumT)
                 KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.undo(track)
                 KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) dc.stepKit(+1)
                 KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) dc.diceKit()
@@ -257,7 +256,7 @@ class InputRouter(private val state: AppState) {
                     }
                 }
                 KeyEvent.KEYCODE_BUTTON_A -> if (first) g.stepTap(tr, g.cursor.intValue)
-                KeyEvent.KEYCODE_BUTTON_X -> if (first) g.dice(tr)
+                KeyEvent.KEYCODE_BUTTON_X -> if (first) g.diceNotes(tr)
                 KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.undo(tr)
                 KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
                 KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit

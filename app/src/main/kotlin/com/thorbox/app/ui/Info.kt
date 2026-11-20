@@ -132,6 +132,8 @@ object Glossary {
         "SAVE" to "Save this sound (or kit) so you can load it again later.",
         "DICE SOUND" to "Roll new settings for the selected drum sound only.",
         "DICE BEAT" to "Roll a whole new drum beat. Undo with ↶ if you don't like it.",
+        "DICE NOTES" to "Roll a new melody for this synth track, in key. The sound stays; ↶ undoes it.",
+        "DICE PAD" to "Roll new steps for the selected pad. ↶ undoes it.",
         "DICE" to "Roll something new and playable. Undo with ↶ if you don't like it.",
         "CLEAR" to "Empty the pattern.",
         // ---- drums ----

@@ -124,7 +124,7 @@ class TiltController(private val app: AppState, context: Context) : SensorEventL
         when (app.topView.value) {
             TopView.SYNTH -> app.diceSynth()
             TopView.DRUM -> app.groove.diceBeat()
-            TopView.SEQ -> app.groove.dice(app.groove.seqTrack.intValue)
+            TopView.SEQ -> app.groove.diceNotes(app.groove.seqTrack.intValue)
             else -> return
         }
         app.lastInput.value = "SHAKE → DICE"

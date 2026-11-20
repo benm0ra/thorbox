@@ -79,6 +79,9 @@ fun SynthScreen(state: AppState) {
                     Text(p.label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                 }
             }
+            Box(Modifier.weight(1f))
+            // The sound dice lives in the preset bar below; this one rolls the track's NOTES (same as on STEPS).
+            Box(Modifier.fillMaxHeight().padding(vertical = 5.dp)) { Row { PatternDice(state, state.groove.synthT, height = 34.dp, fontSize = 11) } }
         }
 
         // ---- presets + dice ----

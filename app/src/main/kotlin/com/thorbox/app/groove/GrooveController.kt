@@ -221,10 +221,28 @@ class GrooveController(private val app: AppState) {
             velocity = if (step % 4 == 0) 0.95f else 0.8f)).sortedBy { it.tick })
     }
     /** Dice a whole beat: kick on the grid, backbeat snare/clap, busy hats, sprinkles of the rest. */
-    fun diceBeat() {
+    fun diceBeat(track: Int = drumT) {
         seed.intValue = seed.intValue * 1103515245 + 12345 and 0x7fffffff
         val g = PatternGen(seed.intValue)
-        update(drumT, saveUndo = true) { c -> c.copy(notes = g.beat(Steps.count(c.lengthTicks), gen.value)) }
+        update(track, saveUndo = true) { c -> c.copy(notes = g.beat(Steps.count(c.lengthTicks), gen.value)) }
+    }
+
+    /**
+     * The one "roll the notes" action every beat grid shares: a synth track gets a fresh melody in key,
+     * a drum track a whole new beat, a sampler track new steps for the selected pad. Undo with ↶.
+     */
+    fun diceNotes(track: Int) {
+        when (app.trackKind(track)) {
+            com.thorbox.model.TrackKind.DRUMS -> diceBeat(track)
+            com.thorbox.model.TrackKind.EMPTY -> Unit
+            else -> dice(track)
+        }
+    }
+    /** What the dice button on a grid says for this track: NOTES / BEAT / PAD n. */
+    fun diceLabel(track: Int): String = when (app.trackKind(track)) {
+        com.thorbox.model.TrackKind.SYNTH -> "NOTES"
+        com.thorbox.model.TrackKind.DRUMS -> "BEAT"
+        else -> "PAD ${selectedPad(track) + 1}"
     }
 
     fun stepTap(track: Int, step: Int) = update(track) { c -> c.copy(notes = scoped(track, c.notes) { Steps.toggle(it, c.lengthTicks, step, defaultNote(track)) }) }

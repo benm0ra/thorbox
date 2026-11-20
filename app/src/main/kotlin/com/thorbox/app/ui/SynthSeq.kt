@@ -202,11 +202,13 @@ fun StepDeck(state: AppState, modifier: Modifier) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             HwButton("OCT−", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(-1) }
             HwButton("OCT+", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(+1) }
+            Box(Modifier.width(6.dp))
+            PatternDice(state, g.synthT, height = 40.dp, fontSize = 12)
             Box(Modifier.weight(1f))
             for (p in 0 until 4) {
                 val exists = p < pages
                 HwButton("${p + 1}", Modifier.fillMaxHeight(), active = p == page && exists, enabled = true, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12) {
-                    if (!exists) g.setLength(1, (p + 1) * 16)          // tapping a bar that doesn't exist extends the pattern
+                    if (!exists) g.setLength(g.synthT, (p + 1) * 16)          // tapping a bar that doesn't exist extends the pattern
                     g.gridPage.intValue = p
                 }
             }

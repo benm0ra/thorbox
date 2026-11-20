@@ -93,10 +93,8 @@ fun DrumScreen(state: AppState) {
             }
             Column(Modifier.weight(1.25f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth().height(26.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HwButton("DICE BEAT", Modifier.fillMaxHeight(), accent = Tb.Key, minHeight = 24.dp, fontSize = 10) { state.groove.diceBeat() }
+                    PatternDice(state, state.drums.track, height = 26.dp, fontSize = 10)
                     HwButton("CLEAR", Modifier.fillMaxHeight(), minHeight = 24.dp, fontSize = 10) { state.groove.clear(state.drums.track) }
-                    HwButton("↶", Modifier.fillMaxHeight().width(34.dp), enabled = state.groove.canUndo.value, minHeight = 24.dp, fontSize = 11) {
-                        state.groove.undo(state.drums.track) }
                     Box(Modifier.weight(1f))
                     val steps = com.thorbox.app.groove.Steps.count(state.groove.clips.value[state.drums.track].lengthTicks)
                     val pages = (steps + 15) / 16

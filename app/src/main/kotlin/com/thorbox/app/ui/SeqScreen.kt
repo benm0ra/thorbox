@@ -117,9 +117,8 @@ fun SeqScreen(state: AppState) {
         // ---- generator ----
         val gp = g.gen.value
         Row(Modifier.fillMaxWidth().height(56.dp).glass(state, 12.dp).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            HwButton("DICE", Modifier.fillMaxHeight(), active = true, accent = accent, fontSize = 13) { g.dice(track) }
+            PatternDice(state, track, height = 48.dp, fontSize = 13)
             HwButton("MUTATE", Modifier.fillMaxHeight(), fontSize = 12) { g.mutate(track) }
-            HwButton("UNDO", Modifier.fillMaxHeight(), enabled = g.canUndo.value, fontSize = 12) { g.undo(track) }
             HwButton("CLEAR", Modifier.fillMaxHeight(), fontSize = 12) { g.clear(track) }
             DragValue("DENSITY", "${(gp.density * 100).roundToInt()}%", accent, Modifier.weight(1f).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { g.gen.value = g.gen.value.copy(density = (g.gen.value.density + it).coerceIn(0.05f, 1f)) })
