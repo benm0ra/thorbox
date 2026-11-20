@@ -51,6 +51,11 @@ jobs:
           THORBOX_KEYSTORE_PASSWORD: ${{ secrets.THORBOX_KEYSTORE_PASSWORD }}
           THORBOX_KEY_ALIAS: ${{ secrets.THORBOX_KEY_ALIAS }}
           THORBOX_KEY_PASSWORD: ${{ secrets.THORBOX_KEY_PASSWORD }}
+      # The minified (R8) release build, so shrinker problems show up on every push, not on release day.
+      - name: Release build (R8)
+        run: ./gradlew :app:assembleRelease --stacktrace
+        env:
+          THORBOX_ALLOW_DEBUG_SIGNING: "1"
       - run: ./gradlew :app:lintDebug
       - uses: actions/upload-artifact@v4
         if: always()
