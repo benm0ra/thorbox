@@ -118,7 +118,7 @@ class AppState(private val app: Application) {
     init { com.thorbox.app.ui.Tb.palette = com.thorbox.app.ui.Themes.byId(uiPrefs.getString("theme", null)) }
     /** SETTINGS sheet (top screen): look, meters, start-up defaults, controls, system / debug. */
     val showSettings = mutableStateOf(false)
-    val settingsTab = mutableStateOf(0)
+    val settingsTab = androidx.compose.runtime.mutableIntStateOf(0)
     /** The controller map pinned open from SETTINGS (normally it shows while SELECT is held). B closes it. */
     val showControllerMap = mutableStateOf(false)
 
@@ -249,7 +249,7 @@ class AppState(private val app: Application) {
     private val nextParams = FloatArray(SynthId.COUNT)
 
     // ---- Keyboard (KEYS deck) ----
-    val keyOctave = mutableStateOf(0)
+    val keyOctave = androidx.compose.runtime.mutableIntStateOf(0)
     val chordMode = mutableStateOf(false)
     val keyLock = mutableStateOf(true)
     private val noteRefs = IntArray(128)

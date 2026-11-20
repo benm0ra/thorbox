@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.groove
 
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import com.thorbox.app.AppState
@@ -74,7 +75,7 @@ class GrooveController(private val app: AppState) {
 
     // ---- mixer ----
     val channels = mutableStateOf(List(com.thorbox.model.TRACK_COUNT) { Channel("T${it + 1}") })
-    val masterDb = mutableStateOf(0f)
+    val masterDb = mutableFloatStateOf(0f)
     val mixSelected = mutableIntStateOf(0)
 
     // ---- note repeat ----

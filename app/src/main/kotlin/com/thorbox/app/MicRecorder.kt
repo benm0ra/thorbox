@@ -38,7 +38,7 @@ class MicRecorder(private val app: Context) {
     /** A finished take waiting for KEEP / DISCARD. */
     val take = mutableStateOf<Take?>(null)
     /** Input gain in dB (0…24), applied to the take and the meters. */
-    val gainDb = mutableStateOf(0f)
+    val gainDb = androidx.compose.runtime.mutableFloatStateOf(0f)
 
     class Take(val file: java.io.File, val bytes: Long, val seconds: Float, val name: String, val peakDb: Float, val source: String)
 
