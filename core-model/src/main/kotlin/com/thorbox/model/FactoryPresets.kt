@@ -126,8 +126,9 @@ object FactoryPresets {
     private fun v(name: String, m: DrumModel, tune: Float = 0f, decay: Float = 400f, tone: Float = 0.5f, snap: Float = 0.5f,
                   drive: Float = 0f, level: Float = 0f, pan: Float = 0f, choke: Int = 0) =
         DrumVoice(name, m, tune, decay, tone, snap, drive, level, pan, choke)
-    private fun kit(name: String, vararg voices: DrumVoice) = KitPreset(name, DrumKit(name, voices.toList()))
-    private fun kit(name: String, bus: DrumBus, vararg voices: DrumVoice) = KitPreset(name, DrumKit(name, voices.toList(), bus))
+    // Each kit is voiced as its first 8 pads; pads 9–16 are grown from them (DefaultKit.extend).
+    private fun kit(name: String, vararg voices: DrumVoice) = KitPreset(name, DrumKit(name, DefaultKit.extend(voices.toList())))
+    private fun kit(name: String, bus: DrumBus, vararg voices: DrumVoice) = KitPreset(name, DrumKit(name, DefaultKit.extend(voices.toList()), bus))
     private val K = DrumModel.KICK; private val S = DrumModel.SNARE; private val C = DrumModel.CLAP; private val H = DrumModel.HAT
     private val T = DrumModel.TOM; private val R = DrumModel.RIM; private val B = DrumModel.COWBELL; private val Y = DrumModel.CYMBAL
     private val Z = DrumModel.ZAP; private val SH = DrumModel.SHAKER

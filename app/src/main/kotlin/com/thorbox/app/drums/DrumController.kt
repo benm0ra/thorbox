@@ -86,6 +86,28 @@ class DrumController(private val app: AppState, val track: Int = 2) {
     }
     fun release(slot: Int) { app.groove.liveUp(track, slot) }
 
+    /**
+     * 16 LEVELS: pad [k] plays sound [src] with one parameter graded across the pads. The engine
+     * reads a sound's settings when it's hit, so: set → hit → put back, all in order on the queue.
+     */
+    fun hitLevel(src: Int, k: Int, mode: com.thorbox.app.levels.LevelMode, velocity: Float) {
+        val v = kit.value.voices.getOrNull(src) ?: return
+        val L = com.thorbox.app.levels.Levels
+        hitVel[src] = velocity
+        when (mode) {
+            com.thorbox.app.levels.LevelMode.VELOCITY -> { NativeEngine.drumTrigger(track, src, L.velocity(k)); hitVel[src] = L.velocity(k) }
+            com.thorbox.app.levels.LevelMode.TUNE -> withParam(src, DrumParam.TUNE, (v.tune + L.tune(k)).coerceIn(-24f, 24f), v.tune.coerceIn(-24f, 24f), velocity)
+            com.thorbox.app.levels.LevelMode.DECAY -> withParam(src, DrumParam.DECAY, (v.decayMs * L.decay(k)).coerceIn(5f, 4000f), v.decayMs.coerceIn(5f, 4000f), velocity)
+            com.thorbox.app.levels.LevelMode.TONE -> withParam(src, DrumParam.TONE, L.tone(k), v.tone.coerceIn(0f, 1f), velocity)
+            com.thorbox.app.levels.LevelMode.OFF -> hit(k, velocity)
+        }
+    }
+    private fun withParam(slot: Int, id: Int, value: Float, restore: Float, velocity: Float) {
+        NativeEngine.drumParam(track, slot, id, value)
+        NativeEngine.drumTrigger(track, slot, velocity)
+        NativeEngine.drumParam(track, slot, id, restore)
+    }
+
     /** Per frame: pull levels + hit counters; a changed counter = a new hit (live or sequenced). */
     fun onFrame(timeSec: Float) {
         NativeEngine.drumTelemetry(track, levels, hits)
@@ -98,7 +120,8 @@ class DrumController(private val app: AppState, val track: Int = 2) {
 
     // ---------------- editing ----------------
 
-    private fun setKit(k: DrumKit, undoable: Boolean = true) {
+    private fun setKit(k0: DrumKit, undoable: Boolean = true) {
+        val k = k0.full()                                       // always 16 pads (older 8-pad kits grow)
         if (k == kit.value) return
         if (undoable) { undo.addLast(kit.value); while (undo.size > 32) undo.removeFirst(); canUndo.value = true }
         kit.value = k

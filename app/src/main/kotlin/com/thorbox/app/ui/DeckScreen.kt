@@ -51,10 +51,10 @@ fun DeckScreen(state: AppState) {
         DeckTabs(deck, state::selectDeck, Modifier.glass(state, 12.dp).padding(4.dp))
         when (deck) {
             Deck.KEYS -> { KeysDeck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
-            Deck.DRUMS -> { DrumsDeck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
+            Deck.DRUMS -> { DrumsDeck(state, Modifier.weight(1f).fillMaxWidth()); LevelsStrip(state, drums = true, Modifier.fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
             Deck.STEP -> StepDeck(state, Modifier.weight(1f).fillMaxWidth())
             Deck.FX -> FxDeck(state, Modifier.weight(1f).fillMaxWidth())
-            else -> { Pad16Deck(state, Modifier.weight(1f).fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
+            else -> { Pad16Deck(state, Modifier.weight(1f).fillMaxWidth()); LevelsStrip(state, drums = false, Modifier.fillMaxWidth()); RepeatStrip(state, Modifier.fillMaxWidth()) }
         }
     }
     NavBadge(state, 1)

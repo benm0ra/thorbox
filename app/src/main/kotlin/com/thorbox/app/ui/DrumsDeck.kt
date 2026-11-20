@@ -24,7 +24,7 @@ import com.thorbox.model.DRUM_SLOTS
 import kotlin.math.exp
 
 /**
- * Bottom deck for the drum synth: 8 big pads (4 × 2), each in its sound's colour. Multi-touch,
+ * Bottom deck for the drum synth: 16 pads (4 × 4, MPC layout: pad 1 bottom-left), each in its sound's colour. Multi-touch,
  * velocity from where you hit (top = loud). A pad "pops" (grows, then settles) on every hit,
  * live or sequenced, so the deck feels alive even when you're only listening.
  */
@@ -36,14 +36,15 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }
     val tm = rememberTextMeasurer()
-    val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 15.sp, fontWeight = FontWeight.Black) }
+    val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 13.sp, fontWeight = FontWeight.Black) }
+    val numStyle = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val modelStyle = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.55f), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
 
     fun cellAt(x: Float, y: Float): Pair<Int, Float> {
-        val cw = dims[0].coerceAtLeast(1) / 4f; val ch = dims[1].coerceAtLeast(1) / 2f
-        val col = (x / cw).toInt().coerceIn(0, 3); val row = (y / ch).toInt().coerceIn(0, 1)
+        val cw = dims[0].coerceAtLeast(1) / 4f; val ch = dims[1].coerceAtLeast(1) / 4f
+        val col = (x / cw).toInt().coerceIn(0, 3); val row = (y / ch).toInt().coerceIn(0, 3)
         val inCell = ((y % ch) / ch).coerceIn(0f, 1f)
-        return (row * 4 + col) to (0.4f + 0.6f * (1f - inCell))
+        return ((3 - row) * 4 + col) to (0.4f + 0.6f * (1f - inCell))
     }
 
     Canvas(
@@ -53,8 +54,9 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                         val (slot, vel) = cellAt(ev.getX(i), ev.getY(i))
-                        fingers[ev.getPointerId(i)] = slot
-                        dc.hit(slot, vel)
+                        val lm = state.levelMode.value
+                        if (lm != com.thorbox.app.levels.LevelMode.OFF) dc.hitLevel(state.levelSrc.intValue, slot, lm, vel)
+                        else { fingers[ev.getPointerId(i)] = slot; dc.hit(slot, vel) }
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> fingers.remove(ev.getPointerId(i))?.let(dc::release)
                     MotionEvent.ACTION_CANCEL -> { fingers.values.forEach(dc::release); fingers.clear() }
@@ -65,24 +67,38 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
         tel.frame.longValue
         val now = tel.timeSec
         val voices = dc.kit.value.voices
-        val cw = size.width / 4f; val ch = size.height / 2f; val gap = 5.dp.toPx(); val r = CornerRadius(14.dp.toPx())
+        val cw = size.width / 4f; val ch = size.height / 4f; val gap = 4.dp.toPx(); val r = CornerRadius(10.dp.toPx())
         for (s in 0 until DRUM_SLOTS) {
-            val col = s % 4; val row = s / 4
+            val col = s % 4; val row = 3 - s / 4
             val dt = now - dc.hitTime[s]
             val pop = if (dt in 0f..1f) exp(-dt * 16f) else 0f
             val grow = 1f + 0.05f * pop
             val w = (cw - 2 * gap) * grow; val h = (ch - 2 * gap) * grow
             val cx = col * cw + cw / 2f; val cy = row * ch + ch / 2f
             val o = Offset(cx - w / 2f, cy - h / 2f)
+            val lm = state.levelMode.value
+            if (lm != com.thorbox.app.levels.LevelMode.OFF) {
+                // 16 LEVELS: every pad is the source sound, shaded low → high, labelled with its level
+                val src = state.levelSrc.intValue
+                val c = drumColor(src)
+                val lit = maxOf(pop, if (now - dc.hitTime[src] < 0.15f) 0.3f else 0f)
+                drawRoundRect(c.copy(alpha = 0.25f + 0.6f * s / 15f + 0.15f * lit), o, Size(w, h), r)
+                if (s == 8 && lm == com.thorbox.app.levels.LevelMode.TUNE || s == 11 && lm == com.thorbox.app.levels.LevelMode.DECAY)
+                    drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(2.dp.toPx()))     // "as it is"
+                drawTextSafe(tm, com.thorbox.app.levels.Levels.label(lm, s), o + Offset(9.dp.toPx(), 7.dp.toPx()), nameStyle)
+                drawTextSafe(tm, "L${s + 1}", Offset(o.x + w - 9.dp.toPx() - tm.measure("L${s + 1}", numStyle).size.width, o.y + 8.dp.toPx()), numStyle)
+                continue
+            }
             val c = drumColor(s)
             drawRoundRect(c.copy(alpha = 0.62f + 0.38f * maxOf(pop, dc.levels[s].coerceIn(0f, 1f))), o, Size(w, h), r)
             if (s == dc.selected.intValue) drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(3.dp.toPx()))
             val v = voices.getOrNull(s) ?: continue
-            drawTextSafe(tm, v.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), nameStyle)
-            if (!v.name.uppercase().contains(v.model.label.uppercase())) drawTextSafe(tm, v.model.label, o + Offset(12.dp.toPx(), 30.dp.toPx()), modelStyle)
+            drawTextSafe(tm, v.name, o + Offset(9.dp.toPx(), 7.dp.toPx()), nameStyle)
+            drawTextSafe(tm, "${s + 1}", Offset(o.x + w - 9.dp.toPx() - tm.measure("${s + 1}", numStyle).size.width, o.y + 8.dp.toPx()), numStyle)
+            if (!v.name.uppercase().contains(v.model.label.uppercase())) drawTextSafe(tm, v.model.label, o + Offset(9.dp.toPx(), 24.dp.toPx()), modelStyle)
             // decay bar along the bottom: a quick read of the sound's length
             val frac = (kotlin.math.cbrt(((v.decayMs - 5f) / 3995f).coerceIn(0f, 1f)))
-            drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(o.x + 12.dp.toPx(), o.y + h - 14.dp.toPx()), Size((w - 24.dp.toPx()) * frac, 4.dp.toPx()), CornerRadius(2.dp.toPx()))
+            drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(o.x + 9.dp.toPx(), o.y + h - 10.dp.toPx()), Size((w - 18.dp.toPx()) * frac, 3.dp.toPx()), CornerRadius(2.dp.toPx()))
         }
     }
 }

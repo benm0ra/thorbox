@@ -398,4 +398,22 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     }
 
     fun padUp(i: Int) { if (!app.groove.liveUp(track, i)) NativeEngine.noteOff(gp(i)) }
+
+    // ================= 16 LEVELS =================
+
+    /** Pad [k] of 16 LEVELS plays pad [src]: by velocity, or re-tuned −8 … +7 st (turntable-style). */
+    fun levelDown(src: Int, k: Int, mode: com.thorbox.app.levels.LevelMode, velocity: Float) {
+        val slot = pads.value[src]
+        when (mode) {
+            com.thorbox.app.levels.LevelMode.TUNE -> {
+                // each hit retriggers the (monophonic) pad, so repitching right before the hit is safe
+                NativeEngine.setPitch(gp(src), (slot.pitch + com.thorbox.app.levels.Levels.tune(k)).coerceIn(-36, 36), slot.fine.toFloat())
+                NativeEngine.noteOn(gp(src), velocity)
+            }
+            else -> NativeEngine.noteOn(gp(src), com.thorbox.app.levels.Levels.velocity(k))
+        }
+    }
+    fun levelUp(src: Int) = NativeEngine.noteOff(gp(src))
+    /** Leaving 16 LEVELS: the source pad back to its own pitch (and WARP slice). */
+    fun restorePad(src: Int) = assignPad(src)
 }

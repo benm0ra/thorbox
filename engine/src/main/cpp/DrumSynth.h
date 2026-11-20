@@ -28,7 +28,7 @@ namespace drums {
 
 constexpr float kPi = 3.14159265358979f;
 constexpr float kTwoPi = 6.28318530717959f;
-constexpr int kSlots = 8;
+constexpr int kSlots = 16;                       // 16 pads, MPC-style
 
 // Must match com.thorbox.engine.NativeEngine.DrumModel ordinals.
 enum Model : int { Kick = 0, Snare, Clap, Hat, Tom, Rim, Cowbell, Cymbal, Zap, Shaker, kModelCount };
@@ -168,10 +168,10 @@ class DrumSynth {
 public:
     DrumSynth() {
         // Default kit (the app sends its own on start; this keeps tests and a bare engine musical).
-        const float m[kSlots] = {Kick, Snare, Clap, Hat, Hat, Tom, Rim, Cymbal};
-        const float d[kSlots] = {450, 220, 260, 60, 420, 380, 70, 1400};
+        const float m[kSlots] = {Kick, Snare, Clap, Hat, Hat, Tom, Rim, Cymbal, Kick, Snare, Shaker, Hat, Tom, Cowbell, Cymbal, Zap};
+        const float d[kSlots] = {450, 220, 260, 60, 420, 380, 70, 1400, 250, 160, 120, 35, 300, 300, 900, 200};
         for (int s = 0; s < kSlots; ++s) { slots[s].model = m[s]; slots[s].decay = d[s]; }
-        slots[3].choke = slots[4].choke = 1;
+        slots[3].choke = slots[4].choke = slots[11].choke = 1;
         slots[4].tone = 0.6f;
         for (int s = 0; s < kSlots; ++s) for (int k = 0; k < 2; ++k) voices[s][k].rng = 0x9E3779B9u * (uint32_t)(2 * s + k + 1);
     }

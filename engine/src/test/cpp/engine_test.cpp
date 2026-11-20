@@ -129,7 +129,7 @@ int main() {
         render(e, 2400); e.getMeters(m);
         auto dr = render(e, 48000); e.getMeters(m);
         CHECK(rms(dr, 0) > 0.01 && m[4] > 0.01 && m[2] < 1e-3, "drum track sequenced on its own strip (rms %.3f, meter %.3f)", rms(dr, 0), m[4]);
-        float lv[8]; int32_t hits[8]; e.getDrumTelemetry(2, lv, hits);
+        float lv[drums::kSlots]; int32_t hits[drums::kSlots]; e.getDrumTelemetry(2, lv, hits);
         CHECK(hits[0] >= 1 && hits[1] >= 1, "drum hit counters advance (kick %d, snare %d)", hits[0], hits[1]);
         e.setChannel(2, 2, 1.f); render(e, 2400); auto dm = render(e, 24000);
         CHECK(rms(dm, 0) < 1e-5, "muting strip 2 silences the drums");
@@ -137,7 +137,7 @@ int main() {
         e.setChannel(8, 0, -60.f); render(e, 9600); auto mm = render(e, 24000);
         CHECK(rms(mm, 0) < 2e-3, "strip 8 is the master fader (rms %.2e)", rms(mm, 0));
         e.setChannel(8, 0, 0.f);
-        CHECK(!e.setChannel(9, 0, 0.f) && !e.drumTrigger(2, 8, 1.f) && !e.drumParam(2, 0, 99, 1.f) && !e.drumTrigger(8, 0, 1.f)
+        CHECK(!e.setChannel(9, 0, 0.f) && !e.drumTrigger(2, drums::kSlots, 1.f) && !e.drumParam(2, 0, 99, 1.f) && !e.drumTrigger(8, 0, 1.f)
               && !e.synthNoteOn(8, 60, 1.f) && !e.setTrackType(3, 7), "out-of-range track / strip / slot / param rejected");
         CHECK(e.drumParam(2, drums::kBusSlot, drums::Muffle, 0.4f) && !e.drumParam(2, drums::kBusSlot, 9, 0.4f) && !e.drumParam(2, drums::kBusSlot + 1, 0, 0.4f),
               "drum character bus params accepted, bad ones rejected");

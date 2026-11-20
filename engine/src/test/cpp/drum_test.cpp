@@ -82,8 +82,8 @@ int main() {
     }
     {   // Garbage in: NaN, out-of-range slot/param are ignored, values are clamped.
         DrumSynth d = one(Kick);
-        d.setParam(0, Tune, NAN); d.setParam(9, Tune, 1); d.setParam(0, 42, 1); d.setParam(0, Decay, 1e9f);
-        d.trigger(-1, 1); d.trigger(8, 1); d.trigger(0, 1);
+        d.setParam(0, Tune, NAN); d.setParam(kSlots + 1, Tune, 1); d.setParam(0, 42, 1); d.setParam(0, Decay, 1e9f);
+        d.trigger(-1, 1); d.trigger(kSlots, 1); d.trigger(0, 1);
         CHECK(d.param(0, Decay) == 4000.f && std::isfinite(d.param(0, Tune)) && finite(run(d, 4800)), "invalid input ignored / clamped");
     }
     // ---------------- character bus ----------------

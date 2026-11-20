@@ -534,6 +534,8 @@ class GrooveController(private val app: AppState) {
         auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 0f)
         if (fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id)
     }
+    /** Let go of every held (not latched) effect, e.g. when you leave the FX deck. */
+    fun releaseHeldFx() { val h = fxHeld.intValue; for (id in 0 until NativeEngine.Fx.COUNT) if (h and (1 shl id) != 0) fxUp(id) }
     /** The XY surface: one finger steers every latched effect at once (recorded like a normal move). */
     fun fxMoveLatched(x: Float, y: Float) {
         val m = fxLatched.intValue

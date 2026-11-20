@@ -115,6 +115,9 @@ shots() {
   adb shell am start -n $PKG/$ACT --ei latch 1 >/dev/null; sleep 0.3
   adb shell am start -n $PKG/$ACT --ei latch 4 --ez fxxy true >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/fx-xy.png"
   adb shell am start -n $PKG/$ACT --ez fxxy false --ez dry true --es deck PADS >/dev/null; sleep 1
+  adb shell am start -n $PKG/$ACT --es view DRUM --es deck DRUMS >/dev/null; sleep 2; adb exec-out screencap -p > "$d/drums16.png"
+  adb shell am start -n $PKG/$ACT --es levels TUNE >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/levels.png"
+  adb shell am start -n $PKG/$ACT --es levels OFF --es deck PADS >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SAMPLER --ez mic true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/mic.png"
   adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"

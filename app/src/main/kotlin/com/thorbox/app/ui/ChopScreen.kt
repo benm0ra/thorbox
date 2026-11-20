@@ -356,6 +356,22 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
             val p = sm.pads.value[k].pitch
             if (p != 0) drawTextSafe(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
         }
+        val lm = state.levelMode.value
+        if (lm != com.thorbox.app.levels.LevelMode.OFF) {
+            // 16 LEVELS: repaint every pad as the source pad, shaded low → high, with its level
+            val src = state.levelSrc.intValue
+            val c = Tb.Pads[src % Tb.Pads.size]
+            val on = active and (1 shl src) != 0
+            for (k in 0 until 16) {
+                val col = k % 4; val rowTop = 3 - k / 4
+                val o = Offset(col * cw + gap, rowTop * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
+                drawRoundRect(Tb.Void, o, s, r)
+                drawRoundRect(c.copy(alpha = 0.25f + 0.6f * k / 15f + if (on) 0.12f else 0f), o, s, r)
+                if (k == 8 && lm == com.thorbox.app.levels.LevelMode.TUNE) drawRoundRect(Tb.Text, o, s, r, style = Stroke(2.dp.toPx()))
+                drawTextSafe(tm, com.thorbox.app.levels.Levels.label(lm, k), o + Offset(8.dp.toPx(), 6.dp.toPx()), num)
+                drawTextSafe(tm, "L${k + 1}", o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
+            }
+        }
         if (lazy) drawRoundRect(Tb.Warn, Offset(gap, gap), Size(size.width - 2 * gap, size.height - 2 * gap), r, style = Stroke(3.dp.toPx()))
     }
 }

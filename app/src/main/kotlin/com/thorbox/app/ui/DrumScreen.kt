@@ -41,7 +41,6 @@ import com.thorbox.app.AppState
 import com.thorbox.app.input.navClickable
 import com.thorbox.app.drums.DrumController
 import com.thorbox.engine.NativeEngine
-import com.thorbox.model.DRUM_SLOTS
 
 /**
  * Top-screen drum machine. Left: BIG DAWG the drummer, playing whatever the track plays. Right: a
@@ -105,6 +104,14 @@ fun DrumScreen(state: AppState) {
                 Row(Modifier.fillMaxWidth().height(26.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     PatternDice(state, state.drums.track, height = 26.dp, fontSize = 10)
                     HwButton("CLEAR", Modifier.fillMaxHeight(), minHeight = 24.dp, fontSize = 10) { state.groove.clear(state.drums.track) }
+                    // pad banks: A = 1–8, B = 9–16; a dot means the other bank has hits in it
+                    val bank = dc.selected.intValue / 8
+                    val notes = state.groove.clips.value[state.drums.track].notes
+                    for (b in 0..1) {
+                        val has = notes.any { it.note / 8 == b }
+                        HwButton((if (b == 0) "A" else "B") + if (has && b != bank) "•" else "", Modifier.fillMaxHeight().width(36.dp), active = bank == b,
+                            accent = Tb.EncBlue, minHeight = 24.dp, fontSize = 10, hPad = 2.dp) { dc.selected.intValue = b * 8 + dc.selected.intValue % 8 }
+                    }
                     Box(Modifier.weight(1f))
                     val steps = com.thorbox.app.groove.Steps.count(state.groove.clips.value[state.drums.track].lengthTicks)
                     val pages = (steps + 15) / 16
@@ -173,10 +180,12 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
     val clip = g.clips.value[track]
     val steps = com.thorbox.app.groove.Steps.count(clip.lengthTicks)
     val labelW = 34.dp
+    // 16 pads, 8 rows at a time: bank A = pads 1–8, B = 9–16 (follows the selected pad)
+    val bankStart = (dc.selected.intValue / 8) * 8
     Row(modifier) {
         // row chips
         Column(Modifier.width(labelW).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            for (s in 0 until DRUM_SLOTS) {
+            for (s in bankStart until bankStart + 8) {
                 val on = dc.selected.intValue == s
                 Box(Modifier.weight(1f).fillMaxWidth().padding(end = 3.dp).clip(RoundedCornerShape(4.dp))
                     .background(if (on) drumColor(s) else drumColor(s).copy(alpha = 0.28f))
@@ -186,10 +195,10 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
             }
         }
         Canvas(Modifier.weight(1f).fillMaxHeight()
-            .pointerInput(clip.lengthTicks) {
+            .pointerInput(clip.lengthTicks, bankStart) {
                 detectTapGestures { p ->
-                    val cw = size.width / 16f; val rh = size.height / DRUM_SLOTS.toFloat()
-                    val col = (p.x / cw).toInt().coerceIn(0, 15); val row = (p.y / rh).toInt().coerceIn(0, DRUM_SLOTS - 1)
+                    val cw = size.width / 16f; val rh = size.height / 8f
+                    val col = (p.x / cw).toInt().coerceIn(0, 15); val row = bankStart + (p.y / rh).toInt().coerceIn(0, 7)
                     val step = (g.cursor.intValue / 16) * 16 + col
                     if (step < steps) { g.drumToggle(step, row); dc.selected.intValue = row; g.cursor.intValue = step }
                 }
@@ -198,7 +207,7 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
             val notes = g.clips.value[track].notes
             val len = g.clips.value[track].lengthTicks
             val pageStart = (g.cursor.intValue / 16) * 16
-            val cw = size.width / 16f; val rh = size.height / DRUM_SLOTS
+            val cw = size.width / 16f; val rh = size.height / 8f
             val gap = 2.dp.toPx(); val r = CornerRadius(4.dp.toPx())
             val playStep = g.stepPosition(track)
             for (c in 0 until 16) {
@@ -206,17 +215,17 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
                 if (step >= steps) break
                 val beat = c / 4 % 2 == 0
                 if (step == playStep) drawRect(Tb.Text.copy(alpha = 0.10f), Offset(c * cw, 0f), Size(cw, size.height))
-                for (row in 0 until DRUM_SLOTS) {
+                for (row in 0 until 8) {
                     val o = Offset(c * cw + gap, row * rh + gap); val sz = Size(cw - 2 * gap, rh - 2 * gap)
                     drawRoundRect(if (beat) Tb.Raised else Tb.Panel, o, sz, r)
                 }
             }
             for (e in notes) {
-                if (e.note !in 0 until DRUM_SLOTS) continue
+                if (e.note !in bankStart until bankStart + 8) continue
                 val step = com.thorbox.app.groove.Steps.stepOf(e, len)
                 val c = step - pageStart
                 if (c !in 0 until 16) continue
-                val o = Offset(c * cw + gap, e.note * rh + gap); val sz = Size(cw - 2 * gap, rh - 2 * gap)
+                val o = Offset(c * cw + gap, (e.note - bankStart) * rh + gap); val sz = Size(cw - 2 * gap, rh - 2 * gap)
                 val lit = step == playStep
                 drawRoundRect(drumColor(e.note).copy(alpha = if (lit) 1f else 0.45f + 0.5f * e.velocity), o, sz, r)
                 if (e.ratchet > 1) for (k in 1 until e.ratchet)   // ratchets: little ticks
@@ -225,7 +234,7 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
             // gamepad cursor
             val cc = g.cursor.intValue - pageStart
             if (cc in 0 until 16 && state.topView.value == com.thorbox.app.TopView.DRUM)
-                drawRoundRect(Tb.Text, Offset(cc * cw + 1f, dc.selected.intValue * rh + 1f), Size(cw - 2f, rh - 2f), r, style = Stroke(2.dp.toPx()))
+                drawRoundRect(Tb.Text, Offset(cc * cw + 1f, (dc.selected.intValue - bankStart) * rh + 1f), Size(cw - 2f, rh - 2f), r, style = Stroke(2.dp.toPx()))
         }
     }
 }

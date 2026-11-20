@@ -190,7 +190,8 @@ class AppState(private val app: Application) {
     fun selectDeck(d: Deck) {
         if (d == Deck.STRUM) return   // not built yet
         if (deck.value == Deck.KEYS && d != Deck.KEYS) releaseAllKeys()
-        if (deck.value == Deck.FX && d != Deck.FX) groove.stopAll()
+        if (deck.value == Deck.FX && d != Deck.FX) groove.releaseHeldFx()     // latched effects keep going while you play
+        if (d != deck.value && levelMode.value != com.thorbox.app.levels.LevelMode.OFF) setLevels(com.thorbox.app.levels.LevelMode.OFF)
         deck.value = d
         // The instrument decks pull their editor onto the top screen. SEQ and MIX stay put.
         when (d) {
@@ -315,8 +316,30 @@ class AppState(private val app: Application) {
 
     fun padDown(velocity: Float) = padDown(sampler.selected.intValue, velocity)
     fun padUp() = padUp(sampler.selected.intValue)
-    fun padDown(pad: Int, velocity: Float) { _padHeld.value = true; sampler.padDown(pad, velocity) }
-    fun padUp(pad: Int) { _padHeld.value = false; sampler.padUp(pad) }
+    fun padDown(pad: Int, velocity: Float) {
+        _padHeld.value = true
+        if (levelMode.value != com.thorbox.app.levels.LevelMode.OFF) sampler.levelDown(levelSrc.intValue, pad, levelMode.value, velocity)
+        else sampler.padDown(pad, velocity)
+    }
+    fun padUp(pad: Int) {
+        _padHeld.value = false
+        if (levelMode.value != com.thorbox.app.levels.LevelMode.OFF) sampler.levelUp(levelSrc.intValue) else sampler.padUp(pad)
+    }
+
+    // ================= 16 LEVELS (PADS and DRUMS decks) =================
+    val levelMode = mutableStateOf(com.thorbox.app.levels.LevelMode.OFF)
+    /** The sound being spread across the 16 pads (picked when 16 LEVELS turns on: the selected pad / drum). */
+    val levelSrc = androidx.compose.runtime.mutableIntStateOf(0)
+    private var levelOnDrums = false
+    fun setLevels(m: com.thorbox.app.levels.LevelMode) {
+        if (levelMode.value != com.thorbox.app.levels.LevelMode.OFF && !levelOnDrums) sampler.restorePad(levelSrc.intValue)
+        val turningOn = levelMode.value == com.thorbox.app.levels.LevelMode.OFF && m != com.thorbox.app.levels.LevelMode.OFF
+        levelMode.value = m
+        if (turningOn) {
+            levelOnDrums = deck.value == Deck.DRUMS
+            levelSrc.intValue = if (levelOnDrums) drums.selected.intValue else sampler.selected.intValue
+        }
+    }
 
     private fun sel() = sampler.selected.intValue
     fun setPitch(semis: Int, cents: Int = sampler.pads.value[sel()].fine) { sampler.updatePad(sel()) { it.copy(pitch = semis, fine = cents) }; recordPadPitch() }

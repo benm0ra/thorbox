@@ -341,6 +341,27 @@ private object NativeEngineTails {
     fun reverb(g: com.thorbox.app.groove.GrooveController) = g.transport[19] > 1e-3
 }
 
+/**
+ * 16 LEVELS (MPC-style): spread the selected sound over all 16 pads, graded by VEL or TUNE (and on
+ * the drum deck also DECAY or TONE). Pad 1 lowest, pad 16 highest. OFF puts the pads back.
+ */
+@Composable
+fun LevelsStrip(state: AppState, drums: Boolean, modifier: Modifier = Modifier) {
+    val lm = state.levelMode.value
+    val src = state.levelSrc.intValue
+    Row(modifier.height(36.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Text("16 LEVELS", color = if (lm != com.thorbox.app.levels.LevelMode.OFF) Tb.Key else Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Black,
+            letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 4.dp))
+        com.thorbox.app.levels.LevelMode.entries.filter { drums || !it.drumsOnly }.forEach { m ->
+            HwButton(m.label, Modifier.weight(1f).fillMaxHeight(), active = lm == m && m != com.thorbox.app.levels.LevelMode.OFF,
+                accent = Tb.Key, minHeight = 32.dp, fontSize = 11, hPad = 2.dp) { state.setLevels(m) }
+        }
+        if (lm != com.thorbox.app.levels.LevelMode.OFF) Text(
+            if (drums) state.drums.kit.value.voices.getOrNull(src)?.name ?: "" else "PAD ${src + 1}",
+            color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
+    }
+}
+
 /** Note repeat: hold RPT with one thumb and hit pads or keys with the other (or hold L1). */
 @Composable
 fun RepeatStrip(state: AppState, modifier: Modifier = Modifier) {
