@@ -6,10 +6,17 @@
 It combines Koala Sampler's zero-friction flow with Ableton Live's session/detail split across the Thor's hinge.
 Synth pages are animated in the spirit of Teenage Engineering's instruments.
 
-> Status: **pre-alpha** (Milestone 1 + synth engine). Unofficial: not affiliated with AYN, Teenage Engineering, Koala or Ableton (see NOTICE).
+> Status: **alpha**: 8-track groovebox with sampler, synth and drum synth, projects with autosave, and a field recorder. Unofficial: not affiliated with AYN, Teenage Engineering, Koala or Ableton (see NOTICE).
 > License: **GPL-3.0-or-later**.
 
 ## What works now
+
+- **8 tracks, any instrument on any track:** chop a jazz loop on one sampler track, a drum break on another, and add an 808 and a lead synth. **MIXER → + TRACK** adds a sampler, synth or drum-synth track. Each strip has fader, pan, mute, solo, meters and **PUMP** (sidechain compression from any other track).
+- **Projects:** the whole session (tracks, patterns, automation, mixer, sounds, kits, sampler chops) saves itself every few seconds and when the app goes to the background, and the last project reopens at launch. **⚙ → PROJECTS** has save, save as new, new, open, rename, copy and delete. Each project keeps its own copy of its samples, so it still opens if the originals move.
+- **Field recorder:** record from the Thor's mic with a live waveform, clip warning and clock. Recordings save to *Music/Clamshell Beats/Field Recordings* and land on the pads, already chopped.
+- **DEMO BREAK:** a built-in 90 BPM boom-bap break, to try the sampler before picking a folder.
+- **Automation lanes** for mixer and effect parameters, recorded live or drawn, and **MIDI export** (one track per instrument, opens in Ableton).
+- **Groove templates** per track (MPC60, SP-1200, Dilla, boom bap, trap, house) with a FEEL amount, applied to the sampler too.
 
 - **Dual-screen:** the wide 6" panel shows the *contextual view* (sampler or synth). The near-square 3.92" panel is the *Touch Deck*. Roles come from screen shape, so it works whichever panel the firmware calls primary.
 - **Serato-style chopping:**
@@ -36,9 +43,8 @@ Synth pages are animated in the spirit of Teenage Engineering's instruments.
   - Sample-accurate sequencer for the drum and synth tracks (8/16/32 steps) with velocity, probability and gate lanes.
   - MPC-style swing (50–75%, on a 1/8 or 1/16 grid), tap tempo, a metronome, and live recording with quantize strength.
   - Note repeat (1/8 → 1/32T, swing-aware, recorded too).
-- **Generators:** DICE (in-key melodies and Euclidean drum rhythms), MUTATE, CHANCE (per-step probability for patterns that evolve), SNAP to scale, and 16 levels of undo.
+- **Generators:** the same yellow DICE on every beat grid rolls NOTES (synth: an in-key melody), a BEAT (drums) or a PAD's steps (sampler), with ↶ right beside it. Plus MUTATE, CHANCE (per-step probability for patterns that evolve), SNAP to scale, and 16 levels of undo.
 - **Scales:** auto-follow the sample's detected key, or pick a root plus major/minor/dorian/mixolydian/pentatonic/chromatic.
-- **Mixer:** sampler, synth and master strips with fader, pan, mute, solo and post-fader stereo meters.
 - **Punch-in FX:** stutter, filter sweep (LP ◂ ▸ HP), tape stop, crush, vinyl, reverse and trance gate. Hold to engage with XY control, latch to keep on, and L2/R2 act as analog punch-ins.
 - **KEYS deck:** 4×4 scale keyboard locked to the sample's detected key (or chromatic), with chord mode, octave shift and glissando. Pads glow from the engine's real sounding notes.
 
@@ -46,9 +52,10 @@ Synth pages are animated in the spirit of Teenage Engineering's instruments.
 
 - **Glass where it helps:** the rail, deck tabs, transport bars, panels and overlays are glass. They show an audio-reactive aurora refracted at their edges (AGSL shader, Android 13+).
 - **Solid where it matters:** pads, encoders, faders and step cells stay solid and high-contrast, for speed and legibility.
-- **Settings:** FULL / SUBTLE / OFF on the VIZ screen. OFF is plain AMOLED black, which saves the most battery.
-- **VIZ:** music-reactive visuals from the master output: SPECTRA (glossy bars and peak caps), ORBIT (circular scope with echo trails) and PLASMA (shader).
-  - It appears automatically after 30 s of playback with no touches on the top screen (AUTO). Tap to change mode.
+- **Glass level:** FULL / SUBTLE / OFF in **⚙ → LOOK**. OFF is plain AMOLED black, which saves the most battery.
+- **Themes:** Genesis (purple + neon green, the default), Studio, Cyberpunk, Pastel, Terminal and Grayscale, in **⚙ → LOOK**.
+- **Meters strip** (**⚙ → LOOK → METERS**): a MiniMeters-style bar across the top screen with master peak L/R and hold, RMS momentary and short-term, a 48-band spectrum, a 5 s wave history and a scope.
+- **VIZ:** music-reactive visuals from the master output: SPECTRA (glossy bars and peak caps), ORBIT (circular scope with echo trails) and PLASMA (shader). It only opens when you choose VISUAL. Tap to change mode.
 
 ## The synth UI
 
@@ -69,7 +76,8 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 - **Synth presets.** 33 factory sounds in 7 families: 808, BASS, LEAD, KEYS, PLUCK, PAD and WEIRD. Tap the name to browse, or use ◀ ▶. SAVE stores your own presets on the device. Long-press one of YOUR presets to delete it.
 - **DICE / MUTATE (OP-XY style).** DICE rolls a brand-new playable sound within the selected family. MUTATE nudges the current one. ↶ undoes either.
 - **808 voice.** The PITCH page has a pitch envelope (the boom) and per-oscillator octaves. The VOICE page has glide, mono legato (slides), drive and noise.
-- **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a TR-style grid, DICE BEAT, kit save/load and per-sound dice. BIT the drummer plays along, in each sound's colour.
+- **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a TR-style grid, DICE BEAT, kit save/load and per-sound dice.
+- **BIG DOG, the drummer.** A bulldog in a fitted cap and a gold chain who plays exactly the kit that's loaded. Only the pieces your voices use are on stage (a cowbell voice adds a cowbell, ZAP a sparking pad, SHAKE a shaker). Drum size follows tune, glow and ripple follow decay, level sets the flash, drive roughens the ripple, and the hi-hat opens as far as the voice that hit it. Every piece flashes in its slot's colour.
 - **Punch-in FX.** Every FX pad has a live glyph that shows what the effect is doing. **TILT** (FX deck) lets you lean the Thor to steer held effects, and shake it to dice.
 
 ## Controls
@@ -80,13 +88,13 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 
 | SELECT + | |
 |---|---|
-| **A** | **NAV cursor** on/off, to reach *every* control on both screens without touching: D-pad or left stick move the ring · A presses · the right stick (or A held + D-pad) turns the focused knob, slider or fader · L1/R1 jump to the top/bottom screen · L2/R2 previous/next top view · X/Y previous/next bottom deck · START play · B leaves NAV. |
+| **A** | **NAV cursor** on/off (also in **⚙ → CONTROLS**), to reach *every* control on both screens without touching: D-pad or left stick move the ring to the nearest control in that direction, and off the facing edges it hops between the two screens · A presses · the right stick (or A held + D-pad) turns the focused knob, slider or fader · L1/R1 jump to the top/bottom screen · L2/R2 previous/next top view · X/Y previous/next bottom deck · START play · B closes an open sheet, then leaves NAV. |
 | **D-pad ←/→** | top-screen view: SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL |
 | **D-pad ↑/↓** | bottom deck: PADS · KEYS · DRUMS · STEP · FX |
 | **L1 / R1** | tempo −1 / +1 BPM (hold to keep going) |
 | **X** | tap tempo |
 | **Y** | metronome |
-| **B** | diagnostics (live sensors, SAVE LOG to Downloads) |
+| **B** | diagnostics (live sensors, SAVE LOG to Downloads; also in **⚙ → SYSTEM**) |
 | **L3 / R3** | cycle theme / glass look |
 | *(tap SELECT alone)* | record |
 
@@ -112,6 +120,18 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 
 Switching the bottom deck tab (PADS ↔ KEYS) switches the top view (SMP ↔ SYN) too. The rail on the top screen does the reverse.
 
+## Settings (⚙)
+
+The gear at the bottom of the left rail opens five pages:
+
+| Page | What's there |
+|---|---|
+| **PROJECTS** | The current project (save, save as new, new) and every saved one (open, rename, copy, delete). |
+| **LOOK** | Theme, the meters strip, hints on/off, glass level. |
+| **DEFAULTS** | Save the current tempo, swing, key and click as what every launch starts with. |
+| **CONTROLS** | NAV cursor, tilt, the controller map pinned open, the welcome tour. |
+| **SYSTEM** | Audio status (sample rate, buffer in ms, shared or exclusive output, dropouts), diagnostics and logs, version. |
+
 ## Download
 
 Grab the latest APK from **[Releases](../../releases)**, open it on the Thor and allow *Install unknown apps*. New versions install over old ones.
@@ -124,12 +144,20 @@ Grab the latest APK from **[Releases](../../releases)**, open it on the Thor and
 4. Release builds are minified with R8. They're signed only when `keystore.properties` exists (git-ignored) or `THORBOX_KEYSTORE*` env vars are set; otherwise they come out unsigned.
 5. **Publishing a release:** `git tag v0.7.0-alpha.1 && git push origin v0.7.0-alpha.1`. The Release workflow tests, builds and signs the APKs and attaches them to a GitHub Release. Tags containing `-` are marked pre-release.
 
+## Testing on a real Thor (Windows PC)
+
+1. Install scrcpy (it includes adb): `winget install --exact Genymobile.scrcpy`. Then turn on USB debugging on the Thor and allow the PC.
+2. Copy `tools/thor-dev.bat` and `tools/thor-dev.ps1` to a folder and double-click the `.bat`. It downloads the newest green build (the rolling **dev** pre-release), installs it, starts it and opens a mirror window per Thor screen. It also saves Android's crash record and the live log to `thor-logs/`.
+3. `tools/thor-shots.bat` tours every view, deck and settings page in a scratch session (your projects aren't touched) and saves both screens to `thor-shots/`.
+
+Test builds share one public debug key (`tools/dev-debug.keystore`), so each build installs over the last without wiping app data. Releases are signed with the private key.
+
 ## Device test checklist
 
 1. Both screens light up. The footer `2nd:` line reads *Presentation → …* or *Activity → …*.
 2. Send us the footer's `displays:` line from your Thor (it tells us how the firmware exposes the panels).
 3. Load a melodic loop: KEY and BPM fill in. Drum one-shots show `—` on purpose.
-4. The footer shows `AAudio EXCLUSIVE` and `xruns 0`. For a precise number, measure tap-to-tone latency with OboeTester.
+4. **⚙ → SYSTEM** shows the output mode and buffer (exclusive is the fast path) with 0 dropouts. For a precise number, measure tap-to-tone latency with OboeTester.
 5. KEYS deck: chords, glissando, octave shift, key lock follows the loaded sample. No stuck notes after a lid close.
 6. The synth sticks: each stick axis moves its coloured encoder smoothly.
 7. Leave a LOOP or a held pad playing for 10 minutes: `xruns` stays at 0.
@@ -180,7 +208,7 @@ app/
 
 ## Roadmap
 
-Next: Serato-style CHOP (16 pads, auto/equal/lazy slicing, KEY MATCH, BPM SYNC time-stretch) · scratch deck + SP-404-style DJ filter and isolator EQ · project save, stem/MIDI export, Wi-Fi Transfer + wired export · Ableton Link (opt-in) · Session clip grid · resampling · strum deck · Performance Mode.
+Next: stem export (WAV per track) and resampling · scratch deck + SP-404-style DJ filter and isolator EQ · Wi-Fi Transfer + wired export of projects · Ableton Link (opt-in) · Session clip grid · strum deck · Performance Mode.
 
 ## Contributing
 
