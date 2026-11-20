@@ -200,7 +200,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fxGlyph(
         }
         NativeEngine.Fx.FILTER -> {
             // The response curve: LP on the left half of X, HP on the right; Y = resonance bump.
-            val path = androidx.compose.ui.graphics.Path()
+            val path = glyphPath.apply { reset() }
             val hp = x > 0.5f
             val fc = if (hp) (x - 0.5f) * 2f else x * 2f
             val q = 0.15f + 0.85f * y
@@ -222,7 +222,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fxGlyph(
             val ang = (t * 6f * speed) % 6.283f
             val rr = minOf(w * 0.18f, h * 0.3f)
             drawRoundRect(col, Offset(o.x + w * 0.04f, cy - h * 0.36f), Size(w * 0.92f, h * 0.72f), CornerRadius(6f * density), style = Stroke(sw))
-            for (side in listOf(-1f, 1f)) {
+            for (side in SIDES) {
                 val rc = Offset(cx + side * w * 0.22f, cy)
                 drawCircle(col, rr, rc, style = Stroke(sw))
                 for (k in 0 until 3) {
@@ -268,7 +268,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fxGlyph(
         }
         NativeEngine.Fx.REVERSE -> {
             // A waveform scrolling right-to-left (backwards); X = slice length = wavelength.
-            val path = androidx.compose.ui.graphics.Path()
+            val path = glyphPath.apply { reset() }
             val k = 1.5f + 5f * (1f - x)
             val ph = t * (if (on) 6f else 1.2f)
             for (i in 0..48) {
@@ -286,7 +286,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fxGlyph(
         }
         NativeEngine.Fx.GATE -> {
             // Blocks chopped in time: X = rate (1/4 … 1/32), Y = duty (how long each chop stays open).
-            val divs = listOf(1, 2, 4, 8)[(x * 3.99f).toInt()]
+            val divs = GATE_DIVS[(x * 3.99f).toInt()]
             val n = divs * 2
             val bw = w / n
             val duty = 0.15f + 0.8f * y
@@ -301,3 +301,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fxGlyph(
         }
     }
 }
+
+// Reused every frame by the glyphs (UI thread only): no per-frame allocation.
+private val glyphPath = androidx.compose.ui.graphics.Path()
+private val SIDES = floatArrayOf(-1f, 1f)
+private val GATE_DIVS = intArrayOf(1, 2, 4, 8)

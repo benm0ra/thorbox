@@ -200,13 +200,7 @@ private fun lastLit(released: Float) = released < 6f
 
 /** "HAZE" in a 3×5 pixel font. */
 private fun drawHazeWord(cell: (Int, Int, Color, Float) -> Unit, x0: Int, y0: Int, c: Color, a: Float) {
-    val glyphs = listOf(
-        arrayOf("1.1", "1.1", "111", "1.1", "1.1"),   // H
-        arrayOf(".1.", "1.1", "111", "1.1", "1.1"),   // A
-        arrayOf("111", "..1", ".1.", "1..", "111"),   // Z
-        arrayOf("111", "1..", "11.", "1..", "111"),   // E
-    )
-    glyphs.forEachIndexed { gi, g -> for (r in 0 until 5) for (cc in 0 until 3) if (g[r][cc] == '1') cell(x0 + gi * 4 + cc, y0 + r, c, a) }
+    HAZE_GLYPHS.forEachIndexed { gi, g -> for (r in 0 until 5) for (cc in 0 until 3) if (g[r][cc] == '1') cell(x0 + gi * 4 + cc, y0 + r, c, a) }
 }
 
 /** Top-screen panel for HAZE's film: appears while HAZE is on (and while her smoke drifts away). */
@@ -228,7 +222,8 @@ fun androidx.compose.foundation.layout.BoxScope.HazeFilm(state: com.thorbox.app.
         val fade = if (on) 1f else (1f - (since - 4f) / 2f).coerceIn(0f, 1f)
         val r = 14.dp.toPx()
         drawRoundRect(Tb.Black.copy(alpha = 0f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r))
-        clipPath(androidx.compose.ui.graphics.Path().apply {
+        clipPath(filmClip.apply {
+            reset()
             addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, size.width, size.height, androidx.compose.ui.geometry.CornerRadius(r)))
         }) {
             noirScene(Offset.Zero, size, now, if (on) now - times[0] else -1f, since, g.fxEffX(NativeEngine.Fx.HAZE), g.fxEffY(NativeEngine.Fx.HAZE),
@@ -237,3 +232,11 @@ fun androidx.compose.foundation.layout.BoxScope.HazeFilm(state: com.thorbox.app.
         }
     }
 }
+
+private val HAZE_GLYPHS = arrayOf(
+    arrayOf("1.1", "1.1", "111", "1.1", "1.1"),   // H
+    arrayOf(".1.", "1.1", "111", "1.1", "1.1"),   // A
+    arrayOf("111", "..1", ".1.", "1..", "111"),   // Z
+    arrayOf("111", "1..", "11.", "1..", "111"),   // E
+)
+private val filmClip = androidx.compose.ui.graphics.Path()

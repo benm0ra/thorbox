@@ -67,9 +67,10 @@ fun AutoSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modifier
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(g.auto.label(key, { tracks.getOrNull(it)?.name ?: "T${it + 1}" }, ::knobName), color = Tb.Text, fontSize = 11.sp,
                         fontWeight = FontWeight.Black, maxLines = 1, modifier = Modifier.width(150.dp))
+                    val path = androidx.compose.runtime.remember { Path() }
                     Canvas(Modifier.weight(1f).height(30.dp)) {
                         state.telemetry.frame.longValue
-                        val path = Path()
+                        path.reset()
                         fun y(v: Float) = size.height * (1f - ((v - lo) / (hi - lo)).coerceIn(0f, 1f))
                         var prev = pts.lastOrNull()?.value ?: 0f
                         path.moveTo(0f, y(prev))

@@ -8,7 +8,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
@@ -192,8 +193,9 @@ object Glossary {
 }
 
 /** The strip itself: glass pill at the bottom of the top screen, plus the ? toggle in the corner. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun BoxScope.InfoLine() {
+fun BoxScope.InfoLine(onTour: () -> Unit = {}) {
     val stamp = Info.stamp.intValue
     val show = Info.body.value != null && Info.enabled.value
     LaunchedEffect(stamp) { if (Info.body.value != null) { delay(4200); Info.body.value = null } }
@@ -210,7 +212,7 @@ fun BoxScope.InfoLine() {
     // ? : explanations on/off (stays out of the way, bottom-right)
     Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).size(26.dp).clip(CircleShape)
         .background(if (Info.enabled.value) Tb.Raised else Tb.Panel)
-        .clickable { Info.enabled.value = !Info.enabled.value; if (!Info.enabled.value) Info.body.value = null },
+        .combinedClickable(onLongClick = onTour) { Info.enabled.value = !Info.enabled.value; if (!Info.enabled.value) Info.body.value = null },
         contentAlignment = Alignment.Center) {
         Text("?", color = if (Info.enabled.value) Tb.Key else Tb.Dim, fontWeight = FontWeight.Black, fontSize = 13.sp)
     }

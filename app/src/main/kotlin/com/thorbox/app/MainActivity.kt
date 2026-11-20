@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
 
     /** `--es view DRUM --es deck FX`: open a given view/deck (used by the emulator smoke test; harmless otherwise). */
     private fun applyLaunchExtras(i: android.content.Intent?) {
+        // The launcher activity is exported: in release builds no other app may drive it with extras.
+        if (!BuildConfig.DEBUG) return
         i?.getStringExtra("view")?.let { v -> TopView.entries.firstOrNull { it.name == v }?.let(state::selectTop) }
         i?.getStringExtra("deck")?.let { d -> com.thorbox.model.Deck.entries.firstOrNull { it.name == d }?.let(state::selectDeck) }
         i?.getStringExtra("add")?.let { k -> com.thorbox.model.TrackKind.entries.firstOrNull { it.name == k }?.let(state::addTrack) }

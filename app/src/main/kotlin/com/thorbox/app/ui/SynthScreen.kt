@@ -6,6 +6,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,8 +78,6 @@ fun SynthScreen(state: AppState) {
                     Text(p.label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                 }
             }
-            Box(Modifier.weight(1f))
-            VoiceLeds(state, Modifier.width(72.dp).height(14.dp))
         }
 
         // ---- presets + dice ----
@@ -84,10 +86,23 @@ fun SynthScreen(state: AppState) {
             onDice = state::diceSynth, onMutate = { state.mutateSynth() }, onUndo = state::undoPatch, canUndo = state.canUndoPatch.value,
             onSave = { saving = true; browsing = true }, modifier = Modifier.fillMaxWidth())
 
-        // ---- hero ----
-        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))) {
+        // ---- hero: the instrument's "screen" (bezel · status line · page art · live waveform band) ----
+        val swipe = remember { floatArrayOf(0f) }
+        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Tb.Void.copy(alpha = 0.82f))
+            .border(2.dp, Tb.Line, RoundedCornerShape(14.dp))
+            .pointerInput(Unit) {
+                // Swipe the screen sideways to flip pages (the tabs still work too).
+                detectHorizontalDragGestures(onDragStart = { swipe[0] = 0f }) { ch, dx ->
+                    swipe[0] += dx
+                    val step = 70.dp.toPx()
+                    if (kotlin.math.abs(swipe[0]) > step) { state.cyclePage(if (swipe[0] < 0) 1 else -1); swipe[0] = 0f; ch.consume() }
+                }
+            }) {
+            HeroStatus(state, page, Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
+            ScopeBand(state, Tb.enc(knobs[lastTouched.intValue.coerceIn(0, 3)].color), overlay,
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().height(34.dp).padding(horizontal = 12.dp, vertical = 4.dp))
             Crossfade(targetState = page, animationSpec = tween(160), label = "page") { pg ->
-                val m = Modifier.fillMaxSize().padding(10.dp)
+                val m = Modifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, top = 28.dp, bottom = 38.dp)
                 when (pg) {
                     SynthPage.OSC -> OscViz(patch, state.telemetry, m)
                     SynthPage.FILTER -> FilterViz(patch, state.telemetry, m)
@@ -163,6 +178,58 @@ private fun VoiceLeds(state: AppState, modifier: Modifier) {
         for (i in 0 until n) {
             val c = Offset(step * (i + 0.5f), size.height / 2f)
             drawCircle(if (i < lit) Tb.EncOrange.copy(alpha = glow) else Tb.Raised, r, c)
+        }
+    }
+}
+
+/** One accent per page, so the screen's status line and dots say where you are at a glance. */
+fun pageColor(p: SynthPage) = when (p) {
+    SynthPage.OSC, SynthPage.PITCH -> Tb.EncBlue
+    SynthPage.FILTER, SynthPage.VOICE -> Tb.EncOrange
+    SynthPage.AMP, SynthPage.FENV -> Tb.EncGreen
+    SynthPage.LFO -> Tb.EncWhite
+}
+
+/** Status line: PAGE · page dots · track · voice LEDs. */
+@Composable
+private fun HeroStatus(state: AppState, page: SynthPage, modifier: Modifier) {
+    Row(modifier.height(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(page.label, color = pageColor(page), fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 2.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            SynthPage.entries.forEach { p ->
+                Box(Modifier.size(if (p == page) 8.dp else 5.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(if (p == page) pageColor(p) else Tb.Dim))
+            }
+        }
+        Box(Modifier.weight(1f))
+        Text(state.tracks.value.getOrNull(state.synthTrack.intValue)?.name ?: "SYNTH", color = Tb.Muted, fontSize = 10.sp,
+            fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+        VoiceLeds(state, Modifier.width(64.dp).height(12.dp))
+    }
+}
+
+/**
+ * Live waveform band along the bottom of the screen: the synth's actual output, drawn as mirrored
+ * bars (TE-style). Takes the colour of the knob you're turning, so you see the sound change.
+ */
+@Composable
+private fun ScopeBand(state: AppState, accent: androidx.compose.ui.graphics.Color, active: Float, modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val tel = state.telemetry
+        tel.frame.longValue
+        val buf = tel.scope                                     // fetched once per frame by AppState
+        val n = tel.scopeCount.coerceIn(0, buf.size)
+        val bars = 64
+        val bw = size.width / bars
+        val mid = size.height / 2f
+        val c = if (active > 0.05f) accent else Tb.Text.copy(alpha = 0.55f)
+        for (b in 0 until bars) {
+            var pk = 0f
+            val from = b * n / bars; val to = ((b + 1) * n / bars).coerceAtMost(n)
+            for (i in from until to) pk = maxOf(pk, kotlin.math.abs(buf[i]))
+            val h = (pk * 2.2f).coerceIn(0.02f, 1f) * mid
+            drawRoundRect(c, androidx.compose.ui.geometry.Offset(b * bw + bw * 0.2f, mid - h),
+                androidx.compose.ui.geometry.Size(bw * 0.6f, 2 * h), androidx.compose.ui.geometry.CornerRadius(bw * 0.3f))
         }
     }
 }

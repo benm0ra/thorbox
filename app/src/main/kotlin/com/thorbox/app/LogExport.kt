@@ -25,9 +25,12 @@ object LogExport {
         }
         val r = context.contentResolver
         val uri = r.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
-        r.openOutputStream(uri)?.use { it.write(bytes) } ?: return null
-        values.clear(); values.put(MediaStore.Downloads.IS_PENDING, 0)
-        r.update(uri, values, null, null)
+        val ok = runCatching {
+            r.openOutputStream(uri)?.use { it.write(bytes) } ?: error("no stream")
+            values.clear(); values.put(MediaStore.Downloads.IS_PENDING, 0)
+            r.update(uri, values, null, null)
+        }.isSuccess
+        if (!ok) { runCatching { r.delete(uri, null, null) }; return null }
         name
     }.getOrNull()
 }

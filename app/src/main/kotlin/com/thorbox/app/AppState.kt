@@ -117,6 +117,9 @@ class AppState(private val app: Application) {
     private val uiPrefs = app.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)
     init { com.thorbox.app.ui.Tb.palette = com.thorbox.app.ui.Themes.byId(uiPrefs.getString("theme", null)) }
     val showThemes = mutableStateOf(false)
+    /** First-run welcome; long-press the ? chip to see it again. */
+    val showWelcome = mutableStateOf(!uiPrefs.getBoolean("welcomed", false))
+    fun finishWelcome() { showWelcome.value = false; uiPrefs.edit().putBoolean("welcomed", true).apply() }
     fun setTheme(p: com.thorbox.app.ui.Palette) {
         com.thorbox.app.ui.Tb.palette = p
         uiPrefs.edit().putString("theme", p.id).apply()
@@ -254,6 +257,7 @@ class AppState(private val app: Application) {
 
     fun stopEngine() {
         tilt.onForeground(false)
+        if (mic.recording.value) mic.stop()      // never keep the mic open in the background
         stopTicker()
         padUp()
         releaseAllKeys()

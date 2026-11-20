@@ -31,3 +31,16 @@ The main attack surface is **untrusted audio files**:
 
 Host tests run under AddressSanitizer and UndefinedBehaviorSanitizer in CI (`tools/run-host-tests.sh`).
 A fuzzing harness for the decoder and analysis code is on the roadmap. Contributions are welcome.
+
+## Permissions and data (current)
+
+- **One permission: `RECORD_AUDIO`.** It's requested only when you tap **MIC**. The microphone is opened only while
+  the recorder is running, and it stops whenever the app leaves the foreground. Raw audio is buffered in a private
+  temp file that is deleted after the WAV is written.
+- **No `INTERNET` permission.** Nothing leaves the device unless you share it yourself (SHARE LOG, files in Downloads).
+- **Files you create:** logs and MIDI go to Downloads, and recordings go to `Music/Clamshell Beats/Field Recordings`,
+  all through MediaStore with no broad storage access. A failed write deletes its half-written entry.
+- **Exported surface:** only the launcher activity. The test-only launch extras (view, deck, theme, add track, FX)
+  are honoured in debug builds only.
+- **Presets** live in app-private storage. Files over 4 MB are refused, and parsing is tolerant, so a corrupt file
+  can't crash or exhaust the app.

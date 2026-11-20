@@ -39,8 +39,8 @@ class PresetStore(context: Context, private val scope: CoroutineScope) {
     init {
         scope.launch {
             val (s, k) = withContext(Dispatchers.IO) {
-                (if (synthFile.exists()) PresetCodec.decodeSynth(synthFile.readText()) else emptyList()) to
-                    (if (kitFile.exists()) PresetCodec.decodeKits(kitFile.readText()) else emptyList())
+                (if (synthFile.exists() && synthFile.length() < MAX_FILE) PresetCodec.decodeSynth(synthFile.readText()) else emptyList()) to
+                    (if (kitFile.exists() && kitFile.length() < MAX_FILE) PresetCodec.decodeKits(kitFile.readText()) else emptyList())
             }
             _userSynth.value = s.map { it.copy(user = true) }
             _userKits.value = k.map { it.copy(user = true) }
@@ -84,6 +84,8 @@ class PresetStore(context: Context, private val scope: CoroutineScope) {
     // text is written, whatever order the jobs actually run in.
     private val lock = kotlinx.coroutines.sync.Mutex()
     private val versions = HashMap<String, Int>()
+
+    private companion object { const val MAX_FILE = 4L * 1024 * 1024 }   // thousands of presets; anything bigger is corrupt
 
     private fun write(f: File, text: String) {
         val v = synchronized(versions) { ((versions[f.name] ?: 0) + 1).also { versions[f.name] = it } }
