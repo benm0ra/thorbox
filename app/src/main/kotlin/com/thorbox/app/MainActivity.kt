@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
         if (i?.hasExtra("fx") == true) i.getIntExtra("fx", -1).let { id -> if (id >= 0) state.groove.fxDown(id, 0.6f, 0.6f) else for (k in 0 until 8) state.groove.fxUp(k) }
         if (i?.hasExtra("nav") == true) state.input.setNav(i.getBooleanExtra("nav", false))
         if (i?.hasExtra("settings") == true) i.getIntExtra("settings", -1).let { t -> state.showSettings.value = t >= 0; if (t >= 0) state.settingsTab.value = t }
-        if (i?.getBooleanExtra("scratch", false) == true) state.projects.enterScratch()      // tours never touch your projects
+        if (i?.getBooleanExtra("scratch", false) == true) { state.projects.enterScratch(); state.showWelcome.value = false }   // tours never touch your projects
         if (i?.getBooleanExtra("demo", false) == true) state.loadDemo()
         if (i?.getBooleanExtra("dice", false) == true) {                                    // fill every track with a pattern
             for (t in 0 until com.thorbox.model.TRACK_COUNT) if (state.trackKind(t) != com.thorbox.model.TrackKind.EMPTY) state.groove.diceNotes(t)

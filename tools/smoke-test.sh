@@ -107,6 +107,7 @@ shots() {
   for v in SYNTH SEQ MIX; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
+  adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"
   adb shell am start -n $PKG/$ACT --ei settings -1 >/dev/null
   adb shell am force-stop $PKG
   adb shell wm size reset; adb shell wm density reset; sleep 2

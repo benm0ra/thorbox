@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -165,12 +166,12 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
 @Composable
 fun GearButton(active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.height(40.dp).clip(RoundedCornerShape(6.dp)).background(if (active) Tb.Key else Tb.Raised)
+        modifier.height(36.dp).clip(RoundedCornerShape(6.dp)).background(if (active) Tb.Key else Tb.Raised)
             .navClickable(label = "SETTINGS") { Info.show("SETTINGS"); onClick() },
         contentAlignment = Alignment.Center,
     ) {
         val ink = if (active) Tb.Black else Tb.Text
-        androidx.compose.foundation.Canvas(Modifier.height(24.dp).widthIn(min = 24.dp)) {
+        androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
             val c = center; val r = size.minDimension / 2f
             val teeth = 8
             for (i in 0 until teeth) {

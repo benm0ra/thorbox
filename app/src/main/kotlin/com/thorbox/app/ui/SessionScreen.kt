@@ -48,21 +48,23 @@ fun TopScreen(state: AppState) {
     val view = state.topView.value
     AuroraBackground(state, Modifier) {
     Row(Modifier.fillMaxSize().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // The rail fits any screen height: view buttons share the space (never shorter than 28 dp), and the
+        // gear + ? keep a fixed size, so they can't be pushed off the bottom on the Thor's short top panel.
         Column(Modifier.width(64.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            HwButton("SAMPLE", Modifier.fillMaxWidth(), active = view == TopView.SAMPLER, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SAMPLER) }
-            HwButton("SYNTH", Modifier.fillMaxWidth(), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
-            HwButton("DRUMS", Modifier.fillMaxWidth(), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
-            HwButton("STEPS", Modifier.fillMaxWidth(), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
-            HwButton("MIXER", Modifier.fillMaxWidth(), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
-            HwButton("VISUAL", Modifier.fillMaxWidth(), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 10, hPad = 2.dp) {
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            HwButton("SAMPLE", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SAMPLER, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SAMPLER) }
+            HwButton("SYNTH", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
+            HwButton("DRUMS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
+            HwButton("STEPS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
+            HwButton("MIXER", Modifier.fillMaxWidth().weight(1f), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
+            HwButton("VISUAL", Modifier.fillMaxWidth().weight(1f), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) {
                 if (view == TopView.VIZ) state.exitViz() else state.selectTop(TopView.VIZ)
             }
             // Transport: always visible whatever view you're in
-            HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth(), active = state.groove.playing.value, accent = Tb.Good, minHeight = 40.dp, fontSize = 14) { state.groove.togglePlay() }
+            HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth().weight(1f), active = state.groove.playing.value, accent = Tb.Good, minHeight = 28.dp, fontSize = 14) { state.groove.togglePlay() }
             GearButton(state.showSettings.value, Modifier.fillMaxWidth()) { state.showSettings.value = !state.showSettings.value }
             InfoToggle(onTour = { state.showWelcome.value = true }, modifier = Modifier.fillMaxWidth())
-            LevelMeter(state.level, Modifier.fillMaxWidth().weight(1f)
+            LevelMeter(state.level, Modifier.fillMaxWidth().weight(0.9f)
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { state.showDiagnostics.value = !state.showDiagnostics.value }) })
         }
         androidx.compose.foundation.layout.Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
