@@ -103,4 +103,6 @@ dependencies {
     // and scroll without first-run jank (Play does this automatically; sideloads need this).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    testImplementation(kotlin("test-junit"))
 }

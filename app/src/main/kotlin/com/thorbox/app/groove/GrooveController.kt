@@ -39,7 +39,32 @@ class GrooveController(private val app: AppState) {
     val lane = mutableStateOf(Lane.VEL)
     val cursor = mutableIntStateOf(0)
     val gen = mutableStateOf(GenParams())
-    val seed = mutableIntStateOf(1)
+    /** Seed of the last roll (shown as #1234). Every roll draws fresh entropy, so sessions never replay. */
+    val seed = mutableIntStateOf(0)
+    /** What the last roll was (TRAP, HOOK, EUCLID 5/16 …) and when; the die flashes it. */
+    val rollName = mutableStateOf("")
+    val rollStamp = mutableIntStateOf(0)
+    private val entropy = java.security.SecureRandom()
+    private var lastBeat: PatternGen.BeatStyle? = null
+    private var lastMelody: PatternGen.MelodyStyle? = null
+    private fun freshSeed(): Int { seed.intValue = entropy.nextInt() and 0x7fffffff; return seed.intValue }
+
+    /**
+     * Roll until the result is actually different from what's there (a roll that changes nothing
+     * feels broken), at most a few tries.
+     */
+    private fun rollInto(track: Int, gen: (PatternGen, Clip) -> List<NoteEvent>, after: (PatternGen) -> Unit = {}) {
+        val cur = clips.value[track]
+        val before = cur.notes.map { Triple(it.tick, it.note, it.ratchet) }.toSet()
+        var g = PatternGen(freshSeed()); var notes = gen(g, cur)
+        for (attempt in 0 until 4) {
+            if (notes.map { Triple(it.tick, it.note, it.ratchet) }.toSet() != before) break
+            g = PatternGen(freshSeed()); notes = gen(g, cur)
+        }
+        update(track, saveUndo = true) { it.copy(notes = notes) }
+        after(g)
+        rollName.value = g.style; rollStamp.intValue++
+    }
     private val undo = List(com.thorbox.model.TRACK_COUNT) { ArrayDeque<Clip>() }
     val canUndo = mutableStateOf(false)
 
@@ -222,9 +247,7 @@ class GrooveController(private val app: AppState) {
     }
     /** Dice a whole beat: kick on the grid, backbeat snare/clap, busy hats, sprinkles of the rest. */
     fun diceBeat(track: Int = drumT) {
-        seed.intValue = seed.intValue * 1103515245 + 12345 and 0x7fffffff
-        val g = PatternGen(seed.intValue)
-        update(track, saveUndo = true) { c -> c.copy(notes = g.beat(Steps.count(c.lengthTicks), gen.value)) }
+        rollInto(track, { g, c -> g.beat(Steps.count(c.lengthTicks), gen.value, avoid = lastBeat) }) { lastBeat = it.beatStyle }
     }
 
     /**
@@ -308,17 +331,15 @@ class GrooveController(private val app: AppState) {
     fun nameChannel(t: Int, name: String) { val l = channels.value.toMutableList(); l[t] = l[t].copy(name = name); channels.value = l }
 
     fun dice(track: Int) {
-        seed.intValue = seed.intValue * 1103515245 + 12345 and 0x7fffffff
-        val g = PatternGen(seed.intValue)
-        update(track, saveUndo = true) { c ->
-            val steps = Steps.count(c.lengthTicks)
-            c.copy(notes = if (isPadTrack(track)) scoped(track, c.notes) { g.drums(steps, gen.value, selectedPad(track)) } else g.melody(steps, gen.value, key(), synthBase()))
+        if (isPadTrack(track)) {
+            rollInto(track, { g, c -> scoped(track, c.notes) { g.drums(Steps.count(c.lengthTicks), gen.value, selectedPad(track)) } })
+            return
         }
+        rollInto(track, { g, c -> g.melody(Steps.count(c.lengthTicks), gen.value, key(), synthBase(), avoid = lastMelody) }) { lastMelody = it.melodyStyle }
     }
 
     fun mutate(track: Int) {
-        seed.intValue = seed.intValue * 1103515245 + 12345 and 0x7fffffff
-        val g = PatternGen(seed.intValue)
+        val g = PatternGen(freshSeed())
         update(track, saveUndo = true) { c -> c.copy(notes = g.mutate(c.notes, c.lengthTicks, 0.3f, if (!isPadTrack(track)) key() else null, synthBase(), isPadTrack(track))) }
     }
 

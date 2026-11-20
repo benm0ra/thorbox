@@ -57,7 +57,7 @@ jobs:
         env:
           THORBOX_ALLOW_DEBUG_SIGNING: "1"
       - name: Model unit tests (project files, presets)
-        run: ./gradlew :core-model:test --stacktrace
+        run: ./gradlew :core-model:test :app:testDebugUnitTest --stacktrace
       - run: ./gradlew :app:lintDebug
       - uses: actions/upload-artifact@v4
         if: always()
