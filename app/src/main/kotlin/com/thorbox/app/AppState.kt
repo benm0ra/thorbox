@@ -265,8 +265,10 @@ class AppState(private val app: Application) {
 
     private var nextRequestId = 1
     private val pendingNames = HashMap<Int, String>()
+    private val pendingTargets = HashMap<Int, Int>()                       // request id → sampler track
+    private val pendingSources = HashMap<Int, Uri>()
+    private val latestForTrack = IntArray(com.thorbox.model.TRACK_COUNT)   // newest load per track wins
     private var latestRequest = 0
-    private var loadTarget = 0
     private var engineRunning = false
 
     // ================= Engine lifecycle =================
@@ -290,9 +292,14 @@ class AppState(private val app: Application) {
         groove.pushAll()
         tilt.onForeground(true)
         startTicker()
+        if (!restoredSession) { restoredSession = true; projects.restoreLastSession() }   // pick up where you left off
+        projects.startAutosave()
     }
+    private var restoredSession = false
 
     fun stopEngine() {
+        projects.stopAutosave()
+        runCatching { projects.saveIfChanged() }        // going to the background: never lose the session
         tilt.onForeground(false)
         if (mic.recording.value) mic.stop()      // never keep the mic open in the background
         stopTicker()
@@ -405,6 +412,74 @@ class AppState(private val app: Application) {
             if (v != sent[id] && NativeEngine.synthParam(t, id, v)) sent[id] = v
         }
     }
+
+    // ================= Projects: what ProjectManager reads and writes =================
+
+    /** The synth patch on track [t] (the live editor's copy for the current synth track). */
+    fun synthPatchFor(t: Int): SynthPatch = if (t == synthTrack.intValue) _patch.value else synthPatches[t] ?: SynthPatch()
+    fun setError(msg: String?) { _error.value = msg }
+    fun postInfo(title: String, body: String) {
+        com.thorbox.app.ui.Info.title.value = title; com.thorbox.app.ui.Info.body.value = body; com.thorbox.app.ui.Info.stamp.intValue++
+    }
+
+    /** Replace the whole session with [p] (opening a project, or a blank one). Samples load in the background. */
+    internal fun applyProject(p: com.thorbox.model.ProjectFile, sampleFile: (String) -> java.io.File?) {
+        val M = com.thorbox.model.TrackKind
+        padUp(); releaseAllKeys()
+        for (t in 0 until com.thorbox.model.TRACK_COUNT) samplers[t]?.clearSample()
+        _sample.value = null; _peaks.value = null
+        val list = List(com.thorbox.model.TRACK_COUNT) { t -> p.tracks.getOrNull(t) ?: com.thorbox.model.TrackInfo(M.EMPTY, "") }
+        // Never leave the editors without a track of their kind.
+        val fixed = list.toMutableList()
+        for (kind in listOf(M.SAMPLER, M.SYNTH, M.DRUMS)) if (fixed.none { it.kind == kind }) {
+            val free = fixed.indexOfFirst { it.kind == M.EMPTY }; if (free >= 0) fixed[free] = com.thorbox.model.TrackInfo(kind, kind.label)
+        }
+        tracks.value = fixed
+        fixed.forEachIndexed { t, info -> NativeEngine.setTrackType(t, info.kind.ordinal) }
+
+        val tp = p.transport; val sc = p.scale
+        val groove0 = com.thorbox.app.groove.Groove(bpm = tp.bpm.coerceIn(30f, 300f), swing = tp.swing.coerceIn(0.5f, 0.75f), swing16 = tp.swing16,
+            quantize = tp.quantize.coerceIn(0f, 1f), repeatRate = runCatching { com.thorbox.app.groove.RepeatRate.valueOf(tp.repeatRate) }.getOrDefault(com.thorbox.app.groove.RepeatRate.SIXTEENTH),
+            metronome = tp.metronome)
+        val scale0 = com.thorbox.app.groove.ScaleSetting(
+            runCatching { com.thorbox.model.PitchClass.valueOf(sc.root) }.getOrDefault(com.thorbox.model.PitchClass.C),
+            runCatching { com.thorbox.model.ScaleMode.valueOf(sc.mode) }.getOrDefault(com.thorbox.model.ScaleMode.MINOR), sc.followSample)
+        keyLock.value = sc.keyLock
+        groove.restore(groove0, scale0, p.clips,
+            p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },
+            p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.valueOf(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
+            p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } })
+
+        val f = p.focus
+        fun pick(want: Int, kind: com.thorbox.model.TrackKind) = if (fixed.getOrNull(want)?.kind == kind) want else fixed.indexOfFirst { it.kind == kind }
+        synthTrack.intValue = pick(f.synthTrack, M.SYNTH); samplerTrack.intValue = pick(f.samplerTrack, M.SAMPLER); drumTrack.intValue = pick(f.drumTrack, M.DRUMS)
+        for (t in 0 until com.thorbox.model.TRACK_COUNT) {
+            when (fixed[t].kind) {
+                M.SYNTH -> { val patch = p.synths[t] ?: SynthPatch(); sentAll[t].fill(Float.NaN); pushPatchTo(t, patch) }
+                M.DRUMS -> drumsFor(t).let { d -> p.kits[t]?.let(d::restoreKit); d.pushAll() }
+                M.SAMPLER -> {
+                    val sd = p.samplers[t] ?: continue
+                    val file = sd.file?.let(sampleFile) ?: continue
+                    val sm = samplerFor(t)
+                    sm.pendingRestore = com.thorbox.app.sampler.SamplerController.Restore(
+                        regions = sd.regions.chunked(2).filter { it.size == 2 }.map { com.thorbox.app.sampler.Region(it[0], it[1]) },
+                        pads = sd.pads.map { pd -> com.thorbox.app.sampler.PadSlot(pd.pitch, pd.fine,
+                            runCatching { com.thorbox.model.PlayMode.valueOf(pd.mode) }.getOrDefault(com.thorbox.model.PlayMode.ONE_SHOT), pd.gainDb) },
+                        chopMode = runCatching { com.thorbox.app.sampler.ChopMode.valueOf(sd.chopMode) }.getOrDefault(com.thorbox.app.sampler.ChopMode.AUTO),
+                        sensitivity = sd.sensitivity, equalCount = sd.equalCount, keyMatch = sd.keyMatch, bpmSync = sd.bpmSync)
+                    load(Uri.fromFile(file), sd.sampleName ?: file.nameWithoutExtension, t)
+                }
+                else -> Unit
+            }
+        }
+        _patch.value = synthPatches[synthTrack.intValue] ?: SynthPatch()
+        patchUndo.clear(); canUndoPatch.value = false
+        fixed.forEachIndexed { t, info -> if (info.kind != M.EMPTY) groove.nameChannel(t, info.name) }
+        NativeEngine.setFocus(synthTrack.intValue); NativeEngine.setFocus(samplerTrack.intValue)
+        groove.seqTrack.intValue = f.seqTrack.takeIf { fixed.getOrNull(it)?.kind != M.EMPTY } ?: samplerTrack.intValue
+    }
+
+    val projects by lazy { com.thorbox.app.project.ProjectManager(this, app, scope) }
 
     // ================= Track management =================
 
@@ -637,11 +712,14 @@ class AppState(private val app: Application) {
         load(item.uri, item.name)
     }
 
-    fun load(uri: Uri, name: String) {
+    /** Load [uri] onto sampler track [track] (default: the one you're on). Several tracks can load at once. */
+    fun load(uri: Uri, name: String, track: Int = samplerTrack.intValue) {
         val id = nextRequestId++
         latestRequest = id
         pendingNames[id] = name
-        loadTarget = samplerTrack.intValue          // the track that asked gets the sample, even if you switch
+        pendingTargets[id] = track                 // the track that asked gets the sample, even if you switch
+        pendingSources[id] = uri
+        latestForTrack[track] = id
         _loadingName.value = name
         _error.value = null
         scope.launch {
@@ -649,8 +727,9 @@ class AppState(private val app: Application) {
                 runCatching { app.contentResolver.openFileDescriptor(uri, "r")?.detachFd() }.getOrNull()
             }
             if (fd == null) {
-                pendingNames.remove(id)
+                pendingNames.remove(id); pendingTargets.remove(id); pendingSources.remove(id)
                 if (id == latestRequest) { _loadingName.value = null; _error.value = "Can't open $name" }
+                samplerFor(track).onRestoreFailed()
                 return@launch
             }
             NativeEngine.loadSample(fd, id)   // native side owns and closes the fd
@@ -662,8 +741,11 @@ class AppState(private val app: Application) {
             is NativeEngine.Event.SampleLoaded -> {
                 samplers.firstOrNull { it?.isStretchResult(e.requestId) == true }?.let { it.onStretchLoaded(e.requestId, e.sampleId, e.frames); return }
                 val name = pendingNames.remove(e.requestId) ?: "sample"
-                if (e.requestId != latestRequest) { NativeEngine.unloadSample(e.sampleId); return }
-                val target = samplerFor(loadTarget)
+                val track = pendingTargets.remove(e.requestId) ?: samplerTrack.intValue
+                val source = pendingSources.remove(e.requestId)
+                if (e.requestId != latestForTrack[track]) { NativeEngine.unloadSample(e.sampleId); return }   // superseded on that track
+                val target = samplerFor(track)
+                target.sourceUri = source
                 val info = LoadedSample(
                     engineId = e.sampleId, name = name, frames = e.frames, sampleRate = e.sampleRate, channels = e.channels,
                     key = if (e.keyRoot in 0..11) MusicalKey(PitchClass.entries[e.keyRoot], if (e.keyMinor) ScaleMode.MINOR else ScaleMode.MAJOR) else null,
@@ -671,7 +753,7 @@ class AppState(private val app: Application) {
                 )
                 target.info = info; target.peaks = null
                 if (target === sampler) { _sample.value = info; _peaks.value = null }
-                _loadingName.value = null
+                if (e.requestId == latestRequest) _loadingName.value = null
                 target.onOriginalLoaded(e.sampleId, e.frames)      // auto-chop onto all 16 pads
                 val sid = e.sampleId
                 scope.launch {
@@ -685,6 +767,8 @@ class AppState(private val app: Application) {
             is NativeEngine.Event.LoadFailed -> {
                 samplers.firstOrNull { it?.isStretchResult(e.requestId) == true }?.let { it.onStretchFailed(e.requestId); _error.value = "Couldn't re-render the sample"; return }
                 val name = pendingNames.remove(e.requestId)
+                pendingSources.remove(e.requestId)
+                pendingTargets.remove(e.requestId)?.let { samplerFor(it).onRestoreFailed() }
                 if (e.requestId == latestRequest) { _loadingName.value = null; _error.value = "Couldn't decode ${name ?: "file"}" }
             }
         }

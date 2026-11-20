@@ -66,7 +66,7 @@ tour() {
   if ! adb shell pidof $PKG >/dev/null; then echo "::error::[$name] app died loading the demo break"; adb logcat -d -b crash | tail -60; fail=1
   elif ! adb logcat -d | grep -q "loaded Demo break"; then echo "::error::[$name] demo break never finished loading"; adb logcat -d | grep -i thorbox | tail -30; fail=1
   else echo "::notice::[$name] sampler: demo break loaded and chopped"; fi
-  for t in 0 1 2 3; do                                   # SETTINGS pages, then the meters strip + recorder sheet
+  for t in 0 1 2 3 4; do                                 # SETTINGS pages, then the meters strip + recorder sheet
     adb shell am start -n $PKG/$ACT --ei settings $t >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-settings-$t.png" || true
   done

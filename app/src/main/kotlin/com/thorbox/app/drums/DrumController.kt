@@ -122,6 +122,8 @@ class DrumController(private val app: AppState, val track: Int = 2) {
     // ---------------- presets / dice ----------------
 
     fun loadKit(p: KitPreset) = setKit(p.kit.copy(name = p.name))
+    /** Opening a project: this kit, no undo step. */
+    fun restoreKit(k: DrumKit) = setKit(k, undoable = false)
     fun stepKit(d: Int) {
         val list = app.presets.allKits()
         if (list.isEmpty()) return

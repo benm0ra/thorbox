@@ -48,6 +48,27 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     val rendering = mutableStateOf(false)                       // a stretch is in progress
     private val lazyMarkers = ArrayList<Long>()
 
+    /** Where this track's sample came from (a library file, a field recording, the demo, or a project copy). */
+    var sourceUri: android.net.Uri? = null
+
+    /** Saved chop/pad state to apply when a project's sample finishes loading (instead of auto-chopping). */
+    class Restore(val regions: List<Region>, val pads: List<PadSlot>, val chopMode: ChopMode, val sensitivity: Float,
+                  val equalCount: Int, val keyMatch: Boolean, val bpmSync: Boolean)
+    var pendingRestore: Restore? = null
+    fun onRestoreFailed() { pendingRestore = null }
+
+    /** Forget the sample (new / opened project): pads go silent, the engine buffer is released. */
+    fun clearSample() {
+        stopLazy(); releaseStretched()
+        if (originalId != 0) NativeEngine.unloadSample(originalId)
+        originalId = 0; originalFrames = 0; playingId = 0; playingFrames = 0
+        info = null; peaks = null; sourceUri = null; pendingRestore = null
+        regions.value = emptyList(); pads.value = List(ChopLogic.PADS) { PadSlot() }
+        chopMode.value = ChopMode.AUTO; sensitivity.floatValue = 0.6f; equalCount.intValue = 16
+        keyMatch.value = false; bpmSync.value = false
+        assignAll()
+    }
+
     var originalId = 0; private set
     var originalFrames = 0L; private set
     var playingId = 0; private set                               // what the pads point at now
@@ -64,9 +85,18 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         originalId = sampleId; originalFrames = frames
         playingId = sampleId; playingFrames = frames
         keyMatch.value = false; bpmSync.value = false
+        val r = pendingRestore; pendingRestore = null
+        if (r != null) {
+            // Opening a project: put back its slices, pads and settings instead of auto-chopping.
+            pads.value = List(ChopLogic.PADS) { r.pads.getOrElse(it) { PadSlot() } }
+            chopMode.value = if (r.chopMode == ChopMode.LAZY) ChopMode.AUTO else r.chopMode
+            sensitivity.floatValue = r.sensitivity; equalCount.intValue = r.equalCount
+            regions.value = r.regions.filter { it.start in 0 until frames && it.end in 1..frames && it.end > it.start }
+        }
         assignAll()
         if (oldOriginal != 0 && oldOriginal != sampleId) NativeEngine.unloadSample(oldOriginal)
-        rechop()
+        if (r == null || regions.value.isEmpty()) rechop()
+        if (r != null && (r.keyMatch || r.bpmSync)) { keyMatch.value = r.keyMatch; bpmSync.value = r.bpmSync; rerender() }
     }
 
     fun isStretchResult(requestId: Int) = requestId >= 1_000_000

@@ -279,6 +279,21 @@ class GrooveController(private val app: AppState) {
     fun clear(track: Int) = update(track, saveUndo = true) { it.copy(notes = emptyList()) }
 
     /** A track was added or removed: empty pattern, fresh strip (named after the track), any sidechain on it dropped. */
+    /** Opening a project (or starting a new one): replace the whole sequencer / mixer state and resend it. */
+    fun restore(g: Groove, s: ScaleSetting, clipList: List<com.thorbox.model.Clip>, channelList: List<Channel>, feelList: List<TrackFeel>,
+                master: Float, lanes: Map<String, List<Automation.Point>>) {
+        if (playing.value) togglePlay()
+        val n = com.thorbox.model.TRACK_COUNT
+        groove.value = g; scale.value = s
+        clips.value = List(n) { t -> clipList.getOrNull(t) ?: com.thorbox.model.Clip(com.thorbox.model.ClipId("t$t"), "T${t + 1}", color = t, lengthTicks = 16 * STEP_TICKS) }
+        channels.value = List(n) { t -> channelList.getOrNull(t) ?: Channel("T${t + 1}") }
+        feels.value = List(n) { t -> feelList.getOrNull(t) ?: TrackFeel() }
+        masterDb.value = master
+        auto.clearAll(); auto.lanes.value = lanes
+        undo.forEach { it.clear() }; canUndo.value = false
+        pushAll()
+    }
+
     fun resetTrack(t: Int, name: String) {
         undo[t].clear()
         update(t) { it.copy(notes = emptyList(), lengthTicks = 16 * STEP_TICKS) }

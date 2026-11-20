@@ -28,8 +28,11 @@ import com.thorbox.app.AppState
 import com.thorbox.app.input.navModal
 import java.util.Locale
 
+private val defaultsRev = androidx.compose.runtime.mutableIntStateOf(0)
+
 /**
- * SETTINGS (the rail's SET button): everything that isn't music, in four pages.
+ * SETTINGS (the rail's SET button): everything that isn't music, in five pages.
+ *   PROJECTS  the current project (save, save as new, new) and every saved one (open, rename, copy, delete)
  *   LOOK      theme, glass, the meters strip, hints
  *   DEFAULTS  the tempo / swing / key / click a fresh launch starts with
  *   CONTROLS  the NAV cursor, tilt, the controller map, the welcome tour
@@ -44,7 +47,7 @@ fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("SETTINGS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp,
                 modifier = Modifier.padding(end = 10.dp))
-            listOf("LOOK", "DEFAULTS", "CONTROLS", "SYSTEM").forEachIndexed { i, name ->
+            listOf("PROJECTS", "LOOK", "DEFAULTS", "CONTROLS", "SYSTEM").forEachIndexed { i, name ->
                 HwButton(name, minHeight = 38.dp, fontSize = 12, active = tab == i, accent = Tb.Key) { state.settingsTab.value = i }
             }
             Box(Modifier.weight(1f))
@@ -52,9 +55,10 @@ fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
-                0 -> LookPage(state)
-                1 -> DefaultsPage(state)
-                2 -> ControlsPage(state)
+                0 -> ProjectsPage(state)
+                1 -> LookPage(state)
+                2 -> DefaultsPage(state)
+                3 -> ControlsPage(state)
                 else -> SystemPage(state)
             }
         }
@@ -105,22 +109,21 @@ private fun LookPage(state: AppState) {
 private fun DefaultsPage(state: AppState) {
     val g = state.groove.groove.value
     val k = state.groove.scale.value
+    defaultsRev.intValue                                   // re-read after SAVE / CLEAR
     val saved = state.startDefaults()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("What a fresh launch starts with. Set the tempo, swing, key and click the way you like them, then save.",
             color = Tb.Muted, fontSize = 12.sp)
         SettingRow("NOW", String.format(Locale.US, "%.1f BPM · swing %d%% · %s %s%s · click %s", g.bpm, (g.swing * 100).toInt(),
-            k.root.name.replace("_SHARP", "#"), k.mode.name.lowercase(), if (k.followSample) " (follows samples)" else "", if (g.metronome) "on" else "off")) {
-            HwButton("SAVE AS DEFAULT", minHeight = 38.dp, fontSize = 12, active = true, accent = Tb.Good) { state.saveStartDefaults(); state.settingsTab.value = 1 }
+            k.root.name.replace("s", "#"), k.mode.name.lowercase(), if (k.followSample) " (follows samples)" else "", if (g.metronome) "on" else "off")) {
+            HwButton("SAVE AS DEFAULT", minHeight = 38.dp, fontSize = 12, active = true, accent = Tb.Good) { state.saveStartDefaults(); defaultsRev.intValue++ }
         }
         SettingRow("SAVED", saved?.let {
             String.format(Locale.US, "%.1f BPM · swing %d%% · %s %s%s · click %s", it.bpm, (it.swing * 100).toInt(),
-                it.root.name.replace("_SHARP", "#"), it.mode.name.lowercase(), if (it.follow) " (follows samples)" else "", if (it.click) "on" else "off")
+                it.root.name.replace("s", "#"), it.mode.name.lowercase(), if (it.follow) " (follows samples)" else "", if (it.click) "on" else "off")
         } ?: "Nothing saved: starts at 90 BPM, straight, C minor") {
-            HwButton("CLEAR", minHeight = 38.dp, fontSize = 12, enabled = saved != null) { state.clearStartDefaults(); state.settingsTab.value = 1 }
+            HwButton("CLEAR", minHeight = 38.dp, fontSize = 12, enabled = saved != null) { state.clearStartDefaults(); defaultsRev.intValue++ }
         }
-        Text("Projects (save / open a whole session) are next on the list; for now your samples, field recordings, MIDI exports and presets are what's kept.",
-            color = Tb.Dim, fontSize = 11.sp)
     }
 }
 
