@@ -30,6 +30,18 @@ android {
     fun ks(key: String, env: String): String? = ksProps.getProperty(key) ?: System.getenv(env)
     val releaseStore = ks("storeFile", "THORBOX_KEYSTORE")
     signingConfigs {
+        // A fixed, PUBLIC debug key checked into the repo (tools/dev-debug.keystore, password "android"),
+        // so every CI debug build carries the same signature and installs over the last one without
+        // wiping the app's data. It protects nothing: real releases are signed with the private key.
+        getByName("debug") {
+            val dev = rootProject.file("tools/dev-debug.keystore")
+            if (dev.exists()) {
+                storeFile = dev
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (releaseStore != null) create("release") {
             storeFile = file(releaseStore)
             storePassword = ks("storePassword", "THORBOX_KEYSTORE_PASSWORD")

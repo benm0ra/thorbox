@@ -44,3 +44,7 @@ A fuzzing harness for the decoder and analysis code is on the roadmap. Contribut
   are honoured in debug builds only.
 - **Presets** live in app-private storage. Files over 4 MB are refused, and parsing is tolerant, so a corrupt file
   can't crash or exhaust the app.
+- **Signing:** releases (`v*` tags) are signed with the project's private key. CI **debug** builds, including the
+  rolling `dev` pre-release, are signed with `tools/dev-debug.keystore`, a deliberately **public** key, so test builds
+  update each other without wiping app data. Anyone can sign an APK with that key, so only install debug/dev builds
+  on a device you use for testing, and use release builds for everything else.
