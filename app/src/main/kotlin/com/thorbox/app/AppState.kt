@@ -576,8 +576,11 @@ class AppState(private val app: Application) {
         mic.start { uri, name ->
             if (uri == null) { _error.value = name; return@start }
             // Into the sampler track you're on, auto-chopped, like any other sample.
-            if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) load(uri, name)
-            showMic.value = false
+            if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) {
+                load(uri, name)
+                showMic.value = false
+                if (topView.value != TopView.SAMPLER) selectTop(TopView.SAMPLER)    // see it land on the pads
+            } else _error.value = "Saved $name. Add a SAMPLE track (MIXER → + TRACK) to chop it."
             lastInput.value = "Saved Music/Clamshell Beats/Field Recordings/$name"
         }
     }

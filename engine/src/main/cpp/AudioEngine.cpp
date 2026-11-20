@@ -288,9 +288,13 @@ void AudioEngine::workerLoop() {
             res.sampleRate = decoded->sampleRate;
             res.channels = decoded->channels;
             std::lock_guard<std::mutex> l(mRegMtx);
-            decoded->id = mNextSampleId++;
-            res.sampleId = decoded->id;
-            mRegistry[decoded->id] = RegistryEntry{std::shared_ptr<SampleBuffer>(std::move(decoded)), 0, false};
+            // Take the id BEFORE moving the buffer. In `mRegistry[decoded->id] = Entry{move(decoded)}` C++17
+            // evaluates the right side first, so decoded is already null when the key is read: a
+            // guaranteed null dereference, which the optimiser turned into a crash on every sample load.
+            const int id = mNextSampleId++;
+            decoded->id = id;
+            res.sampleId = id;
+            mRegistry[id] = RegistryEntry{std::shared_ptr<SampleBuffer>(std::move(decoded)), 0, false};
         }
         std::lock_guard<std::mutex> l(mResultMtx);
         mResults.push_back(res);

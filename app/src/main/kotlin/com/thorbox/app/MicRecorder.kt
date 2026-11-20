@@ -10,7 +10,6 @@ import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -27,8 +26,19 @@ import kotlin.math.abs
  */
 class MicRecorder(private val app: Context) {
     val recording = mutableStateOf(false)
-    val level = mutableFloatStateOf(0f)          // 0..1 peak, for the meter
-    val seconds = mutableFloatStateOf(0f)
+    /** Saving the WAV + loading it onto the pads (between ■ and the pads lighting up). */
+    val saving = mutableStateOf(false)
+    // Written by the capture thread, read by the UI every frame. Plain volatiles, not Compose state:
+    // the recorder never writes snapshot state off the main thread.
+    @Volatile var level = 0f; private set          // 0..1 peak of the latest block, for the meter
+    @Volatile var seconds = 0f; private set
+    @Volatile var failure: String? = null; private set
+    /**
+     * Live waveform: one (min, max) pair per [WAVE_STEP] samples, newest last, in a ring of
+     * [WAVE_COLS] columns. [waveCount] is how many columns exist so far; the UI draws the last N.
+     */
+    val wave = FloatArray(WAVE_COLS * 2)
+    @Volatile var waveCount = 0; private set
     @Volatile private var stop = false
     private var thread: Thread? = null
 
@@ -42,7 +52,7 @@ class MicRecorder(private val app: Context) {
             ?: runCatching { AudioRecord(MediaRecorder.AudioSource.MIC, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, min * 4) }
                 .getOrNull()?.takeIf { it.state == AudioRecord.STATE_INITIALIZED }
         if (rec == null) { onDone(null, "Couldn't open the microphone"); return }
-        stop = false; recording.value = true; seconds.floatValue = 0f
+        stop = false; recording.value = true; seconds = 0f; level = 0f; waveCount = 0; failure = null
         thread = Thread({
             // PCM goes to a private temp file as it's captured: memory stays flat for 10 minutes.
             val tmp = java.io.File(app.cacheDir, "mic-${System.nanoTime()}.pcm")
@@ -52,36 +62,66 @@ class MicRecorder(private val app: Context) {
             val maxBytes = rate * 2L * 600
             var uri: Uri? = null
             val name = "Field " + SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date())
+            var colMin = 0; var colMax = 0; var colN = 0
             try {
                 java.io.BufferedOutputStream(java.io.FileOutputStream(tmp), 1 shl 16).use { out ->
                     rec.startRecording()
+                    if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) error("the mic didn't start (is another app using it?)")
+                    var errors = 0
                     while (!stop && bytes < maxBytes) {
                         val n = rec.read(buf, 0, buf.size)
-                        if (n <= 0) continue
+                        if (n <= 0) {                                   // ERROR_DEAD_OBJECT etc: don't spin forever
+                            if (++errors > 50) error("the mic stopped sending audio ($n)")
+                            Thread.sleep(5); continue
+                        }
+                        errors = 0
                         var pk = 0
                         bb.clear()
-                        for (i in 0 until n) { val v = buf[i].toInt(); if (abs(v) > pk) pk = abs(v); bb.putShort(buf[i]) }
+                        for (i in 0 until n) {
+                            val v = buf[i].toInt()
+                            if (abs(v) > pk) pk = abs(v)
+                            bb.putShort(buf[i])
+                            if (v < colMin) colMin = v; if (v > colMax) colMax = v
+                            if (++colN == WAVE_STEP) {
+                                val c = waveCount % WAVE_COLS
+                                wave[2 * c] = colMin / 32768f; wave[2 * c + 1] = colMax / 32768f
+                                waveCount++; colMin = 0; colMax = 0; colN = 0
+                            }
+                        }
                         out.write(bb.array(), 0, n * 2)
                         bytes += n * 2
-                        level.floatValue = pk / 32768f
-                        seconds.floatValue = bytes / (rate * 2f)
+                        level = pk / 32768f
+                        seconds = bytes / (rate * 2f)
                     }
                 }
-                if (bytes > rate / 10) uri = save(name, tmp, bytes, rate)
-            } catch (_: Exception) {
+                if (bytes > rate / 10) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { saving.value = true }
+                    uri = save(name, tmp, bytes, rate)
+                    if (uri == null) failure = "Couldn't save the recording"
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ClamshellMic", "recording failed", e)
+                failure = e.message ?: e.javaClass.simpleName
                 uri = null
             } finally {
                 runCatching { rec.stop() }; rec.release()
                 tmp.delete()                                         // never leave raw audio behind
             }
+            val msg = failure?.let { "Recording failed: $it" } ?: "Recording too short"
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                recording.value = false; level.floatValue = 0f
-                onDone(uri, if (uri != null) "$name.wav" else "Recording too short")
+                recording.value = false; saving.value = false; level = 0f
+                runCatching { onDone(uri, if (uri != null) "$name.wav" else msg) }
+                    .onFailure { android.util.Log.e("ClamshellMic", "loading the recording failed", it) }
             }
         }, "clamshell-mic").also { it.start() }
     }
 
     fun stop() { stop = true }
+
+    companion object {
+        const val WAVE_STEP = 480          // 10 ms per column at 48 kHz
+        const val WAVE_COLS = 1200         // the last 12 s
+    }
 
     private fun save(name: String, pcm: java.io.File, pcmBytes: Long, rate: Int): Uri? {
         val values = ContentValues().apply {

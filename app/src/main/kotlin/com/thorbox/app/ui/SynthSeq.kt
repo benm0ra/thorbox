@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navModal
+
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
@@ -301,7 +303,7 @@ fun StepDetail(state: AppState, modifier: Modifier = Modifier) {
     if (step < 0) return
     val evs = g.stepEvents(step)
     val e = evs.firstOrNull()
-    Column(modifier.glass(state, 16.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.navModal().glass(state, 16.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("STEP ${step + 1}", color = Tb.EncGreen, fontWeight = FontWeight.Black, fontSize = 18.sp, letterSpacing = 1.sp)
             Text(if (evs.isEmpty()) "empty: play keys to write notes" else evs.joinToString(" + ") { noteName(it.note) },

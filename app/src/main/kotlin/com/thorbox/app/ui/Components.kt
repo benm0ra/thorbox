@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navClickable
+
 import com.thorbox.app.input.navAdjustable
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,25 +45,14 @@ fun HwButton(
     hPad: Dp = 12.dp,
     onClick: () -> Unit,
 ) {
-    // In NAV mode, landing on a button explains it (same info line as touching it).
-    val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val focused by src.collectIsFocusedAsState()
-    androidx.compose.runtime.LaunchedEffect(focused) { if (focused) Info.show(text) }
-    // NAV cursor: while focused, A presses this button (works on either screen, no key routing needed).
-    val nav = com.thorbox.app.input.LocalNavHandle.current
-    val click by androidx.compose.runtime.rememberUpdatedState(onClick)
-    androidx.compose.runtime.DisposableEffect(focused, nav, enabled) {
-        val a: () -> Unit = { if (enabled) { Info.show(text); click() } }
-        if (focused && nav != null) { nav.action = a; nav.adjust = null }
-        onDispose { if (nav != null && nav.action === a) nav.action = null }
-    }
     Box(
         modifier
             .heightIn(min = minHeight)
             .widthIn(min = 44.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (active) accent else Tb.Raised)
-            .clickable(interactionSource = src, indication = androidx.compose.foundation.LocalIndication.current, enabled = enabled) { Info.show(text); onClick() }
+            // NAV cursor: reachable with the D-pad on either screen; A presses it (and landing explains it).
+            .navClickable(enabled = enabled, label = text) { Info.show(text); onClick() }
             .padding(horizontal = hPad),
         contentAlignment = Alignment.Center,
     ) {

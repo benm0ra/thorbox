@@ -47,54 +47,38 @@ class InputRouter(private val state: AppState) {
     private var heldRoot: IntArray? = null
 
     // ================= NAV cursor: reach every on-screen control without touching =================
-    /** NAV mode: D-pad moves a focus ring over buttons, A presses, L1/R1 switch screen, B exits. */
-    val navMode = androidx.compose.runtime.mutableStateOf(false)
-    /** 0 = top screen (SESSION role), 1 = bottom screen (DECK role). */
-    val navScreen = androidx.compose.runtime.mutableIntStateOf(0)
-    private val navHandles = arrayOfNulls<NavHandle>(2)
-    /** Each window registers its handle for the screen role(s) it shows. */
-    fun registerNavHandle(role: Int, h: NavHandle) { navHandles[role] = h }
-    fun unregisterNavHandle(role: Int, h: NavHandle) { if (navHandles[role] === h) navHandles[role] = null }
-    private fun handle(): NavHandle? = navHandles[navScreen.intValue] ?: navHandles[1 - navScreen.intValue]
+    /** NAV mode: D-pad moves a ring over every control on both screens, A presses, B exits. See [Nav]. */
+    val navMode get() = Nav.on
+    /** 0 = top screen, 1 = bottom screen. */
+    val navScreen get() = Nav.screen
     private var aHeld = false
 
     fun setNav(on: Boolean) {
-        navMode.value = on
-        if (on) land() else navHandles.forEach { it?.clear?.invoke() }
+        Nav.on.value = on
+        if (on && Nav.cur() == null) land()
         state.lastInput.value = if (on) "NAV ON" else "NAV OFF"
     }
     /** Make sure something on the current screen has the cursor. */
-    private fun land() {
-        val h = handle() ?: return
-        h.wake()
-        if (h.action == null && h.adjust == null) h.move(androidx.compose.ui.focus.FocusDirection.Next)
-    }
-    private fun navMove(dir: androidx.compose.ui.focus.FocusDirection) {
-        val h = handle() ?: return
-        if (h.move(dir)) return
-        h.wake()
-        if (!h.move(dir) && h.action == null && h.adjust == null) h.move(androidx.compose.ui.focus.FocusDirection.Next)
-    }
+    private fun land() { Nav.land(Nav.screen.intValue) }
+    private fun navMove(dir: NavDir) { if (!Nav.move(dir) && Nav.cur() == null) land() }
     private fun navKey(e: KeyEvent, first: Boolean, up: Boolean): Boolean {
         val down = e.action == KeyEvent.ACTION_DOWN
-        val FD = androidx.compose.ui.focus.FocusDirection
         when (e.keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (down) {
-                val adj = handle()?.adjust
-                if (aHeld && adj != null) {
+                if (aHeld && Nav.canAdjust()) {
                     // Hold A on a knob/slider: the D-pad turns it (up/right = more), in fine steps.
-                    adj(if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP || e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 0.02f else -0.02f)
+                    Nav.adjust(if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP || e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 0.02f else -0.02f)
                 } else navMove(when (e.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> FD.Up; KeyEvent.KEYCODE_DPAD_DOWN -> FD.Down
-                    KeyEvent.KEYCODE_DPAD_LEFT -> FD.Left; else -> FD.Right
+                    KeyEvent.KEYCODE_DPAD_UP -> NavDir.UP; KeyEvent.KEYCODE_DPAD_DOWN -> NavDir.DOWN
+                    KeyEvent.KEYCODE_DPAD_LEFT -> NavDir.LEFT; else -> NavDir.RIGHT
                 })
             }
-            KeyEvent.KEYCODE_BUTTON_A -> { if (first) { aHeld = true; handle()?.action?.invoke() } else if (up) aHeld = false }
+            KeyEvent.KEYCODE_BUTTON_A -> { if (first) { aHeld = true; Nav.press() } else if (up) aHeld = false }
             KeyEvent.KEYCODE_BUTTON_B -> if (first) setNav(false)
             // L1 / R1: jump to the top / bottom screen.
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
                 val target = if (e.keyCode == KeyEvent.KEYCODE_BUTTON_L1) 0 else 1
-                navScreen.intValue = target; land()
+                Nav.land(target, if (target == 0) androidx.compose.ui.geometry.Offset(0f, Nav.screenSize[0].height) else androidx.compose.ui.geometry.Offset.Zero)
             }
             // L2 / R2: previous / next top view (SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL).
             KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> if (first) {
@@ -125,14 +109,13 @@ class InputRouter(private val state: AppState) {
         }
         val now = android.os.SystemClock.uptimeMillis()
         if (dir != 0 && (dir != stickDir || now >= stickNext)) {
-            val FD = androidx.compose.ui.focus.FocusDirection
-            navMove(when (dir) { 1 -> FD.Up; 2 -> FD.Down; 3 -> FD.Left; else -> FD.Right })
+            navMove(when (dir) { 1 -> NavDir.UP; 2 -> NavDir.DOWN; 3 -> NavDir.LEFT; else -> NavDir.RIGHT })
             stickNext = now + if (dir != stickDir) 280L else 120L
         }
         stickDir = dir
-        val adj = handle()?.adjust ?: return
+        if (!Nav.canAdjust()) return
         val d = (axes[2] - axes[3])                       // right stick: right / up = more
-        if (d != 0f) adj(d * abs(d) * dt * 0.8f)
+        if (d != 0f) Nav.adjust(d * abs(d) * dt * 0.8f)
     }
 
     /** SELECT is held (the on-screen control map shows after a short hold). */

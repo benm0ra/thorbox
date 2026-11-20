@@ -5,7 +5,22 @@
 #include <cmath>
 #include <cstdio>
 #include <vector>
-std::unique_ptr<SampleBuffer> decodeAudioFd(int, const char** err) { if (err) *err = "stub"; return nullptr; }
+#include <chrono>
+#include <thread>
+// Decoder stub: fd 7777 "decodes" to 1 s of a 220 Hz tone (mono, 48 kHz); anything else fails.
+// Lets the test drive the real worker → registry → pollEvent → assign → play path.
+std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** err) {
+    if (fd != 7777) { if (err) *err = "stub"; return nullptr; }
+    auto b = std::make_unique<SampleBuffer>();
+    b->sampleRate = 48000; b->channels = 1; b->frames = 48000;
+    b->data.resize(48000);
+    for (int i = 0; i < 48000; ++i) b->data[(size_t)i] = 0.5f * std::sin(2.0 * 3.14159265358979 * 220.0 * i / 48000.0);
+    return b;
+}
+static bool waitEvent(AudioEngine& e, double* ev) {
+    for (int i = 0; i < 400; ++i) { if (e.pollEvent(ev)) return true; std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
+    return false;
+}
 
 static int fails = 0;
 #define CHECK(c, ...) do { bool ok_ = (c); char b_[160]; std::snprintf(b_, 160, __VA_ARGS__); \
@@ -27,6 +42,22 @@ static seq::Pattern* synthLoop() {
 int main() {
     double tr[20], ev[10], rec[4];
     float m[26];
+    {   // Sample load path: worker decode → registry → event → assign to a pad → stretch job → event.
+        AudioEngine e;
+        e.loadSampleAsync(7777, 41);
+        double lv[12] = {};
+        const bool got = waitEvent(e, lv);
+        CHECK(got && (int)lv[0] == 41 && lv[1] > 0 && (int64_t)lv[2] == 48000, "a loaded sample comes back with an id and its length");
+        const int sid = (int)lv[1];
+        CHECK(e.assignSample(0, sid), "the loaded sample can be put on a pad");
+        e.stretchSampleAsync(sid, 1.25, 2.0, 42);
+        double sv[12] = {};
+        const bool got2 = waitEvent(e, sv);
+        CHECK(got2 && (int)sv[0] == 42 && sv[1] > 0 && (int)sv[1] != sid, "a KEY MATCH / BPM SYNC render comes back as a new sample");
+        e.loadSampleAsync(-1, 43);
+        double fv[12] = {};
+        CHECK(waitEvent(e, fv) && (int)fv[0] == 43 && fv[1] == 0, "a file that won't decode reports a failure, not a crash");
+    }
     {
         AudioEngine e;
         e.setTempo(120); e.setPattern(1, synthLoop()); e.setPlaying(true);

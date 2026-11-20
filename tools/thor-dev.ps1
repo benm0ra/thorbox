@@ -47,6 +47,12 @@ Log 'Waiting for the Thor (if it asks "Allow USB debugging?", tick Always allow 
 & $adb wait-for-device
 & $adb devices -l | ForEach-Object { if ($_) { Log $_ } }
 
+# ---- crashes since the Thor booted (Android keeps them in a separate buffer, even if nobody was logging) ----
+$crashFile = Join-Path $logDir ('thor-crashes-{0:yyyyMMdd-HHmmss}.txt' -f (Get-Date))
+cmd /c "`"$adb`" logcat -b crash -d > `"$crashFile`" 2>&1"
+$crashLines = @(Get-Content $crashFile | Where-Object { $_ -match 'clamshell|thorbox' }).Count
+Log "Crash buffer saved to thor-logs\$(Split-Path $crashFile -Leaf) ($crashLines lines mention the app)."
+
 # ---- get the newest build: the repo's rolling "dev" pre-release first, else a zip/apk in this folder ----
 $repo = 'benm0ra/thorbox'
 $buildDir = Join-Path $here 'thor-builds'

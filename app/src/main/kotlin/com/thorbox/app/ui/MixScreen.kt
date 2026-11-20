@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navModal
+
 import com.thorbox.app.input.navAdjustable
 
 import androidx.compose.foundation.Canvas
@@ -116,7 +118,7 @@ fun AddTrackSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modi
         Triple(com.thorbox.model.TrackKind.SYNTH, "SYNTH", "Basslines, 808s, leads, keys"),
         Triple(com.thorbox.model.TrackKind.DRUMS, "DRUMS", "A drum machine with its own kit"),
     )
-    Column(modifier.fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
+    Column(modifier.navModal().fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("ADD A TRACK", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp)
@@ -172,7 +174,7 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
     val g = state.groove
     val ch = g.channels.value[t]
     val tracks = state.tracks.value
-    Column(modifier.fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
+    Column(modifier.navModal().fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(12.dp).clip(androidx.compose.foundation.shape.CircleShape).background(kindColor(tracks[t].kind)))

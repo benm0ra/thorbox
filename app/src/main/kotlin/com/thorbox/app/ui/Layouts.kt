@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import com.thorbox.app.AppState
 import com.thorbox.app.ScreenRole
@@ -49,23 +50,16 @@ fun SingleScreenContent(role: ScreenRole, state: AppState) = NavWindow(state, in
 }
 
 /**
- * Registers this window's NAV handle (its FocusManager + root view) for the screen role(s) it shows
- * and provides it to every navClickable / navAdjustable inside.
+ * Tells every control inside which screen it's on (for the NAV cursor) and records the window's
+ * size, so the cursor can hop between the two panels at their facing edges.
  */
 @Composable
 private fun NavWindow(state: AppState, roles: IntArray, content: @Composable () -> Unit) {
-    val fm = androidx.compose.ui.platform.LocalFocusManager.current
-    val view = androidx.compose.ui.platform.LocalView.current
-    val handle = androidx.compose.runtime.remember(fm, view) {
-        com.thorbox.app.input.NavHandle(
-            move = { fm.moveFocus(it) },
-            wake = { view.isFocusable = true; view.isFocusableInTouchMode = true; if (!view.hasFocus()) view.requestFocus() },
-            clear = { fm.clearFocus(force = true) },
-        )
+    val screen = roles.first()
+    androidx.compose.runtime.CompositionLocalProvider(com.thorbox.app.input.LocalNavScreen provides screen) {
+        Box(Modifier.fillMaxSize().then(onSizeChangedModifier(screen))) { content() }
     }
-    androidx.compose.runtime.DisposableEffect(handle, roles.contentToString()) {
-        roles.forEach { state.input.registerNavHandle(it, handle) }
-        onDispose { roles.forEach { state.input.unregisterNavHandle(it, handle) } }
-    }
-    androidx.compose.runtime.CompositionLocalProvider(com.thorbox.app.input.LocalNavHandle provides handle, content = content)
 }
+
+private fun onSizeChangedModifier(screen: Int): Modifier =
+    Modifier.onSizeChanged { com.thorbox.app.input.Nav.screenSize[screen] = androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) }
