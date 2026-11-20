@@ -55,7 +55,9 @@ $apk = $null; $stamp = $null; $label = $null
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $base = "https://github.com/$repo/releases/download/dev"
-    $info = (Invoke-WebRequest -UseBasicParsing -Uri "$base/build.txt" -TimeoutSec 20).Content.Trim() -split "`n"
+    $infoFile = Join-Path $buildDir 'build.txt'       # to a file: PowerShell 5 hands back raw bytes for release assets
+    Invoke-WebRequest -UseBasicParsing -Uri "$base/build.txt" -OutFile $infoFile -TimeoutSec 20
+    $info = @(Get-Content $infoFile | Where-Object { $_.Trim() })
     $sha = $info[0].Trim()
     $stamp = "dev|$sha"
     $label = "dev build $($sha.Substring(0, 7)) ($($info[1].Trim()))"
@@ -108,7 +110,7 @@ if (-not $apk) {
 
 # ---- start the app ----
 & $adb logcat -c 2>&1 | Out-Null
-& $adb shell am start -n $activity 2>&1 | ForEach-Object { Log "$_" }
+& $adb shell am start -S -n $activity 2>&1 | ForEach-Object { Log "$_" }
 Start-Sleep -Seconds 2
 
 # ---- one mirror per screen ----
