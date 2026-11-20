@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.sampler.StretchMode
 import com.thorbox.app.sampler.ChopLogic
 import com.thorbox.app.sampler.ChopMode
 import com.thorbox.model.PlayMode
@@ -110,19 +111,18 @@ private fun MatchBar(state: AppState) {
 @Composable
 private fun StretchChooser(state: AppState, close: () -> Unit) {
     val sm = state.sampler
-    val SM = com.thorbox.app.sampler.StretchMode
     val cur = sm.stretch.value
     val hasBpm = state.sample.collectAsState().value?.bpm != null
-    fun pick(m: com.thorbox.app.sampler.StretchMode, bars: Int = sm.fitBars.intValue) { sm.setStretch(m, bars); close() }
+    fun pick(m: StretchMode, bars: Int = sm.fitBars.intValue) { sm.setStretch(m, bars); close() }
     Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("STRETCH", style = Tb.Label, color = Tb.Tempo, modifier = Modifier.padding(horizontal = 4.dp))
-        HwButton("OFF", Modifier.fillMaxHeight(), active = cur == SM.OFF, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(SM.OFF) }
-        HwButton("SYNC", Modifier.fillMaxHeight(), active = cur == SM.SYNC, enabled = hasBpm, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(SM.SYNC) }
-        HwButton("½×", Modifier.fillMaxHeight(), active = cur == SM.HALF, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(SM.HALF) }
-        HwButton("2×", Modifier.fillMaxHeight(), active = cur == SM.DOUBLE, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(SM.DOUBLE) }
+        HwButton("OFF", Modifier.fillMaxHeight(), active = cur == StretchMode.OFF, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(StretchMode.OFF) }
+        HwButton("SYNC", Modifier.fillMaxHeight(), active = cur == StretchMode.SYNC, enabled = hasBpm, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(StretchMode.SYNC) }
+        HwButton("½×", Modifier.fillMaxHeight(), active = cur == StretchMode.HALF, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(StretchMode.HALF) }
+        HwButton("2×", Modifier.fillMaxHeight(), active = cur == StretchMode.DOUBLE, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(StretchMode.DOUBLE) }
         Text("FIT", style = Tb.Label, color = Tb.Muted, modifier = Modifier.padding(start = 4.dp))
         for (b in intArrayOf(1, 2, 4, 8)) HwButton("$b BAR${if (b == 1) "" else "S"}", Modifier.weight(1f).fillMaxHeight(),
-            active = cur == SM.FIT && sm.fitBars.intValue == b, accent = Tb.Tempo, fontSize = 11, hPad = 4.dp) { pick(SM.FIT, b) }
+            active = cur == StretchMode.FIT && sm.fitBars.intValue == b, accent = Tb.Tempo, fontSize = 11, hPad = 4.dp) { pick(StretchMode.FIT, b) }
         HwButton("✕", Modifier.width(44.dp).fillMaxHeight(), fontSize = 13) { close() }
     }
 }
