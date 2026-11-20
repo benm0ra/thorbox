@@ -212,6 +212,7 @@ object Glossary {
         "REMOVE TRACK" to "Delete this track and its pattern.",
         "CLEAR PATTERN" to "Empty this track's pattern.",
         "LATCH" to "Then tap an effect to keep it on without holding it.",
+        "ALL DRY" to "Every effect off at once, latched ones too.",
         "SAVE LOG" to "Save the app's recent log as a text file in Downloads, to send with a bug report.",
         "SHARE LOG" to "Send the app's recent log to another app (email, chat, Drive).",
         "TILT" to "Lean the Thor to steer the effect you're holding. Shake to roll the dice.",

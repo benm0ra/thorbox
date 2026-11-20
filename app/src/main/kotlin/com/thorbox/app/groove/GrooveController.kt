@@ -502,7 +502,13 @@ class GrooveController(private val app: AppState) {
     val fxX = FloatArray(NativeEngine.Fx.COUNT) { 0.5f }
     val fxY = FloatArray(NativeEngine.Fx.COUNT) { 0.5f }
     private var tiltX = 0f; private var tiltY = 0f
-    fun fxEffX(id: Int) = (fxX[id] + tiltX).coerceIn(0f, 1f)
+    fun fxEffX(id: Int): Float {
+        val x = (fxX[id] + tiltX).coerceIn(0f, 1f)
+        if (id != NativeEngine.Fx.RESONATOR) return x
+        // The resonator rings at a note: snap it into the song's key, so it's always in tune.
+        val note = Scales.snap(resonatorNote(x).roundToInt(), key())
+        return ((note - 36f) / 48f).coerceIn(0f, 1f)
+    }
     fun fxEffY(id: Int) = (fxY[id] + tiltY).coerceIn(0f, 1f)
 
     fun fxDown(id: Int, x: Float, y: Float) {

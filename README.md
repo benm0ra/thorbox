@@ -45,7 +45,7 @@ Synth pages are animated in the spirit of Teenage Engineering's instruments.
   - Note repeat (1/8 → 1/32T, swing-aware, recorded too).
 - **Generators:** the same yellow DICE on every beat grid rolls NOTES (synth: an in-key melody), a BEAT (drums) or a PAD's steps (sampler), with ↶ right beside it. Plus MUTATE, CHANCE (per-step probability for patterns that evolve), SNAP to scale, and 16 levels of undo.
 - **Scales:** auto-follow the sample's detected key, or pick a root plus major/minor/dorian/mixolydian/pentatonic/chromatic.
-- **Punch-in FX:** stutter, filter sweep (LP ◂ ▸ HP), tape stop, crush, vinyl, reverse and trance gate. Hold to engage with XY control, latch to keep on, and L2/R2 act as analog punch-ins.
+- **Punch-in FX (sampler-workstation set):** TONE — filter + drive, DJ isolator, lo-fi · TIME — looper (incl. reverse / 2×), scatter, slicer · SPACE — tape echo, reverb, key-snapped resonator · MEDIA — vinyl, cassette, tape stop / backspin. Hold to engage with XY control (live readout on the pad), latch to keep on, ALL DRY to kill everything; L2/R2 are analog filter / looper punch-ins.
 - **KEYS deck:** 4×4 scale keyboard locked to the sample's detected key (or chromatic), with chord mode, octave shift and glissando. Pads glow from the engine's real sounding notes.
 
 ## Look: liquid glass + visualizer
@@ -110,7 +110,7 @@ Everything can be driven from the Thor's buttons. **Hold SELECT** to see this ma
 | **Y** | reset pitch | reset page |
 | **START** | play/stop | same |
 | **L1 (hold)** | note repeat | note repeat |
-| **L2 / R2** | analog filter / stutter punch-in | same |
+| **L2 / R2** | analog filter / looper punch-in | same |
 
 **DRM view (drum synth):** D-pad ←/→ step · ↑/↓ sound · A toggle step · R1 hold = play the sound · sticks = the 4 encoders · X dice beat · Y undo · L3 next kit · R3 dice kit.
 **Synth presets:** L3 = next preset · R3 = DICE a new sound.
@@ -192,7 +192,7 @@ app/
 
 ## Performance
 
-- **Audio:** worst case is 8 synth voices, a dense 2 × 400-event pattern with ratchets and p-locks, and all 7 punch-in FX. That uses about **1% of the real-time budget on a desktop CPU**, so expect roughly 3–5% on the Thor's cores. Measure it with `tools/bench.sh`.
+- **Audio:** worst case is 8 synth voices, a dense 2 × 400-event pattern with ratchets and p-locks, and all 12 punch-in FX. That uses about **1% of the real-time budget on a desktop CPU**, so expect roughly 3–5% on the Thor's cores. Measure it with `tools/bench.sh`.
   - The callback never allocates, locks or logs.
   - FFTs, time-stretching, decoding and pattern building all run off the audio thread.
 - **UI:**

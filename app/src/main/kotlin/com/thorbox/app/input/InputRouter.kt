@@ -314,7 +314,7 @@ class InputRouter(private val state: AppState) {
         val r2 = maxOf(e.getAxisValue(MotionEvent.AXIS_RTRIGGER), e.getAxisValue(MotionEvent.AXIS_GAS))
         if (abs(l2 - lastL2) > 0.02f || abs(r2 - lastR2) > 0.02f) {
             analogPunch(com.thorbox.engine.NativeEngine.Fx.FILTER, lastL2, l2) { p -> 0.5f - 0.5f * p }   // deeper low-pass
-            analogPunch(com.thorbox.engine.NativeEngine.Fx.STUTTER, lastR2, r2) { p -> 0.15f + 0.85f * p } // shorter slices
+            analogPunch(com.thorbox.engine.NativeEngine.Fx.LOOPER, lastR2, r2) { p -> 0.15f + 0.85f * p } // shorter slices
             lastL2 = l2; lastR2 = r2
             state.lastInput.value = "L2 %.2f  R2 %.2f".format(l2, r2)
         }

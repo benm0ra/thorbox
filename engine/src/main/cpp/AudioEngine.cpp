@@ -213,10 +213,11 @@ void AudioEngine::getTransport(double* out) {
     out[12] = mTelFx.load(std::memory_order_relaxed);
     out[13] = (double)mTelPads.load(std::memory_order_relaxed);
     out[14] = mTelPlayPad.load(std::memory_order_relaxed);
-    out[15] = 0;
+    out[15] = mTelEchoTail.load(std::memory_order_relaxed);   // FX tails (echo / reverb) for the pads
+
     out[16] = 0; out[17] = 0;
     out[18] = (double)mTelDrums.load(std::memory_order_relaxed);
-    out[19] = 0;
+    out[19] = mTelRevTail.load(std::memory_order_relaxed);
 }
 
 bool AudioEngine::drumTrigger(int track, int slot, float vel) {
@@ -795,6 +796,8 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
     mTelBpm.store(mSeq.bpm(), std::memory_order_relaxed);
     mTelSwing.store(mSeq.swing(), std::memory_order_relaxed);
     mTelFx.store(mFx.activeMask(), std::memory_order_relaxed);
+    mTelEchoTail.store(mFx.echoTail(), std::memory_order_relaxed);
+    mTelRevTail.store(mFx.reverbTail(), std::memory_order_relaxed);
     for (int k = 0; k < kStrips; ++k) {
         atomicMax(mMeters[2 * k], mStrips[k].peakL); atomicMax(mMeters[2 * k + 1], mStrips[k].peakR);
         // keep the deepest ducking until read (min): stored as 1 - g so atomicMax works

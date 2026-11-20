@@ -89,7 +89,7 @@ public:
     bool fxAllOff();
     // Recorded live hits (main thread). Returns 0 none, 1 note-on, 2 note-off; out = {track, note, vel, tick}.
     int pollRecord(double* out4);
-    void getTransport(double* out20);   // [12] = active punch-in FX bitmask, [16..17] drum meters, [18] drum activity mask
+    void getTransport(double* out20);   // [12] = active punch-in FX bitmask, [15]/[19] echo/reverb tails, [16..17] drum meters, [18] drum activity mask
     // Visualizer (main thread): FFT of the latest master output. energy3 = bass, mid, treble (0..1).
     void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy3);
 
@@ -202,6 +202,7 @@ private:
     std::atomic<double> mTelTick{0.0};
     std::atomic<int32_t> mTelFlags{0};       // bit0 playing, bit1 recording, bit2 metronome
     std::atomic<uint32_t> mTelFx{0};
+    std::atomic<float> mTelEchoTail{0.f}, mTelRevTail{0.f};
     std::atomic<uint32_t> mTelPads{0};       // bitmask of pads with a sounding voice
     std::atomic<int32_t> mTelPlayPad{-1};    // pad of the newest voice (for the chop playhead)
     std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f};

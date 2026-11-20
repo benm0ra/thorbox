@@ -59,7 +59,6 @@ tour() {
     adb shell input keyevent KEYCODE_$k; done
   adb exec-out screencap -p > "$OUT/$name-nav.png" || true
   adb shell am start -n $PKG/$ACT --ez nav false >/dev/null; sleep 1
-  # HAZE + its pixel film, then release (the smoke tail keeps drawing for a few seconds)
   # Sampler end to end: the demo break goes through load → analysis → auto-chop → pads, then plays.
   adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS --ez demo true >/dev/null; sleep 5
   adb exec-out screencap -p > "$OUT/$name-sampler-demo.png" || true
@@ -75,8 +74,8 @@ tour() {
   adb shell am start -n $PKG/$ACT --ez meters false --ez mic true >/dev/null; sleep 2
   adb exec-out screencap -p > "$OUT/$name-mic.png" || true
   adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
-  adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3
-  adb exec-out screencap -p > "$OUT/$name-haze.png" || true
+  adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3      # REVERB engaged, then its tail
+  adb exec-out screencap -p > "$OUT/$name-reverb.png" || true
   adb shell am start -n $PKG/$ACT --ei fx -1 >/dev/null; sleep 3
   for th in cyberpunk pastel terminal grayscale studio genesis; do        # every theme on the busiest screens
     for v in DRUM SYNTH; do adb shell am start -n $PKG/$ACT --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
@@ -108,6 +107,10 @@ shots() {
   adb exec-out screencap -p > "$d/drums-dust.png"
   adb shell am start -n $PKG/$ACT --ei drumpage 0 >/dev/null; sleep 1
   for v in SYNTH SEQ MIX; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
+  adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"
+  adb shell am start -n $PKG/$ACT --ei fx 0 >/dev/null; sleep 0.3
+  adb shell am start -n $PKG/$ACT --ei fx 8 >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/fx-on.png"
+  adb shell am start -n $PKG/$ACT --ei fx -1 --es deck PADS >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
   adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"
