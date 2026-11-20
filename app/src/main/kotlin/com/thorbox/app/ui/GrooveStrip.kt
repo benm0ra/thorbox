@@ -33,7 +33,8 @@ fun GrooveStrip(state: AppState, track: Int, modifier: Modifier = Modifier, heig
         if (showLabel) Text("GROOVE", color = Tb.Muted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp,
             modifier = Modifier.padding(horizontal = 4.dp))
         GrooveTemplate.entries.forEach { t ->
-            HwButton(t.label, Modifier.weight(1f).fillMaxHeight(), active = feel.template == t, accent = Tb.Key, minHeight = 28.dp, fontSize = 9, hPad = 2.dp) {
+            // Width follows the name, so STRAIGHT and BOOM BAP don't get cut while TRAP has room to spare.
+            HwButton(t.label, Modifier.weight(t.label.length.coerceAtLeast(4).toFloat()).fillMaxHeight(), active = feel.template == t, accent = Tb.Key, minHeight = 28.dp, fontSize = 9, hPad = 2.dp) {
                 g.setFeel(track, feel.copy(template = t))
                 Info.title.value = t.label; Info.body.value = t.blurb; Info.stamp.intValue++
             }
