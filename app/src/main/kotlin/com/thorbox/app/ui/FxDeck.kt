@@ -354,7 +354,7 @@ fun LevelsStrip(state: AppState, drums: Boolean, modifier: Modifier = Modifier) 
             letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 4.dp))
         com.thorbox.app.levels.LevelMode.entries.filter { drums || !it.drumsOnly }.forEach { m ->
             HwButton(m.label, Modifier.weight(1f).fillMaxHeight(), active = lm == m && m != com.thorbox.app.levels.LevelMode.OFF,
-                accent = Tb.Key, minHeight = 32.dp, fontSize = 11, hPad = 2.dp) { state.setLevels(m) }
+                accent = Tb.Key, minHeight = 32.dp, fontSize = 10, hPad = 1.dp) { state.setLevels(m) }
         }
         if (lm != com.thorbox.app.levels.LevelMode.OFF) Text(
             if (drums) state.drums.kit.value.voices.getOrNull(src)?.name ?: "" else "PAD ${src + 1}",
@@ -370,7 +370,7 @@ fun RepeatStrip(state: AppState, modifier: Modifier = Modifier) {
     Row(modifier.height(44.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         HoldButton("RPT", g.repeatHeld.value, Tb.EncOrange, Modifier.width(64.dp).fillMaxHeight()) { g.setRepeatHeld(it) }
         RepeatRate.entries.forEach { r ->
-            HwButton(r.label, Modifier.weight(1f).fillMaxHeight(), active = r == rate, accent = Tb.EncWhite, fontSize = 11) { g.setRepeatRate(r) }
+            HwButton(r.label, Modifier.weight(1f).fillMaxHeight(), active = r == rate, accent = Tb.EncWhite, fontSize = 11, hPad = 1.dp) { g.setRepeatRate(r) }
         }
     }
 }

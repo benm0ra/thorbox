@@ -86,19 +86,24 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
                 if (s == 8 && lm == com.thorbox.app.levels.LevelMode.TUNE || s == 11 && lm == com.thorbox.app.levels.LevelMode.DECAY)
                     drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(2.dp.toPx()))     // "as it is"
                 drawTextSafe(tm, com.thorbox.app.levels.Levels.label(lm, s), o + Offset(9.dp.toPx(), 7.dp.toPx()), nameStyle)
-                drawTextSafe(tm, "L${s + 1}", Offset(o.x + w - 9.dp.toPx() - tm.measure("L${s + 1}", numStyle).size.width, o.y + 8.dp.toPx()), numStyle)
+                drawTextSafe(tm, "L${s + 1}", Offset(o.x + w - 8.dp.toPx() - tm.measure("L${s + 1}", numStyle).size.width, o.y + h - 20.dp.toPx()), numStyle)
                 continue
             }
             val c = drumColor(s)
             drawRoundRect(c.copy(alpha = 0.62f + 0.38f * maxOf(pop, dc.levels[s].coerceIn(0f, 1f))), o, Size(w, h), r)
             if (s == dc.selected.intValue) drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(3.dp.toPx()))
             val v = voices.getOrNull(s) ?: continue
-            drawTextSafe(tm, v.name, o + Offset(9.dp.toPx(), 7.dp.toPx()), nameStyle)
-            drawTextSafe(tm, "${s + 1}", Offset(o.x + w - 9.dp.toPx() - tm.measure("${s + 1}", numStyle).size.width, o.y + 8.dp.toPx()), numStyle)
-            if (!v.name.uppercase().contains(v.model.label.uppercase())) drawTextSafe(tm, v.model.label, o + Offset(9.dp.toPx(), 24.dp.toPx()), modelStyle)
+            // name top-left (steps down a size if it's long), pad number bottom-right: they never meet
+            val room = w - 18.dp.toPx()
+            val ns = if (tm.measure(v.name, nameStyle).size.width > room) nameStyle.copy(fontSize = 11.sp) else nameStyle
+            drawTextSafe(tm, v.name, o + Offset(9.dp.toPx(), 7.dp.toPx()), ns)
+            val num = "${s + 1}"
+            drawTextSafe(tm, num, Offset(o.x + w - 8.dp.toPx() - tm.measure(num, numStyle).size.width, o.y + h - 20.dp.toPx()), numStyle)
+            if (!v.name.uppercase().contains(v.model.label.uppercase()) && tm.measure(v.model.label, modelStyle).size.width < room)
+                drawTextSafe(tm, v.model.label, o + Offset(9.dp.toPx(), 24.dp.toPx()), modelStyle)
             // decay bar along the bottom: a quick read of the sound's length
             val frac = (kotlin.math.cbrt(((v.decayMs - 5f) / 3995f).coerceIn(0f, 1f)))
-            drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(o.x + 9.dp.toPx(), o.y + h - 10.dp.toPx()), Size((w - 18.dp.toPx()) * frac, 3.dp.toPx()), CornerRadius(2.dp.toPx()))
+            drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(o.x + 9.dp.toPx(), o.y + h - 10.dp.toPx()), Size((w - 40.dp.toPx()).coerceAtLeast(4f) * frac, 3.dp.toPx()), CornerRadius(2.dp.toPx()))
         }
     }
 }
