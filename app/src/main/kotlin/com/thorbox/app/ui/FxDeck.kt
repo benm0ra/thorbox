@@ -112,11 +112,10 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
             HwButton("XY", Modifier.fillMaxHeight(), active = xyMode.value, enabled = latchedNow != 0, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12) {
                 xyMode.value = !xyMode.value; if (xyMode.value) latchMode.value = false }
             Text(when {
-                    xyMode.value -> "one finger moves them all"
-                    latchMode.value -> "tap pads to latch"
-                    state.tilt.enabled.value -> "hold + lean"
-                    latchedNow != 0 -> "XY: steer the latched ones"
-                    else -> "hold · slide"
+                    xyMode.value -> ""
+                    latchMode.value -> "tap to latch"
+                    state.tilt.enabled.value -> "lean"
+                    else -> ""
                 },
                 color = Tb.Muted, fontSize = 11.sp, fontFamily = Tb.Mono, maxLines = 1,
                 modifier = Modifier.weight(1f).padding(start = 6.dp, top = 12.dp))
@@ -327,7 +326,9 @@ private fun LatchedXY(state: AppState, modifier: Modifier) {
             drawLine(Tb.Text.copy(alpha = 0.5f), Offset(pad, py), Offset(pad + fw, py), hair)
             drawRect(Tb.Text, Offset(px - 6.dp.toPx(), py - 6.dp.toPx()), Size(12.dp.toPx(), 12.dp.toPx()), style = Stroke(1.5f * hair))
         } else {
-            val hint = "touch + slide: all ${ids.size} move together · tap a name to unlatch"
+            var hint = "touch + slide: all ${ids.size} move together · tap a name to unlatch"
+            if (tm.measure(hint, readStyle).size.width > size.width - 2 * pad) hint = "slide: all ${ids.size} move · tap a name to unlatch"
+            if (tm.measure(hint, readStyle).size.width > size.width - 2 * pad) hint = "slide to steer all ${ids.size}"
             val m = tm.measure(hint, readStyle)
             drawTextSafe(tm, hint, Offset((size.width - m.size.width) / 2f, size.height - pad - m.size.height), readStyle)
         }

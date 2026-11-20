@@ -261,9 +261,12 @@ private fun ChopControls(state: AppState) {
         }
         HoldButton("▶", false, Tb.Good, Modifier.width(52.dp).fillMaxHeight()) { sm.togglePreview(it) }
     }
-    Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        val padColor = Tb.Pads[sm.selected.intValue % Tb.Pads.size]
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // Wide (the Thor's top screen): one row. Narrow (single-screen phones / emulator): pitch on one
+    // row, WARP · NORMALIZE · PLAY on the next, so nothing is pushed off the edge.
+    val narrow = maxWidth < 720.dp
+    val padColor = Tb.Pads[sm.selected.intValue % Tb.Pads.size]
+    @Composable fun pitchGroup() {
         Text("PAD ${sm.selected.intValue + 1}", color = padColor, fontWeight = FontWeight.Black, fontSize = 15.sp,
             modifier = Modifier.padding(horizontal = 8.dp))
         Text("PITCH", style = Tb.Label, color = Tb.Muted)
@@ -271,6 +274,8 @@ private fun ChopControls(state: AppState) {
         Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp,
             modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         HwButton("+", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
+    }
+    @Composable fun RowScopeTools(scope: androidx.compose.foundation.layout.RowScope) = with(scope) {
         // WARP: pitch this chop without it speeding up (MPC-style); off = turntable pitch (faster + higher).
         HwButton(if (pad.warp) "WARP ON" else "WARP", Modifier.width(96.dp).fillMaxHeight(), active = pad.warp, accent = Tb.Tempo, fontSize = 12) {
             state.sampler.toggleWarp(state.sampler.selected.intValue)
@@ -284,6 +289,12 @@ private fun ChopControls(state: AppState) {
         Text("PLAY", style = Tb.Label, color = Tb.Muted)
         HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.width(120.dp).fillMaxHeight(),
             active = true, accent = padColor, fontSize = 12) { state.cyclePlayMode() }
+    }
+    if (narrow) androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) { pitchGroup() }
+        Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) { RowScopeTools(this) }
+    } else Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically) { pitchGroup(); RowScopeTools(this) }
     }
     }
 }
