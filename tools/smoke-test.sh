@@ -57,7 +57,7 @@ tour() {
   adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3
   adb exec-out screencap -p > "$OUT/$name-haze.png" || true
   adb shell am start -n $PKG/$ACT --ei fx -1 >/dev/null; sleep 3
-  for th in cyberpunk pastel terminal grayscale studio; do        # every theme on the busiest screens
+  for th in cyberpunk pastel terminal grayscale studio genesis; do        # every theme on the busiest screens
     for v in DRUM SYNTH; do adb shell am start -n $PKG/$ACT --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
     adb exec-out screencap -p > "$OUT/$name-theme-$th.png" || true
   done

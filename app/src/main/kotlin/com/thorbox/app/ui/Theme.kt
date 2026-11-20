@@ -95,8 +95,20 @@ object Themes {
         encBlue = Color(0xFFFFFFFF), encGreen = Color(0xFFBDBDBD), encWhite = Color(0xFF8C8C8C), encOrange = Color(0xFFDDDDDD),
         aurora = listOf(Color(0xFF5A5A5A), Color(0xFF3C3C3C), Color(0xFF7A7A7A), Color(0xFF2A2A2A)),
     )
-    val all = listOf(Studio, Cyberpunk, Pastel, Terminal, Grayscale)
-    fun byId(id: String?) = all.firstOrNull { it.id == id } ?: Studio
+    /** The brand look: deep purple with neon green (and one hot orange), like the app icon. */
+    val Genesis = Palette(
+        "genesis", "GENESIS", light = false,
+        void = Color(0xFF0E0718), bg = Color(0xFF150A24), panel = Color(0xFF21103A), raised = Color(0xFF2E1750), line = Color(0xFF432470),
+        text = Color(0xFFF1EAFF), muted = Color(0xFFA48BD1), dim = Color(0xFF5E4A85), ink = Color(0xFF120820),
+        pads = listOf(Color(0xFF9DFF3C), Color(0xFFB07CFF), Color(0xFFFF7A1A), Color(0xFF3CFFC2),
+            Color(0xFFE04BFF), Color(0xFFD4FF3C), Color(0xFF6E8BFF), Color(0xFFFF3C6E)),
+        key = Color(0xFF9DFF3C), tempo = Color(0xFF3CFFC2), good = Color(0xFF9DFF3C), warn = Color(0xFFFF7A1A),
+        encBlue = Color(0xFF8C6BFF), encGreen = Color(0xFF9DFF3C), encWhite = Color(0xFFF1EAFF), encOrange = Color(0xFFFF7A1A),
+        aurora = listOf(Color(0xFF7C3AED), Color(0xFF9DFF3C), Color(0xFF3CFFC2), Color(0xFFB07CFF)),
+    )
+    val all = listOf(Genesis, Studio, Cyberpunk, Pastel, Terminal, Grayscale)
+    /** New installs start on the brand theme; a theme you picked is remembered. */
+    fun byId(id: String?) = all.firstOrNull { it.id == id } ?: Genesis
 }
 
 /**
@@ -105,7 +117,7 @@ object Themes {
  * palette: `Black` = ink on accents, `Void` = the deepest background.
  */
 object Tb {
-    var palette by mutableStateOf(Themes.Studio)
+    var palette by mutableStateOf(Themes.Genesis)
 
     val Void get() = palette.void
     val Black get() = palette.ink
