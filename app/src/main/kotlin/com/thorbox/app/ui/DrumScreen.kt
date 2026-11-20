@@ -109,9 +109,10 @@ fun DrumScreen(state: AppState) {
         }
 
         GrooveStrip(state, state.drums.track, height = 34.dp)
+        TrackLanes(state, state.drums.track, height = 30.dp)
 
         // ---- encoders ----
-        Row(Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().height(92.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             knobs.forEachIndexed { i, k ->
                 Encoder(
                     label = k.label, display = k.format(voice), value = k.get(voice), color = Tb.enc(k.color), active = dragging.intValue == i,

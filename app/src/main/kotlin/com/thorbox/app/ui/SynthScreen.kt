@@ -125,8 +125,11 @@ fun SynthScreen(state: AppState) {
             }
         }
 
+        // ---- this track's automation, right above the knobs that write it ----
+        TrackLanes(state, state.synthTrack.intValue)
+
         // ---- encoders ----
-        Row(Modifier.fillMaxWidth().height(112.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().height(104.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             knobs.forEachIndexed { i, knob ->
                 Encoder(
                     label = knob.label, display = knob.format(patch), value = knob.get(patch),

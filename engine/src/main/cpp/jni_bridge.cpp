@@ -97,9 +97,10 @@ JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sa
     env->SetLongArrayRegion(out, 0, n, j);
     return n;
 }
-JNIEXPORT void JNICALL JNI_FN(nativeStretchSample)(JNIEnv*, jobject, jint sampleId, jdouble tempo, jdouble semis, jint requestId) {
+JNIEXPORT void JNICALL JNI_FN(nativeStretchSample)(JNIEnv*, jobject, jint sampleId, jdouble tempo, jdouble semis, jint requestId, jlong cropStart, jlong cropEnd) {
     if (!gEngine || sampleId <= 0 || !std::isfinite(tempo) || !std::isfinite(semis) || tempo < 0.25 || tempo > 4.0 || semis < -24 || semis > 24) return;
-    gEngine->stretchSampleAsync(sampleId, tempo, semis, requestId);
+    if (cropStart < 0 || cropEnd < 0 || (cropEnd != 0 && cropEnd <= cropStart)) return;   // the worker also checks against the buffer
+    gEngine->stretchSampleAsync(sampleId, tempo, semis, requestId, (int64_t)cropStart, (int64_t)cropEnd);
 }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeAssignSample)(JNIEnv*, jobject, jint pad, jint sampleId) {
     return gEngine && sampleId >= 0 && gEngine->assignSample(pad, sampleId);

@@ -52,19 +52,13 @@ fun AutoSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modifier
             HwButton("✕", Modifier.padding(start = 6.dp).width(44.dp), minHeight = 34.dp, fontSize = 14, onClick = onDone)
         }
         if (lanes.isEmpty()) {
-            Text("Nothing recorded yet.\n\n1  Turn on REC (● or tap SELECT)\n2  Press play\n3  Move any synth knob, mixer fader / pan, or punch in an FX\n\nYour moves loop with the pattern. Touch a control while it plays to take over.",
+            Text("Nothing recorded yet.\n\n1  Turn on REC (● or tap SELECT)\n2  Press play\n3  Move any synth or drum knob, a mixer fader / pan / PUMP, a pad's pitch, or punch in an FX\n\nYour moves loop with the pattern. Touch a control while it plays to take over.",
                 color = Tb.Muted, fontSize = 13.sp)
         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(lanes.keys.sorted()) { key ->
                 val pts = lanes[key].orEmpty()
-                val isFx = key.startsWith("fx")
-                val len = if (isFx) g.clips.value.maxOf { it.lengthTicks } else g.loopLen(key.substringBefore(':').drop(1).toInt())
-                val (lo, hi) = when {
-                    key.endsWith(":vol") -> -60f to 6f
-                    key.endsWith(":pan") -> -1f to 1f
-                    isFx && !key.endsWith(":y") -> 0f to 2f
-                    else -> 0f to 1f
-                }
+                val len = g.laneLen(key)
+                val (lo, hi) = com.thorbox.app.groove.Automation.range(key)
                 Row(Modifier.fillMaxWidth().height(44.dp).background(Tb.Panel, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(g.auto.label(key, { tracks.getOrNull(it)?.name ?: "T${it + 1}" }, ::knobName), color = Tb.Text, fontSize = 11.sp,

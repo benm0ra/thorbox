@@ -294,9 +294,9 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
                     samplers[t] = SamplerDto(
                         file = null, sampleName = sm.info?.name,
                         regions = sm.regions.value.flatMap { listOf(it.start, it.end) },
-                        pads = sm.pads.value.map { PadDto(it.pitch, it.fine, it.mode.name, it.gainDb) },
+                        pads = sm.pads.value.map { PadDto(it.pitch, it.fine, it.mode.name, it.gainDb, it.warp) },
                         chopMode = sm.chopMode.value.name, sensitivity = sm.sensitivity.floatValue, equalCount = sm.equalCount.intValue,
-                        keyMatch = sm.keyMatch.value, bpmSync = sm.bpmSync.value)
+                        keyMatch = sm.keyMatch.value, bpmSync = sm.bpmSync, stretch = sm.stretch.value.name, fitBars = sm.fitBars.intValue)
                 }
                 TrackKind.EMPTY -> Unit
             }

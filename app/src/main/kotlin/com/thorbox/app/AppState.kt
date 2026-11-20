@@ -319,8 +319,14 @@ class AppState(private val app: Application) {
     fun padUp(pad: Int) { _padHeld.value = false; sampler.padUp(pad) }
 
     private fun sel() = sampler.selected.intValue
-    fun setPitch(semis: Int, cents: Int = sampler.pads.value[sel()].fine) = sampler.updatePad(sel()) { it.copy(pitch = semis, fine = cents) }
-    fun nudgeSemis(delta: Int) = sampler.updatePad(sel()) { it.copy(pitch = it.pitch + delta) }
+    fun setPitch(semis: Int, cents: Int = sampler.pads.value[sel()].fine) { sampler.updatePad(sel()) { it.copy(pitch = semis, fine = cents) }; recordPadPitch() }
+    fun nudgeSemis(delta: Int) { sampler.updatePad(sel()) { it.copy(pitch = it.pitch + delta) }; recordPadPitch() }
+    /** REC + play: pad pitch changes write a lane (step values, like a sampler's pitch automation). */
+    private fun recordPadPitch() {
+        val t = samplerTrack.intValue
+        groove.auto.touch(com.thorbox.app.groove.Automation.padPitchKey(t, sel()), groove.autoArmed(), groove.transport[0], groove.loopLen(t),
+            sampler.pads.value[sel()].pitch.toFloat())
+    }
     fun resetPitch() = sampler.updatePad(sel()) { it.copy(pitch = 0, fine = 0) }
     fun setPlayMode(mode: PlayMode) = sampler.updatePad(sel()) { it.copy(mode = mode) }
     fun cyclePlayMode() = sampler.updatePad(sel()) { it.copy(mode = PlayMode.entries[(it.mode.ordinal + 1) % PlayMode.entries.size]) }
@@ -463,9 +469,12 @@ class AppState(private val app: Application) {
                     sm.pendingRestore = com.thorbox.app.sampler.SamplerController.Restore(
                         regions = sd.regions.chunked(2).filter { it.size == 2 }.map { com.thorbox.app.sampler.Region(it[0], it[1]) },
                         pads = sd.pads.map { pd -> com.thorbox.app.sampler.PadSlot(pd.pitch, pd.fine,
-                            runCatching { com.thorbox.model.PlayMode.valueOf(pd.mode) }.getOrDefault(com.thorbox.model.PlayMode.ONE_SHOT), pd.gainDb) },
+                            runCatching { com.thorbox.model.PlayMode.valueOf(pd.mode) }.getOrDefault(com.thorbox.model.PlayMode.ONE_SHOT), pd.gainDb, pd.warp) },
                         chopMode = runCatching { com.thorbox.app.sampler.ChopMode.valueOf(sd.chopMode) }.getOrDefault(com.thorbox.app.sampler.ChopMode.AUTO),
-                        sensitivity = sd.sensitivity, equalCount = sd.equalCount, keyMatch = sd.keyMatch, bpmSync = sd.bpmSync)
+                        sensitivity = sd.sensitivity, equalCount = sd.equalCount, keyMatch = sd.keyMatch,
+                        stretch = runCatching { com.thorbox.app.sampler.StretchMode.valueOf(sd.stretch) }
+                            .getOrDefault(if (sd.bpmSync) com.thorbox.app.sampler.StretchMode.SYNC else com.thorbox.app.sampler.StretchMode.OFF),
+                        fitBars = sd.fitBars)
                     load(Uri.fromFile(file), sd.sampleName ?: file.nameWithoutExtension, t)
                 }
                 else -> Unit
@@ -738,7 +747,11 @@ class AppState(private val app: Application) {
     private fun onEngineEvent(e: NativeEngine.Event) {
         when (e) {
             is NativeEngine.Event.SampleLoaded -> {
-                samplers.firstOrNull { it?.isStretchResult(e.requestId) == true }?.let { it.onStretchLoaded(e.requestId, e.sampleId, e.frames); return }
+                if (e.requestId >= 1_000_000) {           // a render (stretch / WARP): back to the track that asked
+                    samplers.firstOrNull { it?.ownsRequest(e.requestId) == true }?.onStretchLoaded(e.requestId, e.sampleId, e.frames)
+                        ?: NativeEngine.unloadSample(e.sampleId)
+                    return
+                }
                 val name = pendingNames.remove(e.requestId) ?: "sample"
                 val track = pendingTargets.remove(e.requestId) ?: samplerTrack.intValue
                 val source = pendingSources.remove(e.requestId)
@@ -764,7 +777,10 @@ class AppState(private val app: Application) {
                 if (BuildConfig.DEBUG) Log.d(TAG, "loaded $name: ${e.frames} frames @${e.sampleRate}, key=${_sample.value?.key?.label()}, bpm=${e.bpm}")
             }
             is NativeEngine.Event.LoadFailed -> {
-                samplers.firstOrNull { it?.isStretchResult(e.requestId) == true }?.let { it.onStretchFailed(e.requestId); _error.value = "Couldn't re-render the sample"; return }
+                if (e.requestId >= 1_000_000) {
+                    samplers.firstOrNull { it?.ownsRequest(e.requestId) == true }?.onStretchFailed(e.requestId)
+                    _error.value = "Couldn't re-render the sample"; return
+                }
                 val name = pendingNames.remove(e.requestId)
                 pendingSources.remove(e.requestId)
                 pendingTargets.remove(e.requestId)?.let { samplerFor(it).onRestoreFailed() }

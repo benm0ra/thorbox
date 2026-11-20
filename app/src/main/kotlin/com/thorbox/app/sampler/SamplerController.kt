@@ -16,7 +16,15 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /** One of the 16 pads: which slice it plays and how. */
-data class PadSlot(val pitch: Int = 0, val fine: Int = 0, val mode: PlayMode = PlayMode.ONE_SHOT, val gainDb: Float = 0f)
+/** [warp]: pitch changes keep the slice's length and timing (rendered per pad) instead of speeding it up like a turntable. */
+data class PadSlot(val pitch: Int = 0, val fine: Int = 0, val mode: PlayMode = PlayMode.ONE_SHOT, val gainDb: Float = 0f, val warp: Boolean = false)
+
+/**
+ * How the whole sample is time-stretched (pitch kept): OFF, SYNC (follow the project tempo),
+ * HALF / DOUBLE time, or FIT it to a whole number of bars (works without a detected BPM, e.g. a
+ * field recording).
+ */
+enum class StretchMode(val label: String) { OFF("OFF"), SYNC("SYNC"), HALF("HALF-TIME"), DOUBLE("DOUBLE-TIME"), FIT("FIT") }
 
 enum class ChopMode { AUTO, EQUAL, LAZY }
 
@@ -43,7 +51,10 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     val sensitivity = mutableFloatStateOf(0.6f)
     val equalCount = mutableIntStateOf(16)
     val keyMatch = mutableStateOf(false)
-    val bpmSync = mutableStateOf(false)
+    val stretch = mutableStateOf(StretchMode.OFF)
+    val fitBars = mutableIntStateOf(2)
+    /** Back-compat for projects / callers that think in "BPM SYNC on/off". */
+    val bpmSync get() = stretch.value == StretchMode.SYNC
     val lazyRunning = mutableStateOf(false)
     val rendering = mutableStateOf(false)                       // a stretch is in progress
     private val lazyMarkers = ArrayList<Long>()
@@ -53,7 +64,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
 
     /** Saved chop/pad state to apply when a project's sample finishes loading (instead of auto-chopping). */
     class Restore(val regions: List<Region>, val pads: List<PadSlot>, val chopMode: ChopMode, val sensitivity: Float,
-                  val equalCount: Int, val keyMatch: Boolean, val bpmSync: Boolean)
+                  val equalCount: Int, val keyMatch: Boolean, val stretch: StretchMode, val fitBars: Int)
     var pendingRestore: Restore? = null
     fun onRestoreFailed() { pendingRestore = null }
 
@@ -65,7 +76,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         info = null; peaks = null; sourceUri = null; pendingRestore = null
         regions.value = emptyList(); pads.value = List(ChopLogic.PADS) { PadSlot() }
         chopMode.value = ChopMode.AUTO; sensitivity.floatValue = 0.6f; equalCount.intValue = 16
-        keyMatch.value = false; bpmSync.value = false
+        keyMatch.value = false; stretch.value = StretchMode.OFF
         assignAll()
     }
 
@@ -74,7 +85,13 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     var playingId = 0; private set                               // what the pads point at now
     var playingFrames = 0L; private set
     private var pendingStretch = -1
-    private var nextReq = 1_000_000                              // stretch request ids (loads use small ids)
+    // Stretch request ids: per track, so a render always goes back to the track that asked (loads use small ids).
+    private var nextReq = 1_000_000 + track * 100_000
+    private val warpPending = HashMap<Int, Int>()                // request id → pad
+    private val warpIds = IntArray(ChopLogic.PADS)               // per-pad rendered slice (0 = none)
+    private val warpFrames = LongArray(ChopLogic.PADS)
+    /** True for render results this track asked for (whole-sample stretch or a pad's WARP slice). */
+    fun ownsRequest(id: Int) = id == pendingStretch || warpPending.containsKey(id)
 
     // ================= loading =================
 
@@ -84,7 +101,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         val oldOriginal = originalId
         originalId = sampleId; originalFrames = frames
         playingId = sampleId; playingFrames = frames
-        keyMatch.value = false; bpmSync.value = false
+        keyMatch.value = false; stretch.value = StretchMode.OFF
         val r = pendingRestore; pendingRestore = null
         if (r != null) {
             // Opening a project: put back its slices, pads and settings instead of auto-chopping.
@@ -96,25 +113,92 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         assignAll()
         if (oldOriginal != 0 && oldOriginal != sampleId) NativeEngine.unloadSample(oldOriginal)
         if (r == null || regions.value.isEmpty()) rechop()
-        if (r != null && (r.keyMatch || r.bpmSync)) { keyMatch.value = r.keyMatch; bpmSync.value = r.bpmSync; rerender() }
+        if (r != null && (r.keyMatch || r.stretch != StretchMode.OFF)) {
+            keyMatch.value = r.keyMatch; stretch.value = r.stretch; fitBars.intValue = r.fitBars.coerceIn(1, 16); rerender()
+        } else renderWarps()
     }
 
     fun isStretchResult(requestId: Int) = requestId >= 1_000_000
 
     fun onStretchLoaded(requestId: Int, sampleId: Int, frames: Long) {
+        warpPending.remove(requestId)?.let { pad -> onWarpLoaded(pad, sampleId, frames); return }
         if (requestId != pendingStretch) { NativeEngine.unloadSample(sampleId); return }   // superseded
         pendingStretch = -1; rendering.value = false
         val old = playingId
         playingId = sampleId; playingFrames = frames
         assignAll()
         if (old != originalId && old != 0) NativeEngine.unloadSample(old)
+        renderWarps()                                        // slices come from the new render
     }
 
-    fun onStretchFailed(requestId: Int) { if (requestId == pendingStretch) { pendingStretch = -1; rendering.value = false } }
+    fun onStretchFailed(requestId: Int) {
+        warpPending.remove(requestId)?.let { return }
+        if (requestId == pendingStretch) { pendingStretch = -1; rendering.value = false }
+    }
+
+    // ================= per-pad WARP =================
+
+    /** Turn WARP on/off for pad [i]: on, its pitch no longer changes its length. */
+    fun toggleWarp(i: Int) { updatePad(i) { it.copy(warp = !it.warp) } }
+
+    /** (Re)render every warped pad's slice at its pitch, from whatever the pads currently play. */
+    private var warpJob: kotlinx.coroutines.Job? = null
+    private fun renderWarps() {
+        if (pads.value.none { it.warp }) return
+        warpJob?.cancel()                                     // marker drags call this every frame: render once they settle
+        warpJob = scope.launch { kotlinx.coroutines.delay(150); for (p in 0 until ChopLogic.PADS) renderWarp(p) }
+    }
+
+    private fun renderWarp(p: Int) {
+        val slot = pads.value[p]
+        warpPending.entries.removeAll { it.value == p }          // only the newest render per pad counts
+        if (!slot.warp || (slot.pitch == 0 && slot.fine == 0) || playingId == 0) { dropWarp(p); assignPad(p); return }
+        val reg = regions.value.getOrNull(p) ?: run { dropWarp(p); assignPad(p); return }
+        val scale = if (originalFrames > 0) playingFrames.toDouble() / originalFrames else 1.0
+        val a = (reg.start * scale).toLong(); val b = (reg.end * scale).toLong().coerceAtMost(playingFrames)
+        if (b - a < 256) { dropWarp(p); assignPad(p); return }
+        val id = nextReq++
+        warpPending[id] = p
+        NativeEngine.stretchSample(playingId, 1.0, slot.pitch + slot.fine / 100.0, id, a, b)
+    }
+
+    private fun onWarpLoaded(p: Int, sampleId: Int, frames: Long) {
+        val slot = pads.value[p]
+        if (!slot.warp) { NativeEngine.unloadSample(sampleId); return }
+        val old = warpIds[p]
+        warpIds[p] = sampleId; warpFrames[p] = frames
+        assignPad(p)
+        if (old != 0) NativeEngine.unloadSample(old)
+    }
+
+    private fun dropWarp(p: Int) {
+        if (warpIds[p] != 0) NativeEngine.unloadSample(warpIds[p])
+        warpIds[p] = 0; warpFrames[p] = 0
+    }
+
+    /** Point pad [p] at its WARP render (whole buffer, pitch baked in) or at the shared sample + its slice. */
+    private fun assignPad(p: Int) {
+        val slot = pads.value[p]
+        if (slot.warp && warpIds[p] != 0) {
+            NativeEngine.assignSample(gp(p), warpIds[p])
+            NativeEngine.setPadRegion(gp(p), 0, warpFrames[p].coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+            NativeEngine.setPitch(gp(p), 0, 0f)
+        } else {
+            NativeEngine.assignSample(gp(p), playingId)
+            val reg = regions.value.getOrNull(p)
+            val scale = if (originalFrames > 0) playingFrames.toDouble() / originalFrames else 1.0
+            if (reg == null) NativeEngine.setPadRegion(gp(p), 0, 1)
+            else NativeEngine.setPadRegion(gp(p), (reg.start * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
+                (reg.end * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
+            NativeEngine.setPitch(gp(p), slot.pitch, slot.fine.toFloat())
+        }
+    }
 
     private fun releaseStretched() {
         if (playingId != 0 && playingId != originalId) NativeEngine.unloadSample(playingId)
         pendingStretch = -1; rendering.value = false
+        warpPending.clear()
+        for (p in 0 until ChopLogic.PADS) dropWarp(p)
     }
 
     // ================= chopping =================
@@ -192,21 +276,48 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     }
 
     fun toggleKeyMatch() { keyMatch.value = !keyMatch.value; rerender() }
-    fun toggleBpmSync() { bpmSync.value = !bpmSync.value; rerender() }
+    fun toggleBpmSync() = setStretch(if (stretch.value == StretchMode.SYNC) StretchMode.OFF else StretchMode.SYNC)
+    fun setStretch(m: StretchMode, bars: Int = fitBars.intValue) {
+        stretch.value = m; fitBars.intValue = bars.coerceIn(1, 16); rerender()
+    }
+    /** Speed factor for the current stretch mode (>1 = faster / shorter), or 1 when it can't apply. */
+    fun stretchTempo(): Double = when (stretch.value) {
+        StretchMode.OFF -> 1.0
+        StretchMode.SYNC -> tempoRatio()
+        StretchMode.HALF -> 0.5
+        StretchMode.DOUBLE -> 2.0
+        StretchMode.FIT -> {
+            val sr = info?.sampleRate ?: 0
+            if (sr <= 0 || originalFrames <= 0) 1.0 else {
+                val seconds = originalFrames.toDouble() / sr
+                val target = fitBars.intValue * 4 * 60.0 / app.groove.groove.value.bpm
+                (seconds / target).coerceIn(0.25, 4.0)
+            }
+        }
+    }
+    /** Short read-out for the STRETCH button: "SYNC 93→90", "FIT 2 BARS ×0.87"… */
+    fun stretchLabel(): String = when (stretch.value) {
+        StretchMode.OFF -> "OFF"
+        StretchMode.SYNC -> info?.bpm?.let { "SYNC " + ChopLogic.syncLabel(it, app.groove.groove.value.bpm) } ?: "SYNC"
+        StretchMode.HALF -> "HALF-TIME"
+        StretchMode.DOUBLE -> "DOUBLE-TIME"
+        StretchMode.FIT -> String.format(java.util.Locale.US, "FIT %d BAR%s ×%.2f", fitBars.intValue, if (fitBars.intValue == 1) "" else "S", stretchTempo())
+    }
 
     /** Call when the project tempo or key changes while a match is on. */
-    fun projectChanged() { if (keyMatch.value || bpmSync.value) rerender() }
+    fun projectChanged() { if (keyMatch.value || stretch.value == StretchMode.SYNC || stretch.value == StretchMode.FIT) rerender() }
 
     private fun rerender() {
         if (originalId == 0) return
         val semis = if (keyMatch.value) keyShift() else 0
-        val tempo = if (bpmSync.value) tempoRatio() else 1.0
+        val tempo = stretchTempo()
         if (semis == 0 && kotlin.math.abs(tempo - 1.0) < 1e-3) {   // back to the original
             val old = playingId
             pendingStretch = -1; rendering.value = false
             playingId = originalId; playingFrames = originalFrames
             assignAll()
             if (old != originalId && old != 0) NativeEngine.unloadSample(old)
+            renderWarps()
             return
         }
         val id = nextReq++
@@ -217,25 +328,14 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     // ================= pads =================
 
     private fun assignAll() {
-        for (p in 0 until ChopLogic.PADS) NativeEngine.assignSample(gp(p), playingId)
         NativeEngine.assignSample(preview, playingId)
-        pushRegions()
-        pads.value.forEachIndexed(::pushPad)
+        for (p in 0 until ChopLogic.PADS) { assignPad(p); pushPadModes(p, pads.value[p]) }
     }
 
-    private fun pushRegions() {
-        val scale = if (originalFrames > 0) playingFrames.toDouble() / originalFrames else 1.0
-        val r = regions.value
-        for (p in 0 until ChopLogic.PADS) {
-            val reg = r.getOrNull(p)
-            if (reg == null) NativeEngine.setPadRegion(gp(p), 0, 1)            // empty pad: silent 1-frame slice
-            else NativeEngine.setPadRegion(gp(p), (reg.start * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
-                (reg.end * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
-        }
-    }
+    /** Slices changed (re-chop, marker drag): every pad's region, and warped pads re-render their slice. */
+    private fun pushRegions() { for (p in 0 until ChopLogic.PADS) assignPad(p); renderWarps() }
 
-    private fun pushPad(i: Int, s: PadSlot) {
-        NativeEngine.setPitch(gp(i), s.pitch, s.fine.toFloat())
+    private fun pushPadModes(i: Int, s: PadSlot) {
         NativeEngine.setPlayMode(gp(i), NativeEngine.PlayMode.entries[s.mode.ordinal])
         NativeEngine.setPadGain(gp(i), 10f.pow(s.gainDb / 20f))
     }
@@ -244,7 +344,13 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         val list = pads.value.toMutableList()
         val n = f(list[i]).let { it.copy(pitch = it.pitch.coerceIn(-24, 24), fine = it.fine.coerceIn(-100, 100), gainDb = it.gainDb.coerceIn(-24f, 6f)) }
         if (n == list[i]) return
-        list[i] = n; pads.value = list; pushPad(i, n)
+        val old = list[i]
+        list[i] = n; pads.value = list
+        pushPadModes(i, n)
+        if (n.warp != old.warp || n.pitch != old.pitch || n.fine != old.fine) {
+            assignPad(i)                                      // immediate: plain pitch now, WARP render follows
+            if (n.warp) renderWarp(i) else dropWarp(i)
+        }
     }
 
     fun padDown(i: Int, velocity: Float) {

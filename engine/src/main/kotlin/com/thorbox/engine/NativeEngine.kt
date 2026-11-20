@@ -99,7 +99,9 @@ object NativeEngine {
     /** Onset frames for auto-chop (first is 0). Thread-safe: call it off the main thread. */
     fun transients(sampleId: Int, sensitivity: Float, maxSlices: Int, out: LongArray): Int = nativeGetTransients(sampleId, sensitivity, maxSlices, out)
     /** Time-stretch / pitch-shift a loaded sample on the worker. The result arrives via pollEvent as a new sample. */
-    fun stretchSample(sampleId: Int, tempo: Double, semitones: Double, requestId: Int) = nativeStretchSample(sampleId, tempo, semitones, requestId)
+    /** Render [sampleId] at [tempo] (speed) and [semitones], pitch and time independent. A crop renders one slice only. */
+    fun stretchSample(sampleId: Int, tempo: Double, semitones: Double, requestId: Int, cropStart: Long = 0, cropEnd: Long = 0) =
+        nativeStretchSample(sampleId, tempo, semitones, requestId, cropStart, cropEnd)
 
     fun repeatOn(track: Int, note: Int, rateTicks: Int, velocity: Float) = nativeRepeatOn(track, note, rateTicks, velocity)
     fun repeatOff(track: Int, note: Int) = nativeRepeatOff(track, note)
@@ -214,7 +216,7 @@ object NativeEngine {
     private external fun nativeSetPadRegion(pad: Int, start: Int, end: Int): Boolean
     private external fun nativeSetPadGain(pad: Int, g: Float): Boolean
     private external fun nativeGetTransients(sampleId: Int, sens: Float, maxSlices: Int, out: LongArray): Int
-    private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int)
+    private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int, cropStart: Long, cropEnd: Long)
     private external fun nativeRepeatOn(track: Int, note: Int, rate: Int, vel: Float): Boolean
     private external fun nativeRepeatOff(track: Int, note: Int): Boolean
     private external fun nativeRepeatVelocity(v: Float): Boolean

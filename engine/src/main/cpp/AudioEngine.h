@@ -97,7 +97,7 @@ public:
     void loadSampleAsync(int fd, int requestId);      // takes ownership of fd
     // Renders a time-stretched / pitch-shifted copy of a loaded sample on the worker. The result
     // arrives through pollEvent like a load (new sample id); the source stays loaded.
-    void stretchSampleAsync(int sampleId, double tempo, double semitones, int requestId);
+    void stretchSampleAsync(int sampleId, double tempo, double semitones, int requestId, int64_t cropStart = 0, int64_t cropEnd = 0);
     bool assignSample(int pad, int sampleId);         // sampleId 0 clears the pad
     void unloadSample(int sampleId);
 
@@ -128,7 +128,8 @@ private:
         int audioRefs = 0;        // pads on the audio thread pointing at this buffer
         bool pendingDelete = false;
     };
-    struct Job { int fd; int requestId; int srcSample = 0; double tempo = 1.0, semis = 0.0; };   // srcSample > 0 = stretch job
+    // srcSample > 0 = stretch job; [cropStart, cropEnd) frames of the source (cropEnd 0 = to the end).
+    struct Job { int fd; int requestId; int srcSample = 0; double tempo = 1.0, semis = 0.0; int64_t cropStart = 0, cropEnd = 0; };
 
     bool openStream();
     void handleCommand(const Command& c);

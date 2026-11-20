@@ -10,7 +10,8 @@ import android.os.SystemClock
  * Touching a control overrides its lane for as long as you keep moving it (plus a short grace).
  *
  * Lanes are keyed by target:  "t{track}:syn:{page}:{knob}" (0..1 knob position) · "t{track}:vol" (dB)
- * · "t{track}:pan" (-1..1) · "fx:{id}" (0 off, else 1 + x; y in "fx:{id}:y").
+ * · "t{track}:pan" (-1..1) · "t{track}:sc" (PUMP amount 0..1) · "t{track}:drm:{slot}:{page}:{knob}" (drum sound
+ * knob 0..1) · "t{track}:pad:{pad}:pitch" (semitones) · "master" (dB) · "fx:{id}" (0 off, else 1 + x; y in "fx:{id}:y").
  * Points are held (step) values on a 1/32-note grid, so playback is cheap and exact.
  */
 class Automation {
@@ -27,6 +28,20 @@ class Automation {
         fun panKey(track: Int) = "t$track:pan"
         fun fxKey(id: Int) = "fx:$id"
         fun fxYKey(id: Int) = "fx:$id:y"
+        fun scKey(track: Int) = "t$track:sc"
+        fun drumKey(track: Int, slot: Int, page: Int, knob: Int) = "t$track:drm:$slot:$page:$knob"
+        fun padPitchKey(track: Int, pad: Int) = "t$track:pad:$pad:pitch"
+        const val MASTER = "master"
+        /** Track a lane belongs to, or -1 for global ones (FX, master). */
+        fun trackOf(key: String): Int = if (key.startsWith("t")) key.substringBefore(':').drop(1).toIntOrNull() ?: -1 else -1
+        /** Value range of a lane, for drawing it. */
+        fun range(key: String): Pair<Float, Float> = when {
+            key.endsWith(":vol") || key == MASTER -> -60f to 6f
+            key.endsWith(":pan") -> -1f to 1f
+            key.endsWith(":pitch") -> -24f to 24f
+            key.startsWith("fx") && !key.endsWith(":y") -> 0f to 2f
+            else -> 0f to 1f
+        }
     }
 
     /** A live control move: write it (when recording) and suspend that lane's playback briefly. */
@@ -73,11 +88,15 @@ class Automation {
     /** Human label for the AUTO sheet. */
     fun label(key: String, trackName: (Int) -> String, knobName: (Int, Int) -> String): String {
         val parts = key.split(":")
+        if (key == MASTER) return "MASTER · VOLUME"
         return when {
             parts[0] == "fx" && parts.size == 2 -> "FX ${FX_NAMES.getOrElse(parts[1].toInt()) { "?" }}"
             parts[0] == "fx" -> "FX ${FX_NAMES.getOrElse(parts[1].toInt()) { "?" }} Y"
             parts[1] == "syn" -> "${trackName(parts[0].drop(1).toInt())} · ${knobName(parts[2].toInt(), parts[3].toInt())}"
             parts[1] == "vol" -> "${trackName(parts[0].drop(1).toInt())} · VOLUME"
+            parts[1] == "sc" -> "${trackName(parts[0].drop(1).toInt())} · PUMP"
+            parts[1] == "drm" -> "${trackName(parts[0].drop(1).toInt())} · ${com.thorbox.app.drums.DrumController.knobs(parts[3].toInt()).getOrNull(parts[4].toInt())?.label ?: "?"} ${parts[2].toInt() + 1}"
+            parts[1] == "pad" -> "${trackName(parts[0].drop(1).toInt())} · PAD ${parts[2].toInt() + 1} PITCH"
             else -> "${trackName(parts[0].drop(1).toInt())} · PAN"
         }
     }

@@ -106,6 +106,16 @@ class DrumController(private val app: AppState, val track: Int = 2) {
     fun setKnob(i: Int, n: Float) {
         val k = knobs(page.intValue).getOrNull(i) ?: return
         updateVoice(selected.intValue) { k.set(it, n.coerceIn(0f, 1f)) }
+        // Record it (REC + play), except MODEL: swapping the drum model mid-loop isn't a sweep.
+        if (!(page.intValue == 1 && i == 0)) {
+            val g = app.groove
+            g.auto.touch(com.thorbox.app.groove.Automation.drumKey(track, selected.intValue, page.intValue, i), g.autoArmed(), g.transport[0], g.loopLen(track), knobValue(i))
+        }
+    }
+    /** Automation playback: set a knob on any sound, whatever page / sound is on screen. */
+    fun setKnobAt(slot: Int, page: Int, i: Int, n: Float) {
+        val k = knobs(page).getOrNull(i) ?: return
+        updateVoice(slot) { k.set(it, n.coerceIn(0f, 1f)) }
     }
     // Stepped knobs (MODEL) snap; keep an unsnapped shadow so slow drags still move them.
     private val shadow = FloatArray(2 * 4) { Float.NaN }

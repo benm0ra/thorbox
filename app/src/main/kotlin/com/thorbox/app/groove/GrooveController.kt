@@ -511,6 +511,7 @@ class GrooveController(private val app: AppState) {
         if (!fromAutomation) {
             if (new.volumeDb != old.volumeDb) auto.touch(Automation.volKey(i), autoArmed(), transport[0], loopLen(i), new.volumeDb)
             if (new.pan != old.pan) auto.touch(Automation.panKey(i), autoArmed(), transport[0], loopLen(i), new.pan)
+            if (new.scAmount != old.scAmount) auto.touch(Automation.scKey(i), autoArmed(), transport[0], loopLen(i), new.scAmount)
         }
     }
 
@@ -520,10 +521,13 @@ class GrooveController(private val app: AppState) {
     fun autoArmed() = recording.value && playing.value
     fun loopLen(track: Int) = clips.value.getOrNull(track)?.lengthTicks ?: (16 * STEP_TICKS)
     private fun fxLoopLen() = clips.value.maxOf { it.lengthTicks }
+    /** Loop length a lane repeats over: its track's pattern, or the longest pattern for FX / master. */
+    fun laneLen(key: String): Int = Automation.trackOf(key).let { t -> if (t < 0) fxLoopLen() else loopLen(t) }
     private var autoFx = 0                                  // effects engaged by automation (not by a finger)
 
     private fun applyAutomation(key: String, v: Float) {
         val p = key.split(":")
+        if (p[0] == Automation.MASTER) { setMaster(v, fromAutomation = true); return }
         if (p[0] == "fx") {
             val id = p[1].toInt()
             if (p.size == 3) { if (autoFx and (1 shl id) != 0) { fxY[id] = v; NativeEngine.fxMove(id, fxEffX(id), fxEffY(id)) }; return }
@@ -541,6 +545,9 @@ class GrooveController(private val app: AppState) {
             "syn" -> app.applySynthKnob(t, p[2].toInt(), p[3].toInt(), v)
             "vol" -> setChannel(t, fromAutomation = true) { it.copy(volumeDb = v) }
             "pan" -> setChannel(t, fromAutomation = true) { it.copy(pan = v) }
+            "sc" -> setChannel(t, fromAutomation = true) { it.copy(scAmount = v.coerceIn(0f, 1f)) }
+            "drm" -> app.drumsFor(t).setKnobAt(p[2].toInt(), p[3].toInt(), p[4].toInt(), v)
+            "pad" -> app.samplerFor(t).updatePad(p[2].toInt()) { it.copy(pitch = kotlin.math.round(v).toInt()) }
         }
     }
     private fun releaseAutoFx() {
@@ -551,11 +558,14 @@ class GrooveController(private val app: AppState) {
     private fun runAutomation() {
         val playingNow = transport[1] != 0.0
         if (playingNow) {
-            auto.play(transport[0], { k -> if (k.startsWith("fx")) fxLoopLen() else loopLen(k.substringBefore(':').drop(1).toInt()) }, ::applyAutomation)
+            auto.play(transport[0], { k -> laneLen(k) }, ::applyAutomation)
         } else if (autoWasPlaying) { auto.resetPlayback(); releaseAutoFx() }
         autoWasPlaying = playingNow
     }
-    fun setMaster(db: Float) { masterDb.value = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value) }
+    fun setMaster(db: Float, fromAutomation: Boolean = false) {
+        masterDb.value = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.value)
+        if (!fromAutomation) auto.touch(Automation.MASTER, autoArmed(), transport[0], fxLoopLen(), masterDb.value)
+    }
 
     // ================= per frame =================
 

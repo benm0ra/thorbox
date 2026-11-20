@@ -20,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -85,15 +87,43 @@ private fun MatchBar(state: AppState) {
             Text("→", color = Tb.Muted, fontSize = 16.sp, fontWeight = FontWeight.Black)
             KeyBpmChip("PROJECT", project.label().uppercase(), fmtBpm(bpm))
         }
-        Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        var choosing by remember { mutableStateOf(false) }
+        if (!choosing) Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val semis = sm.keyShift()
             HwButton(String.format(Locale.US, "KEY MATCH %+d", semis), Modifier.weight(1f).fillMaxHeight(), active = sm.keyMatch.value,
                 enabled = s?.key != null, accent = Tb.Key, fontSize = 12) { sm.toggleKeyMatch() }
-            HwButton("BPM SYNC " + (s?.bpm?.let { com.thorbox.app.sampler.ChopLogic.syncLabel(it, bpm) } ?: ""), Modifier.weight(1f).fillMaxHeight(),
-                active = sm.bpmSync.value, enabled = s?.bpm != null, accent = Tb.Tempo, fontSize = 12) { sm.toggleBpmSync() }
+            // STRETCH: one button that says what it's doing; tap it for the choices (one tap picks and closes).
+            val on = sm.stretch.value != com.thorbox.app.sampler.StretchMode.OFF
+            HwButton("STRETCH " + (if (sm.rendering.value) "…" else sm.stretchLabel()), Modifier.weight(1.2f).fillMaxHeight(),
+                active = on, enabled = s != null, accent = Tb.Tempo, fontSize = 12) { choosing = true }
             HwButton("USE SAMPLE KEY+BPM", Modifier.fillMaxHeight(), enabled = s != null, fontSize = 11) { state.setProjectFromSample() }
-            if (sm.rendering.value) Text("rendering…", color = Tb.Muted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterVertically))
-        }
+        } else StretchChooser(state) { choosing = false }
+    }
+}
+
+/**
+ * Pick how the sample is time-stretched (pitch always kept). Big, labelled, one tap each:
+ * OFF · SYNC to the project tempo (needs a detected BPM) · HALF-TIME · DOUBLE-TIME · FIT 1/2/4/8 bars
+ * (stretches whatever length it is to exactly that many bars: great for field recordings and loops
+ * with no clean BPM). ✕ closes without changing anything.
+ */
+@Composable
+private fun StretchChooser(state: AppState, close: () -> Unit) {
+    val sm = state.sampler
+    val SM = com.thorbox.app.sampler.StretchMode
+    val cur = sm.stretch.value
+    val hasBpm = state.sample.collectAsState().value?.bpm != null
+    fun pick(m: com.thorbox.app.sampler.StretchMode, bars: Int = sm.fitBars.intValue) { sm.setStretch(m, bars); close() }
+    Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("STRETCH", style = Tb.Label, color = Tb.Tempo, modifier = Modifier.padding(horizontal = 4.dp))
+        HwButton("OFF", Modifier.fillMaxHeight(), active = cur == SM.OFF, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(SM.OFF) }
+        HwButton("SYNC", Modifier.fillMaxHeight(), active = cur == SM.SYNC, enabled = hasBpm, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(SM.SYNC) }
+        HwButton("½×", Modifier.fillMaxHeight(), active = cur == SM.HALF, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(SM.HALF) }
+        HwButton("2×", Modifier.fillMaxHeight(), active = cur == SM.DOUBLE, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(SM.DOUBLE) }
+        Text("FIT", style = Tb.Label, color = Tb.Muted, modifier = Modifier.padding(start = 4.dp))
+        for (b in intArrayOf(1, 2, 4, 8)) HwButton("$b BAR${if (b == 1) "" else "S"}", Modifier.weight(1f).fillMaxHeight(),
+            active = cur == SM.FIT && sm.fitBars.intValue == b, accent = Tb.Tempo, fontSize = 11, hPad = 4.dp) { pick(SM.FIT, b) }
+        HwButton("✕", Modifier.width(44.dp).fillMaxHeight(), fontSize = 13) { close() }
     }
 }
 
@@ -241,6 +271,10 @@ private fun ChopControls(state: AppState) {
         Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp,
             modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         HwButton("+", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
+        // WARP: pitch this chop without it speeding up (MPC-style); off = turntable pitch (faster + higher).
+        HwButton(if (pad.warp) "WARP ON" else "WARP", Modifier.width(96.dp).fillMaxHeight(), active = pad.warp, accent = Tb.Tempo, fontSize = 12) {
+            state.sampler.toggleWarp(state.sampler.selected.intValue)
+        }
         Box(Modifier.weight(1f))
         Text("PLAY", style = Tb.Label, color = Tb.Muted)
         HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.width(120.dp).fillMaxHeight(),

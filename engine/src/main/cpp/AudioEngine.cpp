@@ -274,8 +274,8 @@ void AudioEngine::loadSampleAsync(int fd, int requestId) {
     }
 }
 
-void AudioEngine::stretchSampleAsync(int sampleId, double tempo, double semis, int requestId) {
-    { std::lock_guard<std::mutex> l(mJobMtx); Job j{-1, requestId, sampleId, tempo, semis}; mJobs.push_back(j); }
+void AudioEngine::stretchSampleAsync(int sampleId, double tempo, double semis, int requestId, int64_t cropStart, int64_t cropEnd) {
+    { std::lock_guard<std::mutex> l(mJobMtx); Job j{-1, requestId, sampleId, tempo, semis, cropStart, cropEnd}; mJobs.push_back(j); }
     mJobCv.notify_one();
 }
 
@@ -305,7 +305,14 @@ void AudioEngine::workerLoop() {
             if (src) {
                 decoded = std::make_unique<SampleBuffer>();
                 decoded->sampleRate = src->sampleRate; decoded->channels = src->channels;
-                decoded->data = stretch::process(src->data, src->channels, src->sampleRate, job.tempo, job.semis);
+                if (job.cropEnd > job.cropStart && job.cropStart >= 0 && job.cropEnd <= src->frames) {
+                    // one slice only (per-pad WARP): stretch just [cropStart, cropEnd)
+                    const auto ch = (int64_t)src->channels;
+                    std::vector<float> part(src->data.begin() + (ptrdiff_t)(job.cropStart * ch), src->data.begin() + (ptrdiff_t)(job.cropEnd * ch));
+                    decoded->data = stretch::process(part, src->channels, src->sampleRate, job.tempo, job.semis);
+                } else {
+                    decoded->data = stretch::process(src->data, src->channels, src->sampleRate, job.tempo, job.semis);
+                }
                 decoded->frames = (int64_t)(decoded->data.size() / src->channels);
                 analyse = false;                            // the UI derives key/BPM from the original
             }

@@ -54,6 +54,9 @@ int main() {
         double sv[12] = {};
         const bool got2 = waitEvent(e, sv);
         CHECK(got2 && (int)sv[0] == 42 && sv[1] > 0 && (int)sv[1] != sid, "a KEY MATCH / BPM SYNC render comes back as a new sample");
+        e.stretchSampleAsync(sid, 1.0, 3.0, 44, 12000, 24000);          // per-pad WARP: one slice, +3 st, same length
+        double cv[12] = {};
+        CHECK(waitEvent(e, cv) && (int)cv[0] == 44 && cv[1] > 0 && std::llabs((long long)cv[2] - 12000) < 600, "a cropped WARP render is just that slice, same length");
         e.loadSampleAsync(-1, 43);
         double fv[12] = {};
         CHECK(waitEvent(e, fv) && (int)fv[0] == 43 && fv[1] == 0, "a file that won't decode reports a failure, not a crash");
