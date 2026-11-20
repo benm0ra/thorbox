@@ -57,6 +57,10 @@ private class Hand(val restX: Float, val restY: Float) {
     var fromX = restX; var fromY = restY
     var at = -10f
     var piece = Piece.KICK
+    // the next sequenced hit for this paw (read ahead from the pattern), so the stroke starts early
+    var nextAt = -1f; var nextX = 0f; var nextY = 0f
+    /** 0 … 1 through the wind-up into [nextAt]; 0 when nothing is coming. */
+    var antic = 0f
 }
 
 /** When two hits land on one paw at once, the drum with the higher rank keeps the stick (the other still lights). */
@@ -77,7 +81,9 @@ private class DrummerState {
     var grinUntil = -10f
     var lastActivity = 0f
     var nextBlink = 2f
+    var kickNext = -1f
     val path = Path()
+    val bricks = Path(); var bricksKey = Float.NaN
 }
 
 // Big Dawg's colours: his own, not the theme's (he looks the same on every theme).
@@ -88,6 +94,28 @@ private val MASK = Color(0xFF4A3426)
 private val NOSE = Color(0xFF221814)
 private val GOLD = Color(0xFFE6B93C)
 private val GOLD_DARK = Color(0xFFB8892A)
+
+// The kit's hardware and the street: fixed colours too (real drums don't change with the theme).
+private val CHROME = Color(0xFFC9CED6)
+private val CHROME_DARK = Color(0xFF7D838E)
+private val HEAD_SKIN = Color(0xFFE6E0D2)
+private val BRASS = Color(0xFFC79A3A)
+private val BRASS_LIGHT = Color(0xFFE8C46A)
+private val BRASS_DARK = Color(0xFF8E6A22)
+private val STICK_WOOD = Color(0xFFDDBF83)
+private val STICK_DARK = Color(0xFF8A6A3A)
+private val BRICK = Color(0xFF6E3528)
+private val MORTAR = Color(0xFF3A2019)
+private val STONE = Color(0xFF7B5843)
+private val TRIM = Color(0xFFD7C6A4)
+private val LIT = Color(0xFFFFC56A)
+private val IRON = Color(0xFF16161B)
+private val CONCRETE = Color(0xFF5C5C64)
+private val CONCRETE_DARK = Color(0xFF45454D)
+private val CURB = Color(0xFF85858D)
+private val ASPHALT = Color(0xFF1C1C22)
+private val HYDRANT = Color(0xFFC4352C)
+private const val ANTIC = 0.14f          // seconds of wind-up before a sequenced hit
 
 private fun pieceFor(v: DrumVoice, slot: Int, toms: IntArray): Piece = when (v.model) {
     DrumModel.KICK -> Piece.KICK
@@ -186,6 +214,30 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             }
         }
 
+        // ---- read ahead in the pattern: each paw starts its stroke ~140 ms before its next hit ----
+        val g = state.groove
+        st.left.nextAt = -1f; st.right.nextAt = -1f; st.kickNext = -1f
+        if (g.transport[1] != 0.0) {
+            val clip = g.clips.value.getOrNull(drums.track)
+            val len = clip?.lengthTicks?.toDouble() ?: 0.0
+            if (clip != null && len > 0.0) {
+                val pos = g.transport[0] % len
+                val tps = g.groove.value.bpm * com.thorbox.model.PPQN / 60.0
+                for (e in clip.notes) {
+                    if (e.note !in voices.indices) continue
+                    var d = e.tick - pos; if (d < 0) d += len
+                    val sec = (d / tps).toFloat()
+                    if (sec <= 0.004f || sec > ANTIC) continue
+                    val p = pieceFor(voices[e.note], e.note, toms)
+                    if (p == Piece.KICK) { if (st.kickNext < 0f || now + sec < st.kickNext) st.kickNext = now + sec; continue }
+                    if (p == Piece.CLAP || p == Piece.SHAKER) continue
+                    val x = strikeX(p)
+                    val hand = if (x < 200f) st.left else st.right
+                    if (hand.nextAt < 0f || now + sec < hand.nextAt) { hand.nextAt = now + sec; hand.nextX = x; hand.nextY = strikeY(p) }
+                }
+            }
+        }
+
         // virtual stage 400 × 280 (y 8..288): cap top to floor, no dead band above
         val sc = min(size.width / 400f, size.height / 280f)
         val ox = (size.width - 400f * sc) / 2f; val oy = (size.height - 280f * sc) / 2f - 8f * sc
@@ -196,7 +248,8 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             val kickK = env(now - st.pieceHit[Piece.KICK.ordinal], 14f)
             val sleepy = !playing && now - st.lastActivity > 8f
 
-            drawLine(Tb.Line, Offset(10f, 284f), Offset(390f, 284f), 2f)
+            // ---- Brooklyn: brownstone wall, fire escape, lamp, sidewalk, hydrant (fills the whole panel) ----
+            brooklyn(st, -ox / sc, (size.width - ox) / sc, -oy / sc, (size.height - oy) / sc, now, playing, beatPhase, kickK)
 
             // ---- back row: cymbal, hats ----
             if (st.present[Piece.CYMBAL.ordinal]) cymbalStand(st, now)
@@ -205,8 +258,9 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             // ---- Big Dawg ----
             val bodyY = nod * 0.6f + kickK * 2.5f
             tail(now, playing, beatPhase)
-            drawRoundRect(Tb.Raised, Offset(170f, 240f), Size(60f, 10f), CornerRadius(5f))          // stool
-            drawLine(Tb.Raised, Offset(200f, 250f), Offset(200f, 284f), 6f)
+            tripod(200f, 250f, 284f, 20f)                                                         // drum throne
+            drawRoundRect(Color(0xFF1C1820), Offset(170f, 238f), Size(60f, 12f), CornerRadius(6f))
+            drawRoundRect(Color(0xFF3A3340), Offset(170f, 238f), Size(60f, 12f), CornerRadius(6f), style = Stroke(1.2f))
             body(st, now, bodyY, beatPhase, playing)
             // Arms go BEHIND the drums (the kit hides them where it's in front); only paws + sticks
             // are drawn over the kit, so nothing crosses the shells.
@@ -274,14 +328,43 @@ private fun DrawScope.ripple(st: DrummerState, p: Piece, cx: Float, cy: Float, r
 
 // ----------------------------------------------------------------------------- kit
 
+/**
+ * A drum, three-quarter view: shell lacquered in the voice's colour (so you can tell which sound it
+ * is), chrome lugs, top and bottom hoops, and a coated head that flexes (squash) and lights on a hit.
+ */
 private fun DrawScope.drumShell(cx: Float, top: Float, w: Float, h: Float, depth: Float, squash: Float, accent: Color, flash: Float) {
     val sh = h * (1f - 0.35f * squash)
-    drawRect(Tb.Raised, Offset(cx - w / 2, top), Size(w, depth))
-    drawOval(Tb.Raised, Offset(cx - w / 2, top + depth - sh / 2), Size(w, sh))
-    // shell stripe in the slot colour, so you can tell which voice this drum is
-    drawRect(accent.copy(alpha = 0.55f), Offset(cx - w / 2, top + depth * 0.45f), Size(w, max(2f, depth * 0.18f)))
-    drawOval(lerp(Tb.Panel, accent, 0.18f + 0.82f * flash), Offset(cx - w / 2, top - sh / 2 + squash * 2f), Size(w, sh))
-    drawOval(Tb.Text, Offset(cx - w / 2, top - sh / 2 + squash * 2f), Size(w, sh), style = Stroke(2.5f))
+    val finish = lerp(Color(0xFF2A2430), accent, 0.62f)
+    val l = cx - w / 2
+    drawOval(lerp(finish, Color.Black, 0.35f), Offset(l, top + depth - sh / 2), Size(w, sh))   // bottom edge
+    drawRect(finish, Offset(l, top), Size(w, depth))
+    drawRect(Color.White.copy(alpha = 0.13f), Offset(cx - w * 0.30f, top), Size(w * 0.07f, depth))         // lacquer shine
+    drawRect(Color.Black.copy(alpha = 0.18f), Offset(cx + w * 0.30f, top), Size(w * 0.20f, depth))         // shade
+    // lugs: tension casings round the visible side (bigger towards the middle = they face you)
+    val nl = if (w > 54f) 5 else 3
+    for (i in 0 until nl) {
+        val u = (i + 0.5f) / nl
+        val face = sin(PI.toFloat() * u)
+        val lx = l + u * w
+        drawRoundRect(CHROME, Offset(lx - 1.6f - face, top + depth * 0.22f), Size(3.2f + 2f * face, depth * 0.56f), CornerRadius(2f))
+        drawLine(CHROME_DARK, Offset(lx, top + 1f), Offset(lx, top + depth * 0.22f), 1.2f)               // tension rods
+        drawLine(CHROME_DARK, Offset(lx, top + depth * 0.78f), Offset(lx, top + depth - 1f), 1.2f)
+    }
+    drawOval(CHROME_DARK, Offset(l, top + depth - sh / 2), Size(w, sh), style = Stroke(2.2f))             // bottom hoop
+    val hy = top - sh / 2 + squash * 2f
+    drawOval(lerp(HEAD_SKIN, accent, 0.12f + 0.7f * flash), Offset(l, hy), Size(w, sh))                    // coated head
+    drawOval(Color.White.copy(alpha = 0.18f * (1f - flash)), Offset(cx - w * 0.28f, hy + sh * 0.18f), Size(w * 0.3f, sh * 0.35f))   // sheen
+    drawOval(CHROME, Offset(l - 1.5f, hy - 1f), Size(w + 3f, sh + 2f), style = Stroke(3f))                 // top hoop
+}
+
+/** A tripod stand: centre tube from [topY] down, three legs splayed onto the floor at [floor]. */
+private fun DrawScope.tripod(x: Float, topY: Float, floor: Float, spread: Float = 16f) {
+    val knee = floor - 22f
+    drawLine(CHROME_DARK, Offset(x, topY), Offset(x, knee), 3f)
+    drawLine(CHROME_DARK, Offset(x, knee), Offset(x - spread, floor), 2.4f, cap = StrokeCap.Round)
+    drawLine(CHROME_DARK, Offset(x, knee), Offset(x + spread, floor), 2.4f, cap = StrokeCap.Round)
+    drawLine(CHROME_DARK.copy(alpha = 0.6f), Offset(x, knee), Offset(x + spread * 0.25f, floor + 2f), 2f, cap = StrokeCap.Round)
+    drawCircle(CHROME, 2.2f, Offset(x, knee))
 }
 
 private fun DrawScope.snare(st: DrummerState, now: Float) {
@@ -289,7 +372,8 @@ private fun DrawScope.snare(st: DrummerState, now: Float) {
     val s = sizeOf(v)
     val dt = now - st.pieceHit[Piece.SNARE.ordinal]
     val c = slotColor(st, Piece.SNARE)
-    drawLine(Tb.Line, Offset(120f, 204f), Offset(110f, 284f), 3f); drawLine(Tb.Line, Offset(120f, 204f), Offset(132f, 284f), 3f)
+    tripod(120f, 204f, 284f, 18f)
+    drawLine(CHROME, Offset(120f - 18f * s, 206f), Offset(120f + 18f * s, 206f), 2f)                         // basket arms
     drumShell(120f, 186f, 70f * s, 20f * s, 16f, env(dt, 30f), c, envFor(dt, ringSec(v) * 0.7f) * hitGain(st.pieceVel[Piece.SNARE.ordinal], v))
     // snare wires rattle underneath for as long as it rings
     val rattle = envFor(dt, ringSec(v))
@@ -309,7 +393,15 @@ private fun DrawScope.tom(st: DrummerState, p: Piece, cx: Float, top: Float, w: 
     val s = sizeOf(v)
     val dt = now - st.pieceHit[p.ordinal]
     val c = slotColor(st, p)
-    if (p == Piece.FLOOR_TOM) { drawLine(Tb.Line, Offset(cx - 24f * s, top + 24f), Offset(cx - 28f * s, 284f), 3f); drawLine(Tb.Line, Offset(cx + 24f * s, top + 24f), Offset(cx + 28f * s, 284f), 3f) }
+    if (p == Piece.FLOOR_TOM) for (k in -1..1) {
+        val lx = cx + k * 24f * s
+        drawLine(CHROME_DARK, Offset(lx, top + depth * s * 0.4f), Offset(lx + k * 5f, 284f), 2.6f, cap = StrokeCap.Round)
+        drawCircle(Color.Black.copy(alpha = 0.6f), 2.6f, Offset(lx + k * 5f, 284f))
+    }
+    if (p == Piece.RACK_TOM) {                                    // L-arm off the kick shell
+        drawLine(CHROME_DARK, Offset(200f, 222f), Offset(cx + 6f, top + depth * s), 3f)
+        drawCircle(CHROME, 2.5f, Offset(cx + 6f, top + depth * s))
+    }
     drumShell(cx, top, w * s, w * 0.32f * s, depth * s, env(dt, 26f), c, envFor(dt, ringSec(v)) * hitGain(st.pieceVel[p.ordinal], v))
     ripple(st, p, cx, top, w * s / 2f, w * 0.16f * s, now)
 }
@@ -319,11 +411,26 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: androidx.
     val s = sizeOf(v)
     val dt = now - st.pieceHit[Piece.KICK.ordinal]
     val c = slotColor(st, Piece.KICK)
-    val r = 42f * s * (1f + 0.07f * k)
+    val r = 42f * s * (1f + 0.05f * k)
     val cy = 284f - r - 2f
-    drawCircle(Tb.Panel, r, Offset(200f, cy))
-    drawCircle(lerp(Tb.Raised, c, 0.25f + 0.75f * envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.KICK.ordinal], v)), r, Offset(200f, cy), style = Stroke(9f))
-    drawCircle(Tb.Text, r - 9f, Offset(200f, cy), style = Stroke(2f))
+    val glow = envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.KICK.ordinal], v)
+    // spurs: the legs that stop it creeping forward
+    drawLine(CHROME_DARK, Offset(200f - r * 0.82f, cy + r * 0.45f), Offset(200f - r - 12f, 285f), 2.6f, cap = StrokeCap.Round)
+    drawLine(CHROME_DARK, Offset(200f + r * 0.82f, cy + r * 0.45f), Offset(200f + r + 12f, 285f), 2.6f, cap = StrokeCap.Round)
+    // front head + wooden hoop in the voice's colour, chrome claws round it
+    drawCircle(lerp(Color(0xFF15131A), c, 0.12f + 0.25f * glow), r, Offset(200f, cy))
+    drawCircle(lerp(Color(0xFF2A2430), c, 0.55f + 0.4f * glow), r - 3.5f, Offset(200f, cy), style = Stroke(7f))
+    drawCircle(CHROME, r, Offset(200f, cy), style = Stroke(1.6f))
+    drawCircle(CHROME_DARK, r - 7.5f, Offset(200f, cy), style = Stroke(1.2f))
+    for (i in 0 until 10) {
+        val a = i * (2f * PI.toFloat() / 10f) + 0.31f
+        val cxl = 200f + kotlin.math.cos(a) * (r - 3.5f); val cyl = cy + sin(a) * (r - 3.5f)
+        drawCircle(CHROME, 2.4f, Offset(cxl, cyl))
+    }
+    // port hole + a soft sheen on the head
+    drawCircle(Color.Black.copy(alpha = 0.55f), r * 0.16f, Offset(200f + r * 0.42f, cy + r * 0.38f))
+    drawCircle(CHROME_DARK, r * 0.16f, Offset(200f + r * 0.42f, cy + r * 0.38f), style = Stroke(1.2f))
+    drawOval(Color.White.copy(alpha = 0.06f), Offset(200f - r * 0.7f, cy - r * 0.8f), Size(r * 0.9f, r * 0.6f))
     // the band name on the front head, like every proper kick
     val t = tm.measure("BIG DAWG", logo)
     // scaled to sit inside the front head, whatever the screen density
@@ -332,18 +439,29 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: androidx.
         drawRoundRect(MASK, Offset(200f - t.size.width / 2f - 6f, cy - t.size.height / 2f - 3f), Size(t.size.width + 12f, t.size.height + 6f), CornerRadius(6f))
         drawText(t, topLeft = Offset(200f - t.size.width / 2f, cy - t.size.height / 2f))
     }
-    // pedal beater (back paw) swings in on the hit
-    val swing = env(dt, 14f)
-    drawLine(Tb.Text, Offset(232f, 282f), Offset(222f - 10f * swing, cy + 16f - 5f * swing), 4f, cap = StrokeCap.Round)
-    drawCircle(Tb.Text, 4f, Offset(222f - 10f * swing, cy + 16f - 5f * swing))
+    // pedal: footboard at the bottom, the beater cocks back before a sequenced kick and swings in on the hit
+    val toGo = st.kickNext - now
+    val pull = if (st.kickNext > 0f && toGo in 0f..0.12f) sin(PI.toFloat() * 0.5f * (1f - toGo / 0.12f)) * (toGo / 0.12f) * 2f else 0f
+    val swing = env(dt, 16f) - 0.6f * pull
+    drawRoundRect(CHROME_DARK, Offset(188f, 280f), Size(24f, 5f), CornerRadius(2f))
+    val bx = 214f - 12f * swing; val by = cy + 18f - 6f * swing
+    drawLine(CHROME, Offset(206f, 281f), Offset(bx, by), 2.6f, cap = StrokeCap.Round)
+    drawCircle(Color(0xFF2B2B33), 4.6f, Offset(bx, by))
+    drawCircle(CHROME, 4.6f, Offset(bx, by), style = Stroke(1.2f))
     ripple(st, Piece.KICK, 200f, cy, r, r, now)
 }
 
+/** A brass cymbal seen slightly from above: lathe rings, a raised bell, and a glow in the voice's colour when it rings. */
 private fun DrawScope.cymbal(cx: Float, cy: Float, w: Float, tilt: Float, wobble: Float, c: Color, flash: Float) {
     rotate(tilt + wobble, Offset(cx, cy)) {
-        drawOval(lerp(Tb.Raised, c, 0.2f + 0.8f * flash), Offset(cx - w / 2, cy - 6f), Size(w, 12f))
-        drawOval(Tb.Text, Offset(cx - w / 2, cy - 6f), Size(w, 12f), style = Stroke(2.5f))
-        drawCircle(Tb.Text, 3f, Offset(cx, cy - 1f))
+        if (flash > 0.04f) drawOval(c.copy(alpha = 0.35f * flash), Offset(cx - w / 2 - 6f, cy - 11f), Size(w + 12f, 22f))
+        drawOval(BRASS_DARK, Offset(cx - w / 2, cy - 5f), Size(w, 12f))                       // underside
+        drawOval(lerp(BRASS, c, 0.35f * flash), Offset(cx - w / 2, cy - 6f), Size(w, 11f))
+        drawOval(BRASS_LIGHT.copy(alpha = 0.55f), Offset(cx - w * 0.36f, cy - 4.2f), Size(w * 0.72f, 7.4f), style = Stroke(0.9f))
+        drawOval(BRASS_LIGHT.copy(alpha = 0.35f), Offset(cx - w * 0.22f, cy - 3f), Size(w * 0.44f, 5f), style = Stroke(0.9f))
+        drawOval(lerp(BRASS_LIGHT, c, 0.4f * flash), Offset(cx - w * 0.11f, cy - 5.5f), Size(w * 0.22f, 6f))   // bell
+        drawOval(BRASS_DARK, Offset(cx - w / 2, cy - 6f), Size(w, 11f), style = Stroke(1.2f))
+        drawCircle(CHROME, 1.8f, Offset(cx, cy - 3.5f))                                         // felt + wing nut
     }
 }
 
@@ -354,7 +472,9 @@ private fun DrawScope.cymbalStand(st: DrummerState, now: Float) {
     // Long decay = big ride-ish wash: wider cymbal, slower wobble.
     val w = (70f + 40f * ((ring - 0.3f) / 2f).coerceIn(0f, 1f))
     val wob = if (dt in 0f..ring * 2f) sin(dt * (30f - 8f * min(1f, ring))) * exp(-dt * 3f / ring) * 12f else 0f
-    drawLine(Tb.Line, Offset(326f, 110f), Offset(342f, 284f), 3f)
+    tripod(346f, 150f, 284f, 18f)
+    drawLine(CHROME_DARK, Offset(346f, 150f), Offset(326f, 110f), 2.6f, cap = StrokeCap.Round)        // boom arm
+    drawCircle(CHROME, 2.5f, Offset(346f, 150f))
     cymbal(326f, 108f, w, -10f, wob, slotColor(st, Piece.CYMBAL), envFor(dt, ring) * hitGain(st.pieceVel[Piece.CYMBAL.ordinal], v))
 }
 
@@ -367,7 +487,10 @@ private fun DrawScope.hihat(st: DrummerState, now: Float) {
     val open = if (dt in 0f..ring) st.hatOpenness * exp(-dt * 2f / ring) else 0f
     val gap = 2.5f + 10f * open + 2f * sin(dt * 40f) * open
     val wob = sin(dt * 30f) * open * 6f
-    drawLine(Tb.Line, Offset(64f, 156f), Offset(64f, 284f), 3f)
+    tripod(64f, 158f, 284f, 16f)
+    drawLine(CHROME, Offset(64f, 150f - gap), Offset(64f, 162f), 1.6f)                                // pull rod
+    val pedal = 2f * open
+    drawLine(CHROME_DARK, Offset(56f, 284f), Offset(78f, 280f - pedal), 4f, cap = StrokeCap.Round)    // footboard
     cymbal(64f, 156f, 70f, 0f, 0f, c, envFor(dt, ring))
     cymbal(64f, 156f - gap, 70f, 0f, wob, c, envFor(dt, ring))
 }
@@ -526,8 +649,21 @@ private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boole
 /** Where a paw is now: it springs from its last strike point back to rest (slight overshoot), riding the beat. */
 private fun pawPos(h: Hand, now: Float, groove: Float): Offset {
     val dt = now - h.at
-    val k = if (dt < 0f) 1f else min(1f, dt / 0.2f).let { x -> 1f + 1.7f * (x - 1f) * (x - 1f) * (x - 1f) + 0.7f * (x - 1f) * (x - 1f) }
-    return Offset(h.fromX + (h.restX - h.fromX) * k, h.fromY + (h.restY + groove - h.fromY) * k)
+    // after a hit: spring back to rest (a little overshoot)
+    val k = if (dt < 0f) 1f else min(1f, dt / 0.22f).let { x -> 1f + 1.7f * (x - 1f) * (x - 1f) * (x - 1f) + 0.7f * (x - 1f) * (x - 1f) }
+    var x = h.fromX + (h.restX - h.fromX) * k
+    var y = h.fromY + (h.restY + groove - h.fromY) * k
+    // before a sequenced hit: travel to the drum while lifting, then drop onto it exactly on time
+    h.antic = 0f
+    val toGo = h.nextAt - now
+    if (h.nextAt > 0f && toGo in 0f..ANTIC && dt > 0.05f) {
+        val u = 1f - toGo / ANTIC
+        val e = u * u * (3f - 2f * u)                                 // smoothstep
+        x += (h.nextX - x) * e
+        y += (h.nextY - y) * e - 16f * sin(PI.toFloat() * u) * (1f - 0.5f * u)
+        h.antic = u
+    }
+    return Offset(x, y)
 }
 
 private const val ARM_REACH = 70f      // shoulder → paw, max
@@ -566,15 +702,123 @@ private fun DrawScope.paw(h: Hand, hx: Float, hy: Float, tip: Offset, now: Float
         var ax = tip.x - hx; var ay = tip.y - hy
         val al = sqrt(ax * ax + ay * ay)
         if (al < 14f) { ax = dir * 10f; ay = 10f } else if (al > STICK) { ax *= STICK / al; ay *= STICK / al }
-        val restX = dir * 22f; val restY = -18f
-        val tipX = hx + ax + (restX - ax) * raise
-        val tipY = hy + ay + (restY - ay) * raise
-        drawLine(Tb.Black, Offset(hx, hy), Offset(tipX, tipY), 6f, cap = StrokeCap.Round)
-        drawLine(Tb.Key, Offset(hx, hy), Offset(tipX, tipY), 3.5f, cap = StrokeCap.Round)
+        // wind-up: the tip cocks back and up before a sequenced hit, then whips down onto the head
+        val wind = if (h.antic > 0f) sin(PI.toFloat() * h.antic) else 0f
+        val r = if (h.antic > 0f) (1f - h.antic * h.antic).coerceIn(0f, 1f) else raise
+        val restX = dir * (22f - 6f * wind); val restY = -18f - 16f * wind
+        val tipX = hx + ax + (restX - ax) * r
+        val tipY = hy + ay + (restY - ay) * r
+        drawLine(STICK_DARK, Offset(hx, hy), Offset(tipX, tipY), 5.5f, cap = StrokeCap.Round)
+        drawLine(STICK_WOOD, Offset(hx, hy), Offset(tipX, tipY), 3.5f, cap = StrokeCap.Round)
+        drawCircle(STICK_WOOD, 2.6f, Offset(tipX, tipY))
     }
     drawCircle(COAT_DARK, 8.5f, Offset(hx, hy))
     drawCircle(BLAZE, 7f, Offset(hx, hy))
     for (i in -1..1) drawLine(COAT_DARK.copy(alpha = 0.7f), Offset(hx + i * 3f, hy + 2f), Offset(hx + i * 3f, hy + 5.5f), 1.3f, cap = StrokeCap.Round)
+}
+
+// ----------------------------------------------------------------------------- Brooklyn
+
+/** Scene colours sit back from the dog and kit: blended a little toward the theme's deepest tone. */
+private fun back(c: Color, k: Float = 0.38f) = lerp(c, Tb.Void, k)
+
+/**
+ * The street BIG DAWG plays on: a brownstone wall (brick courses, a lit window with a plant, a
+ * flyer for his own show), a fire escape, a street lamp that glows a little on the beat, the
+ * sidewalk in slabs with a curb, a hydrant, and steam drifting out of a grate. [l]…[r] × [t]…[b] is
+ * the whole panel in stage coordinates, so the scene fills it however the panel is shaped.
+ */
+private fun DrawScope.brooklyn(st: DrummerState, l: Float, r: Float, t: Float, b: Float, now: Float, playing: Boolean, beatPhase: Float, kickK: Float) {
+    val walk = 236f                                          // wall meets sidewalk
+    val curb = 293f
+    // ---- wall ----
+    drawRect(back(BRICK), Offset(l, t), Size(r - l, walk - t))
+    val key = l * 31f + r * 17f + t
+    if (key != st.bricksKey) {                                 // brick courses: one cached path
+        st.bricksKey = key
+        val p = st.bricks; p.reset()
+        var y = walk - 7f; var row = 0
+        while (y > t) {
+            p.moveTo(l, y); p.lineTo(r, y)
+            var x = l + (if (row % 2 == 0) 0f else 9f)
+            while (x < r) { p.moveTo(x, y); p.lineTo(x, y + 7f); x += 18f }
+            y -= 7f; row++
+        }
+    }
+    drawPath(st.bricks, back(MORTAR, 0.2f).copy(alpha = 0.55f), style = Stroke(0.8f))
+    // stone water-table along the bottom of the wall
+    drawRect(back(STONE), Offset(l, walk - 12f), Size(r - l, 12f))
+    drawLine(back(TRIM, 0.5f), Offset(l, walk - 12f), Offset(r, walk - 12f), 1.2f)
+
+    // ---- window, upper left: cream trim, warm light, a plant on the sill ----
+    val wx = 14f; val wy = 26f; val ww = 64f; val wh = 86f
+    drawRect(back(STONE), Offset(wx - 8f, wy - 10f), Size(ww + 16f, 8f))                            // lintel
+    drawRect(back(LIT, 0.45f).copy(alpha = 0.85f + 0.05f * sin(now * 0.7f)), Offset(wx, wy), Size(ww, wh))
+    drawRect(back(Color(0xFF3A2A20), 0.3f), Offset(wx, wy), Size(ww, wh * 0.28f))                  // half-drawn blind
+    for (i in 1..3) drawLine(back(Color(0xFF241A14), 0.3f), Offset(wx, wy + wh * 0.07f * i), Offset(wx + ww, wy + wh * 0.07f * i), 0.8f)
+    drawRect(back(TRIM, 0.25f), Offset(wx, wy), Size(ww, wh), style = Stroke(4f))
+    drawLine(back(TRIM, 0.25f), Offset(wx + ww / 2, wy), Offset(wx + ww / 2, wy + wh), 3f)
+    drawLine(back(TRIM, 0.25f), Offset(wx, wy + wh / 2), Offset(wx + ww, wy + wh / 2), 3f)
+    drawRect(back(STONE, 0.2f), Offset(wx - 6f, wy + wh), Size(ww + 12f, 6f))                       // sill
+    drawRoundRect(back(Color(0xFFB0563A), 0.25f), Offset(wx + 6f, wy + wh - 12f), Size(14f, 12f), CornerRadius(2f))   // pot
+    for (k in 0 until 4) drawOval(back(Color(0xFF3E7A3A), 0.25f), Offset(wx + 4f + k * 4f, wy + wh - 24f - (k % 2) * 4f), Size(8f, 14f))
+
+    // ---- flyer on the wall (his own show) ----
+    rotate(-4f, Offset(122f, 84f)) {
+        drawRect(back(TRIM, 0.18f), Offset(104f, 62f), Size(36f, 46f))
+        drawRect(back(Color(0xFFC4352C), 0.25f), Offset(108f, 66f), Size(28f, 12f))
+        for (k in 0 until 4) drawLine(back(Color(0xFF2A2420), 0.25f), Offset(108f, 84f + k * 5f), Offset(136f - (k % 2) * 8f, 84f + k * 5f), 1.4f)
+        drawCircle(back(CHROME_DARK, 0.2f), 1.5f, Offset(122f, 64f))                                  // the staple
+    }
+
+    // ---- fire escape, upper right: landing, railing, the drop ladder ----
+    val fx0 = 288f; val fx1 = maxOf(r, 400f); val fy = 34f
+    drawRect(back(IRON, 0.15f), Offset(fx0, fy), Size(fx1 - fx0, 4f))
+    drawLine(back(IRON, 0.15f), Offset(fx0, fy - 22f), Offset(fx1, fy - 22f), 2f)
+    var bx = fx0; while (bx <= fx1) { drawLine(back(IRON, 0.15f), Offset(bx, fy - 22f), Offset(bx, fy), 1.2f); bx += 8f }
+    drawLine(back(IRON, 0.15f), Offset(fx0 + 20f, fy + 4f), Offset(fx0 - 6f, fy + 70f), 2f)
+    drawLine(back(IRON, 0.15f), Offset(fx0 + 32f, fy + 4f), Offset(fx0 + 6f, fy + 70f), 2f)
+    for (k in 1..6) { val u = k / 7f; drawLine(back(IRON, 0.15f), Offset(fx0 + 20f - 26f * u, fy + 4f + 66f * u), Offset(fx0 + 32f - 26f * u, fy + 4f + 66f * u), 1.4f) }
+
+    // ---- street lamp, right edge: warm glow, a touch brighter on the beat ----
+    val lx = maxOf(392f, r - 14f)
+    drawLine(back(IRON, 0.1f), Offset(lx, 40f), Offset(lx, curb), 4f)
+    drawLine(back(IRON, 0.1f), Offset(lx, 40f), Offset(lx - 14f, 32f), 3f)
+    val pulse = if (playing) 0.15f * (1f - beatPhase) else 0f
+    drawCircle(LIT.copy(alpha = 0.10f + 0.08f * pulse + 0.06f * kickK), 46f, Offset(lx - 16f, 40f))
+    drawCircle(LIT.copy(alpha = 0.18f + 0.1f * pulse), 20f, Offset(lx - 16f, 40f))
+    drawRoundRect(back(LIT, 0.05f), Offset(lx - 22f, 34f), Size(12f, 10f), CornerRadius(3f))
+
+    // ---- sidewalk: slabs with joints, the curb, a strip of street ----
+    drawRect(back(CONCRETE), Offset(l, walk), Size(r - l, curb - walk))
+    drawLine(back(CONCRETE_DARK), Offset(l, 262f), Offset(r, 262f), 1.2f)
+    var jx = -400f
+    while (jx < 800f) {                                         // joints converge a little toward the wall
+        val xb = 200f + (jx - 200f) * 1.0f; val xt = 200f + (jx - 200f) * 0.86f
+        if (xb > l - 80f && xb < r + 80f) drawLine(back(CONCRETE_DARK), Offset(xt, walk), Offset(xb, curb), 1.2f)
+        jx += 76f
+    }
+    drawRect(back(CURB, 0.3f), Offset(l, curb), Size(r - l, 5f))
+    if (b > curb + 5f) drawRect(back(ASPHALT, 0.2f), Offset(l, curb + 5f), Size(r - l, b - curb - 5f))
+    // soft shadow under the kit and the stool
+    drawOval(Color.Black.copy(alpha = 0.28f), Offset(70f, 276f), Size(300f, 16f))
+
+    // ---- hydrant, sidewalk right ----
+    val hx = 376f
+    drawRoundRect(back(HYDRANT, 0.15f), Offset(hx - 7f, 262f), Size(14f, 22f), CornerRadius(3f))
+    drawRoundRect(back(HYDRANT, 0.1f), Offset(hx - 9f, 280f), Size(18f, 5f), CornerRadius(2f))
+    drawOval(back(HYDRANT, 0.1f), Offset(hx - 8f, 256f), Size(16f, 10f))
+    drawRect(back(HYDRANT, 0.05f), Offset(hx - 12f, 268f), Size(24f, 5f))
+    drawCircle(back(CHROME_DARK, 0.2f), 1.6f, Offset(hx, 256f))
+
+    // ---- steam from the grate, sidewalk left ----
+    drawRect(back(IRON, 0.1f), Offset(14f, 270f), Size(34f, 8f))
+    for (k in 1..3) drawLine(back(CONCRETE_DARK, 0.1f), Offset(14f + k * 8.5f, 270f), Offset(14f + k * 8.5f, 278f), 1.2f)
+    for (k in 0 until 3) {
+        val ph = ((now * 0.18f + k / 3f) % 1f)
+        val sx = 31f + sin(now * 0.9f + k * 2f) * 6f * ph
+        drawCircle(Color.White.copy(alpha = 0.10f * (1f - ph) * (0.6f + 0.4f * ph)), 6f + 16f * ph, Offset(sx, 266f - 70f * ph))
+    }
 }
 
 private fun lerp(a: Color, b: Color, t: Float): Color {
