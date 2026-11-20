@@ -80,7 +80,7 @@ object Glossary {
         "SAVE AS NEW" to "Save this session as a new project; the one you opened stays as it was.",
         "RENAME" to "Give this project a new name.",
         "COPY" to "Make a copy of this project (with its samples).",
-                "SET" to "Settings: theme, the meters strip, hints, start-up defaults, controls, audio status and logs.",
+                "SETTINGS" to "Settings: projects, theme, the meters strip, hints, start-up defaults, controls, audio status and logs.",
         "LOOK" to "Theme, glass, the meters strip and hints.",
         "DEFAULTS" to "Save the tempo, swing, key and click a fresh launch starts with.",
         "CONTROLS" to "NAV cursor, tilt, the controller map and the welcome tour.",

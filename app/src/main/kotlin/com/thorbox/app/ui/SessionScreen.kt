@@ -60,8 +60,7 @@ fun TopScreen(state: AppState) {
             }
             // Transport: always visible whatever view you're in
             HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth(), active = state.groove.playing.value, accent = Tb.Good, minHeight = 40.dp, fontSize = 14) { state.groove.togglePlay() }
-            HwButton("SET", Modifier.fillMaxWidth(), active = state.showSettings.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 10, hPad = 2.dp) {
-                state.showSettings.value = !state.showSettings.value }
+            GearButton(state.showSettings.value, Modifier.fillMaxWidth()) { state.showSettings.value = !state.showSettings.value }
             InfoToggle(onTour = { state.showWelcome.value = true }, modifier = Modifier.fillMaxWidth())
             LevelMeter(state.level, Modifier.fillMaxWidth().weight(1f)
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { state.showDiagnostics.value = !state.showDiagnostics.value }) })

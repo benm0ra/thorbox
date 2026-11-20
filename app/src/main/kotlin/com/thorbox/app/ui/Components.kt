@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -156,5 +157,30 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = if (held) Tb.Black else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+    }
+}
+
+
+/** SETTINGS: a drawn gear (same on every theme and firmware, no icon font). Lights up while the sheet is open. */
+@Composable
+fun GearButton(active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.height(40.dp).clip(RoundedCornerShape(6.dp)).background(if (active) Tb.Key else Tb.Raised)
+            .navClickable(label = "SETTINGS") { Info.show("SETTINGS"); onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        val ink = if (active) Tb.Black else Tb.Text
+        androidx.compose.foundation.Canvas(Modifier.height(24.dp).widthIn(min = 24.dp)) {
+            val c = center; val r = size.minDimension / 2f
+            val teeth = 8
+            for (i in 0 until teeth) {
+                rotate(i * 360f / teeth, c) {
+                    drawRoundRect(ink, androidx.compose.ui.geometry.Offset(c.x - r * 0.17f, c.y - r), androidx.compose.ui.geometry.Size(r * 0.34f, r * 0.45f),
+                        androidx.compose.ui.geometry.CornerRadius(r * 0.06f))
+                }
+            }
+            drawCircle(ink, r * 0.72f, c)
+            drawCircle(if (active) Tb.Key else Tb.Raised, r * 0.3f, c)
+        }
     }
 }

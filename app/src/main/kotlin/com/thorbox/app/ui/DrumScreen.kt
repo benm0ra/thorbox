@@ -44,7 +44,7 @@ import com.thorbox.engine.NativeEngine
 import com.thorbox.model.DRUM_SLOTS
 
 /**
- * Top-screen drum machine. Left: BIT the drummer, playing whatever the track plays. Right: a
+ * Top-screen drum machine. Left: BIG DOG the drummer, playing whatever the track plays. Right: a
  * TR-style grid (8 sounds × 16 steps) in the sounds' own colours. Bottom: four encoders for the
  * selected sound (SOUND page: tune/decay/tone/snap; MIX page: model/drive/level/pan).
  */

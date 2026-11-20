@@ -424,15 +424,14 @@ class AppState(private val app: Application) {
 
     /** Replace the whole session with [p] (opening a project, or a blank one). Samples load in the background. */
     internal fun applyProject(p: com.thorbox.model.ProjectFile, sampleFile: (String) -> java.io.File?) {
-        val M = com.thorbox.model.TrackKind
         padUp(); releaseAllKeys()
         for (t in 0 until com.thorbox.model.TRACK_COUNT) samplers[t]?.clearSample()
         _sample.value = null; _peaks.value = null
-        val list = List(com.thorbox.model.TRACK_COUNT) { t -> p.tracks.getOrNull(t) ?: com.thorbox.model.TrackInfo(M.EMPTY, "") }
+        val list = List(com.thorbox.model.TRACK_COUNT) { t -> p.tracks.getOrNull(t) ?: com.thorbox.model.TrackInfo(com.thorbox.model.TrackKind.EMPTY, "") }
         // Never leave the editors without a track of their kind.
         val fixed = list.toMutableList()
-        for (kind in listOf(M.SAMPLER, M.SYNTH, M.DRUMS)) if (fixed.none { it.kind == kind }) {
-            val free = fixed.indexOfFirst { it.kind == M.EMPTY }; if (free >= 0) fixed[free] = com.thorbox.model.TrackInfo(kind, kind.label)
+        for (kind in listOf(com.thorbox.model.TrackKind.SAMPLER, com.thorbox.model.TrackKind.SYNTH, com.thorbox.model.TrackKind.DRUMS)) if (fixed.none { it.kind == kind }) {
+            val free = fixed.indexOfFirst { it.kind == com.thorbox.model.TrackKind.EMPTY }; if (free >= 0) fixed[free] = com.thorbox.model.TrackInfo(kind, kind.label)
         }
         tracks.value = fixed
         fixed.forEachIndexed { t, info -> NativeEngine.setTrackType(t, info.kind.ordinal) }
@@ -452,12 +451,12 @@ class AppState(private val app: Application) {
 
         val f = p.focus
         fun pick(want: Int, kind: com.thorbox.model.TrackKind) = if (fixed.getOrNull(want)?.kind == kind) want else fixed.indexOfFirst { it.kind == kind }
-        synthTrack.intValue = pick(f.synthTrack, M.SYNTH); samplerTrack.intValue = pick(f.samplerTrack, M.SAMPLER); drumTrack.intValue = pick(f.drumTrack, M.DRUMS)
+        synthTrack.intValue = pick(f.synthTrack, com.thorbox.model.TrackKind.SYNTH); samplerTrack.intValue = pick(f.samplerTrack, com.thorbox.model.TrackKind.SAMPLER); drumTrack.intValue = pick(f.drumTrack, com.thorbox.model.TrackKind.DRUMS)
         for (t in 0 until com.thorbox.model.TRACK_COUNT) {
             when (fixed[t].kind) {
-                M.SYNTH -> { val patch = p.synths[t] ?: SynthPatch(); sentAll[t].fill(Float.NaN); pushPatchTo(t, patch) }
-                M.DRUMS -> drumsFor(t).let { d -> p.kits[t]?.let(d::restoreKit); d.pushAll() }
-                M.SAMPLER -> {
+                com.thorbox.model.TrackKind.SYNTH -> { val patch = p.synths[t] ?: SynthPatch(); sentAll[t].fill(Float.NaN); pushPatchTo(t, patch) }
+                com.thorbox.model.TrackKind.DRUMS -> drumsFor(t).let { d -> p.kits[t]?.let(d::restoreKit); d.pushAll() }
+                com.thorbox.model.TrackKind.SAMPLER -> {
                     val sd = p.samplers[t] ?: continue
                     val file = sd.file?.let(sampleFile) ?: continue
                     val sm = samplerFor(t)
@@ -474,9 +473,9 @@ class AppState(private val app: Application) {
         }
         _patch.value = synthPatches[synthTrack.intValue] ?: SynthPatch()
         patchUndo.clear(); canUndoPatch.value = false
-        fixed.forEachIndexed { t, info -> if (info.kind != M.EMPTY) groove.nameChannel(t, info.name) }
+        fixed.forEachIndexed { t, info -> if (info.kind != com.thorbox.model.TrackKind.EMPTY) groove.nameChannel(t, info.name) }
         NativeEngine.setFocus(synthTrack.intValue); NativeEngine.setFocus(samplerTrack.intValue)
-        groove.seqTrack.intValue = f.seqTrack.takeIf { fixed.getOrNull(it)?.kind != M.EMPTY } ?: samplerTrack.intValue
+        groove.seqTrack.intValue = f.seqTrack.takeIf { fixed.getOrNull(it)?.kind != com.thorbox.model.TrackKind.EMPTY } ?: samplerTrack.intValue
     }
 
     val projects by lazy { com.thorbox.app.project.ProjectManager(this, app, scope) }
