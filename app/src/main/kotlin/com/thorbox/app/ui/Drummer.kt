@@ -177,19 +177,10 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
                 else -> {
                     val x = strikeX(p); val y = strikeY(p)
                     val leftSide = x < 200f
-                    // Only pieces right in the middle (rack, cowbell) may be taken by the other paw.
-                    // Everything else stays on its own side, so arms never cross the chest; if that paw
-                    // is already hitting something more important, this piece just lights up.
-                    val near = abs(x - 200f) < 56f
+                    // Each piece is played by the paw on its side, so arms never cross the chest. If that
+                    // paw is already hitting something more important, this piece just lights up.
                     val own = if (leftSide) st.left else st.right
-                    val other = if (leftSide) st.right else st.left
-                    val busy = t - own.at < 0.07f
-                    val hand = when {
-                        !busy -> own
-                        near && t - other.at >= 0.07f -> other
-                        rank(p) > rank(own.piece) -> own
-                        else -> null
-                    }
+                    val hand = if (t - own.at >= 0.07f || rank(p) > rank(own.piece)) own else null
                     if (hand != null) { hand.at = t; hand.fromX = x; hand.fromY = y; hand.piece = p }
                 }
             }
