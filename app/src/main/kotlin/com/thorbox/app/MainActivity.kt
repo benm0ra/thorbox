@@ -86,6 +86,9 @@ class MainActivity : ComponentActivity() {
         if (i?.hasExtra("drumpage") == true) state.drums.page.intValue = i.getIntExtra("drumpage", 0).coerceIn(0, 2)
         if (i?.hasExtra("latch") == true) i.getIntExtra("latch", -1).let { id -> if (id in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.toggleLatch(id, 0.3f, 0.7f) }
         if (i?.getBooleanExtra("dry", false) == true) state.groove.stopAll()
+        // recorder test hooks: open the sheet + start / stop a take (the mic permission must already be granted)
+        if (i?.getBooleanExtra("recstart", false) == true) { state.showMic.value = true; if (!state.mic.recording.value) state.toggleMicRecording() }
+        if (i?.getBooleanExtra("recstop", false) == true && state.mic.recording.value) state.toggleMicRecording()
         i?.getStringExtra("levels")?.let { m -> com.thorbox.app.levels.LevelMode.entries.firstOrNull { it.name == m }?.let(state::setLevels) }
         if (i?.hasExtra("fxxy") == true) state.groove.fxXyMode.value = i.getBooleanExtra("fxxy", false)
         if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))

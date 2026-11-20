@@ -120,6 +120,7 @@ jobs:
         run: |
           [ -d smoke/shots ] || exit 0
           mkdir -p /tmp/shots && cp smoke/shots/*.png /tmp/shots/ 2>/dev/null || exit 0
+          cp smoke/shots/*.txt /tmp/shots/ 2>/dev/null || true
           cd /tmp/shots
           echo "$SHA" > COMMIT
           git init -q && git checkout -q -b ci-shots

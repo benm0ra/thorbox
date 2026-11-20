@@ -184,6 +184,11 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
             }
             Text("Nothing is saved until you KEEP the take. Up to 10 minutes. Red means it clipped: back off a little.",
                 color = Tb.Dim, fontSize = 11.sp)
+            // live diagnostics: what the recorder is actually doing (source, frames, level), for when it misbehaves
+            Canvas(Modifier.fillMaxWidth().height(14.dp)) {
+                tel.frame.longValue
+                drawTextSafe(tm, "mic: ${mic.status}", Offset(0f, 0f), small)
+            }
         }
     }
 }

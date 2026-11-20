@@ -119,6 +119,14 @@ shots() {
   adb shell am start -n $PKG/$ACT --es levels TUNE >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/levels.png"
   adb shell am start -n $PKG/$ACT --es levels OFF --es deck PADS >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SAMPLER --ez mic true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/mic.png"
+  # record a real take: grant the permission, record 3 s, stop → the review screen
+  adb shell pm grant $PKG android.permission.RECORD_AUDIO || true
+  adb logcat -c || true
+  adb shell am start -n $PKG/$ACT --ez recstart true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/mic-rec.png"
+  adb shell am start -n $PKG/$ACT --ez recstop true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/mic-review.png"
+  adb logcat -d -s ClamshellMic:* | tee "$d/mic-log.txt" | tail -20
+  if ! grep -q "capture: " "$d/mic-log.txt"; then echo "RECORDER FAILED: no audio was captured"; exit 1; fi
+  if ! grep -q "stop: ok=true" "$d/mic-log.txt"; then echo "RECORDER FAILED: take didn't finish cleanly"; exit 1; fi
   adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"

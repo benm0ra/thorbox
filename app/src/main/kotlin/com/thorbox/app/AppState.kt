@@ -720,10 +720,14 @@ class AppState(private val app: Application) {
         android.content.pm.PackageManager.PERMISSION_GRANTED
     /** MIC button: open the recorder (asks for the mic permission the first time). */
     fun openMic() { if (hasMic()) showMic.value = true else micPermissionRequests.tryEmit(Unit) }
-    fun onMicPermission(granted: Boolean) { if (granted) showMic.value = true else _error.value = "Mic permission denied: allow it in Settings → Apps → Clamshell Beats" }
+    fun onMicPermission(granted: Boolean) {
+        android.util.Log.i(MicRecorder.TAG, "permission result: granted=$granted")
+        if (granted) showMic.value = true else _error.value = "Mic permission denied: allow it in Settings → Apps → Clamshell Beats"
+    }
     fun toggleMicRecording() {
-        if (mic.recording.value) { mic.stop(); return }
-        if (!hasMic()) { micPermissionRequests.tryEmit(Unit); return }
+        if (mic.recording.value) { android.util.Log.i(MicRecorder.TAG, "REC pressed: stopping"); mic.stop(); return }
+        if (!hasMic()) { android.util.Log.i(MicRecorder.TAG, "REC pressed: no RECORD_AUDIO permission yet, asking"); micPermissionRequests.tryEmit(Unit); return }
+        android.util.Log.i(MicRecorder.TAG, "REC pressed: starting")
         mic.start { msg -> _error.value = msg }
     }
     /** KEEP: save the take, then drop it onto the current sampler track, auto-chopped. */

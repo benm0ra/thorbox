@@ -48,6 +48,10 @@ class MicRecorder(private val app: Context) {
     @Volatile var seconds = 0f; private set
     @Volatile var failure: String? = null; private set
     @Volatile var source = ""; private set          // "RAW" or "MIC": which input we ended up on
+    /** One line for the sheet: what the recorder is doing right now (source, state, frames, raw peak). */
+    @Volatile var status = "idle"; private set
+    @Volatile var framesRead = 0L; private set
+    private fun log(msg: String) { status = msg; android.util.Log.i(TAG, msg) }
     /** Live waveform: one (min, max) pair per [WAVE_STEP] samples, in a ring of [WAVE_COLS]. */
     val wave = FloatArray(WAVE_COLS * 2)
     @Volatile var waveCount = 0; private set
@@ -73,10 +77,15 @@ class MicRecorder(private val app: Context) {
         val rate = 48000
         val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
         val tryRaw = rawSupported()
+        log("start: permission ok, raw source supported=$tryRaw, min buffer=$min")
         var rec = (if (tryRaw) open(MediaRecorder.AudioSource.UNPROCESSED, rate, min) else null)
         var src = if (rec != null) "RAW" else "MIC"
         if (rec == null) rec = open(MediaRecorder.AudioSource.MIC, rate, min)
-        if (rec == null) { onError("Couldn't open the microphone"); return }
+        if (rec == null) rec = open(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate, min)?.also { src = "VOICE" }
+        if (rec == null) rec = open(MediaRecorder.AudioSource.CAMCORDER, rate, min)?.also { src = "CAM" }
+        if (rec == null) { log("start: no input source would open"); onError("Couldn't open the microphone (no input source would open)"); return }
+        log("start: opened $src, ${rec.sampleRate} Hz, state=${rec.state}")
+        framesRead = 0L
         stop = false; recording.value = true; seconds = 0f; level = 0f; peakHold = 0f; waveCount = 0; overviewCount = 0; failure = null; source = src
         val name = "Field " + SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date())
         thread = Thread({
@@ -93,13 +102,16 @@ class MicRecorder(private val app: Context) {
             var ok = false
             try {
                 r.startRecording()
+                log("capture: startRecording → recordingState=${r.recordingState} (3 = recording), device=${runCatching { r.routedDevice?.productName }.getOrNull()}")
                 if (r.recordingState != AudioRecord.RECORDSTATE_RECORDING) error("the mic didn't start (is another app using it?)")
+                var nextLog = rate.toLong()
                 var errors = 0
                 var probe = src == "RAW"                       // still checking the raw source isn't silent
                 var probePeak = 0
                 while (!stop && bytes < maxBytes) {
                     val n = r.read(buf, 0, buf.size)
                     if (n <= 0) {                                   // ERROR_DEAD_OBJECT etc: don't spin forever
+                        if (errors == 0) log("capture: read returned $n")
                         if (++errors > 50) error("the mic stopped sending audio ($n)")
                         Thread.sleep(5); continue
                     }
@@ -108,8 +120,9 @@ class MicRecorder(private val app: Context) {
                         for (i in 0 until n) probePeak = maxOf(probePeak, abs(buf[i].toInt()))
                         if (bytes + n * 2 >= rate) {             // half a second of raw input
                             probe = false
+                            log("probe: raw peak after 0.5 s = $probePeak / 32767")
                             if (probePeak < 24) {                // < −62 dBFS: this HAL's raw source is dead; use MIC
-                                android.util.Log.w("ClamshellMic", "raw source silent (peak $probePeak): switching to MIC")
+                                log("probe: raw source silent: switching to MIC")
                                 runCatching { r.stop() }; r.release()
                                 r = open(MediaRecorder.AudioSource.MIC, rate, min) ?: error("Couldn't open the microphone")
                                 r.startRecording()
@@ -143,6 +156,11 @@ class MicRecorder(private val app: Context) {
                     }
                     out.write(bb.array(), 0, n * 2)
                     bytes += n * 2
+                    framesRead += n
+                    if (framesRead >= nextLog) {
+                        nextLog += rate
+                        log("capture: $src ${"%.1f".format(Locale.US, framesRead / rate.toFloat())} s, block peak ${if (pk > 0f) "%.1f".format(Locale.US, 20f * log10(pk)) else "-inf"} dBFS, gain ${gainDb.floatValue} dB")
+                    }
                     level = pk
                     peakHold = maxOf(pk, peakHold * 0.97f)
                     if (pk > takePeak) takePeak = pk
@@ -150,12 +168,13 @@ class MicRecorder(private val app: Context) {
                 }
                 ok = true
             } catch (e: Exception) {
-                android.util.Log.e("ClamshellMic", "recording failed", e)
+                android.util.Log.e(TAG, "recording failed", e)
                 failure = e.message ?: e.javaClass.simpleName
             } finally {
                 runCatching { out.close() }
                 runCatching { r.stop() }; r.release()
             }
+            log("stop: ok=$ok, ${bytes / 2} frames, peak ${"%.1f".format(Locale.US, if (takePeak > 0f) 20f * log10(takePeak) else -96f)} dBFS${failure?.let { ", failure: $it" } ?: ""}")
             val result = if (ok && bytes > rate / 10) Take(tmp, bytes, bytes / (rate * 2f), name, if (takePeak > 0f) 20f * log10(takePeak) else -96f, src) else null
             if (result == null) tmp.delete()                 // never leave raw audio behind
             val msg = failure?.let { "Recording failed: $it" } ?: "Recording too short"
@@ -186,12 +205,13 @@ class MicRecorder(private val app: Context) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 saving.value = false; take.value = null
                 runCatching { onDone(uri, if (uri != null) "${t.name}.wav" else "Couldn't save the recording") }
-                    .onFailure { android.util.Log.e("ClamshellMic", "loading the recording failed", it) }
+                    .onFailure { android.util.Log.e(TAG, "loading the recording failed", it) }
             }
         }, "clamshell-mic-save").start()
     }
 
     companion object {
+        const val TAG = "ClamshellMic"
         const val WAVE_STEP = 480          // 10 ms per column at 48 kHz
         const val WAVE_COLS = 1200         // the last 12 s
         const val OVERVIEW_STEP = 4800     // 0.1 s per column
