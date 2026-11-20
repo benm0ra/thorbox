@@ -127,7 +127,7 @@ private class AnalyzerData {
 fun Analyzer(state: AppState, modifier: Modifier = Modifier) {
     val d = remember { AnalyzerData() }
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val st = remember(Tb.palette) { AnalyzerStyles() }
     Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

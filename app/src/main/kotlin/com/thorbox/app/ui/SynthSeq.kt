@@ -83,7 +83,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
     val dims = remember { IntArray(2) }
     val gesture = remember { FloatArray(6) }     // downX, downY, mode (0 none, 1 resize, 2 move), tick, note, moved
     val slop = LocalViewConfiguration.current.touchSlop
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val label = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
     val nameCol = with(androidx.compose.ui.platform.LocalDensity.current) { 34.dp.toPx() }   // note-name column
@@ -191,7 +191,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
     val pages = ((steps + 15) / 16).coerceAtLeast(1)
     val page = g.gridPage.intValue.coerceIn(0, pages - 1)
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val small = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val keyDims = remember { IntArray(2) }
     val stepDims = remember { IntArray(2) }

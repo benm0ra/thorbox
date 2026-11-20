@@ -59,6 +59,11 @@ jobs:
       - name: Model unit tests (project files, presets)
         run: ./gradlew :core-model:test :app:testDebugUnitTest --stacktrace
       - run: ./gradlew :app:lintDebug
+      - name: Lint summary (issue counts by id)
+        if: always()
+        run: |
+          f=$(ls app/build/reports/lint-results-debug.xml 2>/dev/null || true)
+          if [ -n "$f" ]; then grep -o 'id="[^"]*"' "$f" | sort | uniq -c | sort -rn | head -40; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

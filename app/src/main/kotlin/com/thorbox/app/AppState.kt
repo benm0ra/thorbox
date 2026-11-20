@@ -126,6 +126,11 @@ class AppState(private val app: Application) {
     /** Master meter strip across the top screen. */
     val miniMeters = mutableStateOf(uiPrefs.getBoolean("miniMeters", false))
     fun setMiniMeters(on: Boolean) { miniMeters.value = on; uiPrefs.edit().putBoolean("miniMeters", on).apply() }
+    /** Animate at the display's full rate (e.g. 120 Hz). Off (default): animations step at ≤ 60 fps, half the drawing work. */
+    val fullRateAnim = mutableStateOf(uiPrefs.getBoolean("fullRateAnim", false))
+    fun setFullRateAnim(on: Boolean) { fullRateAnim.value = on; uiPrefs.edit().putBoolean("fullRateAnim", on).apply() }
+    private var avgFrameDt = 1f / 60f
+    private var skipNextPublish = false
     init { com.thorbox.app.ui.Info.enabled.value = uiPrefs.getBoolean("hints", true) }
     fun setHints(on: Boolean) {
         com.thorbox.app.ui.Info.enabled.value = on; if (!on) com.thorbox.app.ui.Info.body.value = null
@@ -841,7 +846,12 @@ class AppState(private val app: Application) {
             if (topView.value == TopView.SYNTH) t.scopeCount = NativeEngine.scope(t.scope)
             t.lfoHistory[t.lfoHead] = t.lfoValue; t.lfoHead = (t.lfoHead + 1) % t.lfoHistory.size
             t.timeSec += dt
-            t.frame.longValue = frameTimeNanos
+            // Canvas animations redraw when t.frame changes. On a high-refresh panel (≥ 90 Hz) publish it
+            // every other vsync unless FULL-RATE is on: they still move with real time, at half the work.
+            if (dt > 0f) avgFrameDt += (dt - avgFrameDt) * 0.05f
+            val halve = !fullRateAnim.value && avgFrameDt < 1f / 90f
+            if (!halve || !skipNextPublish) t.frame.longValue = frameTimeNanos
+            skipNextPublish = halve && !skipNextPublish
 
             groove.onFrame(dt)
             drums.onFrame(telemetry.timeSec)
@@ -851,7 +861,8 @@ class AppState(private val app: Application) {
             // Visual features feed the visualizer AND the glass aurora. The 2048-point FFT only runs when
             // something will show it: every frame while VIZ is up, at ~30 Hz for FULL glass, never with glass OFF.
             frameCount++
-            val vizUp = topView.value == TopView.VIZ
+            // (the ANALYZER runs its own finer spectrum, so the visualizer's isn't needed for it)
+            val vizUp = topView.value == TopView.VIZ && vizMode.value != com.thorbox.app.ui.VizMode.ANALYZER
             val gl = glass.value
             vizAccum += dt
             if (vizUp || (gl == com.thorbox.app.ui.GlassLevel.FULL && frameCount % 4 == 0L)) { viz.update(vizAccum); vizAccum = 0f }

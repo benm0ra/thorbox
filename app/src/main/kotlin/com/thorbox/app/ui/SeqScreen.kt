@@ -170,7 +170,7 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
     val dims = remember { IntArray(2) }
     val slop = LocalViewConfiguration.current.touchSlop
     val gesture = remember { FloatArray(3) }          // downX, downY, dragging(0/1)
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val noteStyle = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val numStyle = remember(Tb.palette) { TextStyle(color = Tb.Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry

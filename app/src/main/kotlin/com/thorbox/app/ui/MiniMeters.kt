@@ -40,7 +40,7 @@ fun MiniMeters(state: AppState, modifier: Modifier = Modifier) {
     val tel = state.telemetry
     val g = state.groove
     val viz = state.viz
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val label = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
     val value = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 11.sp, fontWeight = FontWeight.Black, fontFamily = Tb.Mono) }
     val st = remember { MeterState() }

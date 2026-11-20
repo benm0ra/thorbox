@@ -224,6 +224,7 @@ private:
     static constexpr int kChunk = 256;
     void renderVoices(float* out, int n) {
         for (int s = 0; s < kSlots; ++s) {
+            if (!voices[s][0].on && !voices[s][1].on) continue;          // silent slot: no gain maths
             const SlotParams& sp = slots[s];
             const float lin = std::exp2(sp.levelDb / 6.0206f) * 0.7f;
             const float ang = (sp.pan + 1.f) * kPi * 0.25f;

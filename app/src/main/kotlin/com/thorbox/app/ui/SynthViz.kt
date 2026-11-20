@@ -118,7 +118,7 @@ private fun svfMagDb(f: Float, fc: Float, res: Float): Float {
 @Composable
 fun FilterViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
     val live = remember { Path() }; val liveFill = remember { Path() }; val base = remember { Path() }
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val labelStyle = remember(Tb.palette) { TextStyle(color = Tb.Dim, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
     Canvas(modifier) {
         tel.frame.longValue
@@ -189,7 +189,7 @@ fun FilterViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
 @Composable
 fun EnvViz(patch: SynthPatch, tel: SynthTelemetry, amp: Boolean, modifier: Modifier) {
     val segA = remember { Path() }; val segD = remember { Path() }; val segR = remember { Path() }; val fill = remember { Path() }
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val styles = remember {
         listOf(Tb.EncBlue, Tb.EncGreen, Tb.EncWhite, Tb.EncOrange).map { TextStyle(color = it, fontSize = 11.sp, fontWeight = FontWeight.Black) }
     }
@@ -252,7 +252,7 @@ fun EnvViz(patch: SynthPatch, tel: SynthTelemetry, amp: Boolean, modifier: Modif
 @Composable
 fun LfoViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
     val ring = remember { Path() }; val trail = remember { Path() }
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val bigStyle = remember(Tb.palette) { TextStyle(color = Tb.EncOrange, fontSize = 26.sp, fontWeight = FontWeight.Black) }
     val smallStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     Canvas(modifier) {

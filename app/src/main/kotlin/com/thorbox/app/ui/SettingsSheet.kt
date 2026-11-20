@@ -101,6 +101,11 @@ private fun LookPage(state: AppState) {
                     HwButton(state.glass.value.name, Modifier.width(96.dp), minHeight = 38.dp, fontSize = 12, active = true, accent = Tb.EncBlue) { state.cycleGlass() }
                 }
             }
+            Box(Modifier.weight(1f)) {
+                SettingRow("120 HZ", "Animate at the screen's full rate. Off: 60 fps, easier on the battery") {
+                    OnOff(state.fullRateAnim.value) { state.setFullRateAnim(!state.fullRateAnim.value) }
+                }
+            }
         }
     }
 }

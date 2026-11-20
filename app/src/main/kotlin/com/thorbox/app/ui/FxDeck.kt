@@ -81,7 +81,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     if (latchedNow == 0 && xyMode.value) xyMode.value = false            // nothing latched: back to the pads
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }        // pointerId → fx id
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val idxStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontFamily = Tb.Mono) }
     val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 12.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, letterSpacing = 1.sp) }
     val readStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }
@@ -255,7 +255,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
 private fun LatchedXY(state: AppState, modifier: Modifier) {
     val g = state.groove
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val dims = remember { IntArray(2) }
     val touch = remember { FloatArray(3) { -1f } }                 // x, y, down (1/0)
     val chipStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 11.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }

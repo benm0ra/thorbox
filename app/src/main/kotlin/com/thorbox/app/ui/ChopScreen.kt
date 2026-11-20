@@ -151,7 +151,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     val dims = remember { IntArray(2) }
     val drag = remember { intArrayOf(-1, 0) }     // [marker index being dragged, moved?]
     val path = remember { Path() }
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val tab = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val tel = state.telemetry
     val grabPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
@@ -311,7 +311,7 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 16.sp, fontWeight = FontWeight.Black) }
     val hint = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
 

@@ -155,7 +155,7 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
     val st = remember { DrummerState() }
     val drums = state.drums
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val toms = remember { IntArray(2) }
     val logo = remember { TextStyle(color = Color(0xFFF4F4F5), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
     Canvas(modifier) {

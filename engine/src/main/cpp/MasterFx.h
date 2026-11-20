@@ -163,6 +163,13 @@ public:
         if (!ec.on) ecFb = std::min(ecFb, 0.7f);                          // released: always lets the tail die
         if (mEchoSr != sr) { mEchoSr = sr; mEchoHp = 1.f - std::exp(-2.f * kPi * 150.f / sr); mEchoLp = 1.f - std::exp(-2.f * kPi * 3800.f / sr); }
         Slot& rv = mSlot[Reverb];
+        if (mRevSr != sr) {                                                // delay lengths only change with the rate
+            mRevSr = sr;
+            for (int c = 0; c < 2; ++c) {
+                for (int k = 0; k < kCombs; ++k) mCombLen[c][k] = std::min(mComb[c][k].size(), (size_t)((kCombLen[k] + c * 23) * sr / 44100.f));
+                for (int k = 0; k < kAps; ++k) mApLenS[c][k] = std::min(mAp[c][k].size(), (size_t)((kApLen[k] + c * 23) * sr / 44100.f));
+            }
+        }
         const double scTicks = (sc.x < 0.5f ? 240.0 : 480.0);           // SCATTER slice: 1/16, or 1/8 for the wild half
         const int scSteps = sc.x < 0.5f ? 16 : 8;
         const double scLen = scTicks / tps;                                // samples per slice
@@ -373,7 +380,7 @@ public:
                     float acc = 0.f;
                     for (int k = 0; k < kCombs; ++k) {
                         std::vector<float>& buf = mComb[c][k];
-                        const size_t len = std::min(buf.size(), (size_t)((kCombLen[k] + c * 23) * sr / 44100.f));
+                        const size_t len = mCombLen[c][k];
                         size_t& p = mCombPos[c][k]; if (p >= len) p = 0;
                         const float y = buf[p];
                         mCombLp[c][k] = y * (1.f - damp) + mCombLp[c][k] * damp;
@@ -383,7 +390,7 @@ public:
                     }
                     for (int k = 0; k < kAps; ++k) {
                         std::vector<float>& buf = mAp[c][k];
-                        const size_t len = std::min(buf.size(), (size_t)((kApLen[k] + c * 23) * sr / 44100.f));
+                        const size_t len = mApLenS[c][k];
                         size_t& p = mApPos[c][k]; if (p >= len) p = 0;
                         const float b = buf[p];
                         buf[p] = acc + b * 0.5f;
@@ -497,6 +504,8 @@ private:
     size_t mCombPos[2][kCombs] = {}, mApPos[2][kAps] = {};
     float mCombLp[2][kCombs] = {};
     float mRevTail = 0.f;
+    float mRevSr = -1.f;
+    size_t mCombLen[2][kCombs] = {}, mApLenS[2][kAps] = {};
 };
 
 } // namespace fx

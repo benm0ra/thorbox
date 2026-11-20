@@ -59,7 +59,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
     val saving = mic.saving.value
     val take = mic.take.value
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
+    val tm = rememberTextMeasurer(cacheSize = 64)
     val big = remember(Tb.palette) { TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 30.sp) }
     val small = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontFamily = Tb.Mono, fontSize = 10.sp) }
 
