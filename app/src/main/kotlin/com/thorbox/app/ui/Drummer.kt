@@ -56,7 +56,11 @@ private enum class Piece { KICK, SNARE, RIM, HIHAT, RACK_TOM, FLOOR_TOM, CYMBAL,
 private class Hand(val restX: Float, val restY: Float) {
     var fromX = restX; var fromY = restY
     var at = -10f
+    var piece = Piece.KICK
 }
+
+/** When two hits land on one paw at once, the drum with the higher rank keeps the stick (the other still lights). */
+private fun rank(p: Piece) = when (p) { Piece.SNARE, Piece.RIM -> 3; Piece.RACK_TOM, Piece.FLOOR_TOM -> 2; else -> 1 }
 
 private class DrummerState {
     val left = Hand(154f, 150f)
@@ -173,12 +177,20 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
                 else -> {
                     val x = strikeX(p); val y = strikeY(p)
                     val leftSide = x < 200f
-                    // Only pieces near the middle (snare, rack, cowbell) may be taken by the other paw;
-                    // far pieces (hats, cymbal, floor, zap) always use their own side, so arms never cross the chest.
-                    val near = abs(x - 200f) < 80f
-                    val hand = if (leftSide) (if (near && t - st.left.at < 0.07f) st.right else st.left)
-                               else (if (near && t - st.right.at < 0.07f) st.left else st.right)
-                    hand.at = t; hand.fromX = x; hand.fromY = y
+                    // Only pieces right in the middle (rack, cowbell) may be taken by the other paw.
+                    // Everything else stays on its own side, so arms never cross the chest; if that paw
+                    // is already hitting something more important, this piece just lights up.
+                    val near = abs(x - 200f) < 56f
+                    val own = if (leftSide) st.left else st.right
+                    val other = if (leftSide) st.right else st.left
+                    val busy = t - own.at < 0.07f
+                    val hand = when {
+                        !busy -> own
+                        near && t - other.at >= 0.07f -> other
+                        rank(p) > rank(own.piece) -> own
+                        else -> null
+                    }
+                    if (hand != null) { hand.at = t; hand.fromX = x; hand.fromY = y; hand.piece = p }
                 }
             }
         }
