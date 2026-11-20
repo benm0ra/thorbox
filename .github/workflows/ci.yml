@@ -101,3 +101,38 @@ jobs:
           name: smoke-logs
           path: smoke/
           retention-days: 14
+
+  # Rolling "dev" pre-release: the newest green build from this repo's own branches, at a fixed URL,
+  # so the Thor dev loop (tools/thor-dev.ps1) can fetch it without anyone clicking through CI.
+  # Fork PRs and Dependabot never get here (no write token, and their builds aren't ours to ship).
+  dev-release:
+    name: Publish dev build
+    needs: [android, smoke]
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: dev-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: thorbox-debug-apk, path: apk }
+      - name: Replace the dev pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          cp "$(ls apk/*.apk | head -n1)" dist/ClamshellBeats-dev-debug.apk
+          printf '%s\n%s\n' "$SHA" "$BRANCH" > dist/build.txt
+          (cd dist && sha256sum ClamshellBeats-dev-debug.apk > SHA256SUMS.txt)
+          gh release delete dev --cleanup-tag --yes || true
+          gh release create dev dist/* --prerelease --target "$SHA" \
+            --title "Dev build ${SHA:0:7} (${BRANCH})" \
+            --notes "Newest green CI build of \`${BRANCH}\` at ${SHA:0:7}. For testing only; it changes on every push. Stable builds are the v* releases."
