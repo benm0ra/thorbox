@@ -131,7 +131,7 @@ fun FilterViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
         for (f in floatArrayOf(100f, 1000f, 10000f)) {
             val x = xOf(f)
             drawLine(Tb.Line, Offset(x, top), Offset(x, bottom), 1f)
-            drawText(tm, if (f >= 1000f) "${(f / 1000).toInt()}k" else "${f.toInt()}", Offset(x + 4, bottom - 14.dp.toPx()), labelStyle)
+            drawTextSafe(tm, if (f >= 1000f) "${(f / 1000).toInt()}k" else "${f.toInt()}", Offset(x + 4, bottom - 14.dp.toPx()), labelStyle)
         }
         drawLine(Tb.Line, Offset(0f, yOf(0f)), Offset(w, yOf(0f)), 1f)
 
@@ -223,10 +223,10 @@ fun EnvViz(patch: SynthPatch, tel: SynthTelemetry, amp: Boolean, modifier: Modif
         drawLine(Tb.Line, Offset(0f, bottom), Offset(w, bottom), 1f)
 
         // Labels under each segment, in segment colour
-        drawText(tm, "A ${SynthParams.fmtMs(env.attackMs)}", Offset(x0, bottom + 8.dp.toPx()), styles[0])
-        drawText(tm, "D ${SynthParams.fmtMs(env.decayMs)}", Offset(x1 + 4, bottom + 8.dp.toPx()), styles[1])
-        drawText(tm, "S ${(env.sustain * 100).toInt()}%", Offset(x2 + 4, bottom + 8.dp.toPx()), styles[2])
-        drawText(tm, "R ${SynthParams.fmtMs(env.releaseMs)}", Offset(x3 + 4, bottom + 8.dp.toPx()), styles[3])
+        drawTextSafe(tm, "A ${SynthParams.fmtMs(env.attackMs)}", Offset(x0, bottom + 8.dp.toPx()), styles[0])
+        drawTextSafe(tm, "D ${SynthParams.fmtMs(env.decayMs)}", Offset(x1 + 4, bottom + 8.dp.toPx()), styles[1])
+        drawTextSafe(tm, "S ${(env.sustain * 100).toInt()}%", Offset(x2 + 4, bottom + 8.dp.toPx()), styles[2])
+        drawTextSafe(tm, "R ${SynthParams.fmtMs(env.releaseMs)}", Offset(x3 + 4, bottom + 8.dp.toPx()), styles[3])
 
         // The live dot: x from stage progress, y from the engine's real envelope level.
         val stage = if (amp) tel.ampStage else tel.fenvStage
@@ -309,8 +309,8 @@ fun LfoViz(patch: SynthPatch, tel: SynthTelemetry, modifier: Modifier) {
 
         // Target (orange = TARGET)
         val target = when (patch.lfo.target) { LfoTarget.PITCH -> "→ PITCH"; LfoTarget.CUTOFF -> "→ CUTOFF"; LfoTarget.AMP -> "→ AMP"; LfoTarget.SHAPE -> "→ SHAPE" }
-        drawText(tm, target, Offset(left, h * 0.08f), bigStyle)
-        drawText(tm, String.format(java.util.Locale.US, "%.2f Hz · %d%%", patch.lfo.rateHz, (depth * 100).toInt()), Offset(left, h * 0.08f + 36.dp.toPx()), smallStyle)
+        drawTextSafe(tm, target, Offset(left, h * 0.08f), bigStyle)
+        drawTextSafe(tm, String.format(java.util.Locale.US, "%.2f Hz · %d%%", patch.lfo.rateHz, (depth * 100).toInt()), Offset(left, h * 0.08f + 36.dp.toPx()), smallStyle)
     }
 }
 

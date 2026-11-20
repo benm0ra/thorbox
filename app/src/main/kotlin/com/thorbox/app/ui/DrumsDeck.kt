@@ -78,8 +78,8 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
             drawRoundRect(c.copy(alpha = 0.62f + 0.38f * maxOf(pop, dc.levels[s].coerceIn(0f, 1f))), o, Size(w, h), r)
             if (s == dc.selected.intValue) drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(3.dp.toPx()))
             val v = voices.getOrNull(s) ?: continue
-            drawText(tm, v.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), nameStyle)
-            if (!v.name.uppercase().contains(v.model.label.uppercase())) drawText(tm, v.model.label, o + Offset(12.dp.toPx(), 30.dp.toPx()), modelStyle)
+            drawTextSafe(tm, v.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), nameStyle)
+            if (!v.name.uppercase().contains(v.model.label.uppercase())) drawTextSafe(tm, v.model.label, o + Offset(12.dp.toPx(), 30.dp.toPx()), modelStyle)
             // decay bar along the bottom: a quick read of the sound's length
             val frac = (kotlin.math.cbrt(((v.decayMs - 5f) / 3995f).coerceIn(0f, 1f)))
             drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(o.x + 12.dp.toPx(), o.y + h - 14.dp.toPx()), Size((w - 24.dp.toPx()) * frac, 4.dp.toPx()), CornerRadius(2.dp.toPx()))

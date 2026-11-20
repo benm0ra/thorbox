@@ -147,7 +147,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 val tonic = state.keyLock.value && Math.floorMod(n - key.root.ordinal, 12) == 0
                 drawRect(if (tonic) Tb.EncOrange.copy(alpha = 0.12f) else if (r % 2 == 0) Tb.Panel.copy(alpha = 0.6f) else Tb.Black.copy(alpha = 0f),
                     Offset(nameCol, r * rh), Size(size.width - nameCol, rh))
-                if (rh > 11.dp.toPx()) drawText(tm, noteName(n), Offset(3.dp.toPx(), r * rh + (rh - 11.dp.toPx()) / 2), if (tonic) label.copy(color = Tb.EncOrange) else label)
+                if (rh > 11.dp.toPx()) drawTextSafe(tm, noteName(n), Offset(3.dp.toPx(), r * rh + (rh - 11.dp.toPx()) / 2), if (tonic) label.copy(color = Tb.EncOrange) else label)
             }
             for (s in 0..16) {
                 val x = nameCol + s * cw
@@ -246,7 +246,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val o = Offset((k % 8) * cw + gap, (1 - k / 8) * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
                 val tonic = state.keyLock.value && Math.floorMod(n - key.root.ordinal, 12) == 0
                 drawRoundRect(if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r)
-                drawText(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
+                drawTextSafe(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
             }
         }
         // ---- steps: 2 × 8 for the current bar ----

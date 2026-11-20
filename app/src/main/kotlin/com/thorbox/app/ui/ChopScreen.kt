@@ -167,6 +167,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     }
                 }
                 val waveStroke = Stroke(1f)
+                val tabLabels = List(16) { tm.measure("${it + 1}", tab) }      // measured once per size/theme, not per frame
                 val tabSize = Size(18.dp.toPx(), 15.dp.toPx()); val tabR = CornerRadius(3.dp.toPx())
                 val thin = 2.dp.toPx(); val thick = 3.dp.toPx(); val phW = 2.5f.dp.toPx()
                 onDrawBehind {
@@ -180,8 +181,11 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                         val x = r.start.toFloat() / frames * w
                         val c = Tb.Pads[i % Tb.Pads.size]
                         drawLine(c, Offset(x, 0f), Offset(x, h), if (i == selected) thick else thin)
-                        drawRoundRect(c, Offset(x, 0f), tabSize, tabR)
-                        drawText(tm, "${i + 1}", Offset(x + 3.dp.toPx(), 1.dp.toPx()), tab)
+                        // Keep the number tab on screen: a slice starting near the right edge used to
+                        // ask drawText for a negative width and crash.
+                        val tx = x.coerceAtMost(w - tabSize.width).coerceAtLeast(0f)
+                        drawRoundRect(c, Offset(tx, 0f), tabSize, tabR)
+                        drawText(tabLabels[i % tabLabels.size], topLeft = Offset(tx + 3.dp.toPx(), 1.dp.toPx()))
                     }
                     tel.frame.longValue                    // only the playhead needs every frame
                     val ph = state.playhead.floatValue
@@ -298,9 +302,9 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
             val empty = k >= count
             drawRoundRect(if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.72f), o, s, r)
             if (k == sel) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
-            drawText(tm, "${k + 1}", o + Offset(8.dp.toPx(), 6.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
+            drawTextSafe(tm, "${k + 1}", o + Offset(8.dp.toPx(), 6.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
             val p = sm.pads.value[k].pitch
-            if (p != 0) drawText(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
+            if (p != 0) drawTextSafe(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
         }
         if (lazy) drawRoundRect(Tb.Warn, Offset(gap, gap), Size(size.width - 2 * gap, size.height - 2 * gap), r, style = Stroke(3.dp.toPx()))
     }

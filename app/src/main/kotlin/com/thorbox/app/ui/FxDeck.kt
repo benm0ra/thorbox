@@ -132,7 +132,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 val s = Size(cw - gap * 2, ch - gap * 2)
                 if (k >= FX_PADS.size) {
                     drawRoundRect(Tb.Raised, o, s, r)
-                    drawText(tm, "ALL DRY", o + Offset(12.dp.toPx(), 10.dp.toPx()), nameStyle)
+                    drawTextSafe(tm, "ALL DRY", o + Offset(12.dp.toPx(), 10.dp.toPx()), nameStyle)
                     continue
                 }
                 val p = FX_PADS[k]
@@ -156,8 +156,8 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 else fxGlyph(p.id, gArea, gSize, on, if (on) g.fxEffX(p.id) else xy[2 * p.id], if (on) g.fxEffY(p.id) else xy[2 * p.id + 1], tel.timeSec, tel.timeSec - since[p.id],
                     g.transport[0], state.viz.bass, if (on) Tb.Black else p.color)
                 if (latched and (1 shl p.id) != 0) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
-                drawText(tm, p.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), if (on) nameStyle.copy(color = Tb.Black) else nameStyle)
-                drawText(tm, "↔ ${p.x}   ↕ ${p.y}", o + Offset(12.dp.toPx(), s.height - 20.dp.toPx()), hintStyle)
+                drawTextSafe(tm, p.name, o + Offset(12.dp.toPx(), 10.dp.toPx()), if (on) nameStyle.copy(color = Tb.Black) else nameStyle)
+                drawTextSafe(tm, "↔ ${p.x}   ↕ ${p.y}", o + Offset(12.dp.toPx(), s.height - 20.dp.toPx()), hintStyle)
             }
         }
     }

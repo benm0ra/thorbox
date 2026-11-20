@@ -212,11 +212,11 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
                 val alpha = if (lane == Lane.PROB) 1f else 0.35f + 0.65f * e.probability   // uncertain steps look ghosted
                 drawRoundRect(accent.copy(alpha = alpha), Offset(x + pad, size.height - pad - h), Size(cell.width, h), CornerRadius(6.dp.toPx()))
                 if (!g.isPadTrack(track) && w > 18.dp.toPx())
-                    drawText(tm, "${NOTE_NAMES[e.note % 12]}${e.note / 12 - 1}", Offset(x + pad + 3.dp.toPx(), size.height - pad - 16.dp.toPx()), noteStyle)
+                    drawTextSafe(tm, "${NOTE_NAMES[e.note % 12]}${e.note / 12 - 1}", Offset(x + pad + 3.dp.toPx(), size.height - pad - 16.dp.toPx()), noteStyle)
             }
             if (s == play) drawRoundRect(Tb.Text, Offset(x + pad, pad), cell, CornerRadius(6.dp.toPx()), style = Stroke(3.dp.toPx()))
             if (s == g.cursor.intValue) drawRect(Tb.EncBlue, Offset(x + pad, pad), Size(cell.width, 3.dp.toPx()))
-            if (beat && w > 14.dp.toPx()) drawText(tm, "${s / 4 + 1}", Offset(x + pad + 3.dp.toPx(), pad + 2.dp.toPx()), numStyle)
+            if (beat && w > 14.dp.toPx()) drawTextSafe(tm, "${s / 4 + 1}", Offset(x + pad + 3.dp.toPx(), pad + 2.dp.toPx()), numStyle)
         }
     }
 }
