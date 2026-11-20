@@ -2,7 +2,6 @@
 package com.thorbox.app.ui
 
 import android.view.MotionEvent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,7 +73,10 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
             Text(String.format(java.util.Locale.US, "%+d", octave), color = Tb.Text, fontFamily = Tb.Mono,
                 fontWeight = FontWeight.Black, fontSize = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
             HwButton("OCT+", minHeight = 44.dp, fontSize = 12) { state.shiftOctave(+1) }
-            Box(Modifier.weight(1f))
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                if (sample?.key == null && lock) Text("no sample key · using ${key.label()}", color = Tb.Muted, fontSize = 11.sp,
+                    maxLines = 1, modifier = Modifier.padding(end = 6.dp))
+            }
             HwButton("CHORD", active = chord, accent = Tb.EncGreen, minHeight = 44.dp, fontSize = 12) { state.chordMode.value = !chord }
             HwButton(if (lock) key.label().uppercase() else "CHROM", active = lock, accent = Tb.Key, minHeight = 44.dp, fontSize = 12) {
                 state.releaseAllKeys(); state.keyLock.value = !lock
@@ -136,10 +138,6 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-            }
-            if (sample?.key == null && lock) {
-                Text("no sample key: using C MIN", color = Tb.Muted, fontSize = 10.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).background(Tb.Void).padding(horizontal = 4.dp))
             }
         }
     }

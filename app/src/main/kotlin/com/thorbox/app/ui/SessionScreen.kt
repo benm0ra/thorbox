@@ -62,6 +62,7 @@ fun TopScreen(state: AppState) {
             HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth(), active = state.groove.playing.value, accent = Tb.Good, minHeight = 40.dp, fontSize = 14) { state.groove.togglePlay() }
             HwButton("THEME", Modifier.fillMaxWidth(), active = state.showThemes.value, accent = Tb.Pads[6], minHeight = 32.dp, fontSize = 9, hPad = 2.dp) {
                 state.showThemes.value = !state.showThemes.value }
+            InfoToggle(onTour = { state.showWelcome.value = true }, modifier = Modifier.fillMaxWidth())
             Box(Modifier.weight(1f))
             LevelMeter(state.level, Modifier.fillMaxWidth().weight(2f)
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { state.showDiagnostics.value = !state.showDiagnostics.value }) })
@@ -80,7 +81,7 @@ fun TopScreen(state: AppState) {
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
         }
     }
-    InfoLine(onTour = { state.showWelcome.value = true })   // plain-words explanation of whatever you just touched
+    InfoLine()   // plain-words explanation of whatever you just touched
     NavBadge(state, 0)
     if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))

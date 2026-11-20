@@ -137,7 +137,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
         modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
-                if (frames <= 0) return@pointerInteropFilter true
+                if (frames <= 0) return@pointerInteropFilter false   // empty: let the CHOOSE / RECORD buttons have the touch
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { drag[0] = nearestMarker(ev.x); drag[1] = 0 }
                     MotionEvent.ACTION_MOVE -> if (drag[0] > 0) { drag[1] = 1; sm.moveMarker(drag[0], xToFrame(ev.x)) }
@@ -188,7 +188,20 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     if (ph in 0f..1f) drawLine(Tb.Text, Offset(ph * w, 0f), Offset(ph * w, h), phW)
                 }
             }
-    )
+    ) {
+        // Empty state: the big dark box is where your first sample goes, so the ways to get one live here.
+        if (frames <= 0 && state.loadingName.collectAsState().value == null) {
+            androidx.compose.foundation.layout.Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("No sample yet", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                Text("Pick a folder of loops and breaks, or record one with the mic.", color = Tb.Muted, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HwButton("CHOOSE FOLDER", active = true, minHeight = 48.dp, fontSize = 13) { state.requestFolder() }
+                    HwButton("RECORD", accent = Tb.Warn, active = true, minHeight = 48.dp, fontSize = 13) { state.openMic() }
+                }
+            }
+        }
+    }
 }
 
 @Composable

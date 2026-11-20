@@ -16,9 +16,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,10 +45,21 @@ object Info {
     val body = mutableStateOf<String?>(null)
     val stamp = mutableIntStateOf(0)
 
+    /**
+     * Hints fade out as you learn them: each one shows itself at most [PER_SESSION] times per launch,
+     * so the strip helps a newcomer and then stops covering the controls for everyone else.
+     * Long-press ? for the tour; tap ? to switch hints off entirely.
+     */
+    private const val PER_SESSION = 2
+    private val seen = HashMap<String, Int>()
+
     /** Called by HwButton / Encoder / DragValue with their visible label. Unknown labels are ignored. */
     fun show(label: String) {
         if (!enabled.value) return
         val (key, text) = Glossary.lookup(label) ?: return
+        val n = seen[key] ?: 0
+        if (n >= PER_SESSION) return
+        seen[key] = n + 1
         title.value = key; body.value = text; stamp.intValue++
     }
 }
@@ -71,6 +81,8 @@ object Glossary {
         // ---- sampler ----
         "AUTO" to "Automation lanes: arm REC, play, and move knobs / faders / FX. Your moves loop. Open to see and clear them.",
         "CLEAR ALL" to "Delete every automation lane.",
+        "CHOOSE FOLDER" to "Pick the folder where your samples live (loops, breaks, one-shots). Clamshell Beats only reads it.",
+        "RECORD" to "Record a new sample with the Thor's microphone; it lands on the pads, already chopped.",
         "MIC" to "Record from the Thor's microphone (foley, vocals, field sounds) straight onto the pads.",
         "REC" to "Start / stop recording. Stopping saves the WAV and chops it onto this sampler track.",
         "FOLDER" to "Pick the folder on your device where your samples live.",
@@ -199,10 +211,10 @@ object Glossary {
 /** The strip itself: glass pill at the bottom of the top screen, plus the ? toggle in the corner. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun BoxScope.InfoLine(onTour: () -> Unit = {}) {
+fun BoxScope.InfoLine() {
     val stamp = Info.stamp.intValue
     val show = Info.body.value != null && Info.enabled.value
-    LaunchedEffect(stamp) { if (Info.body.value != null) { delay(4200); Info.body.value = null } }
+    LaunchedEffect(stamp) { if (Info.body.value != null) { delay(3200); Info.body.value = null } }
     AnimatedVisibility(show, Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp).fillMaxWidth(0.86f),
         enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Bg.copy(alpha = 0.94f))
@@ -213,12 +225,17 @@ fun BoxScope.InfoLine(onTour: () -> Unit = {}) {
             Text(Info.body.value ?: "", color = Tb.Text, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
-    // ? : explanations on/off (stays out of the way, bottom-right)
-    Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).size(26.dp).clip(CircleShape)
+}
+
+/** ? : hints on/off (tap), the welcome tour (long-press). Lives in the rail so it never sits on a control. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun InfoToggle(onTour: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.height(30.dp).clip(RoundedCornerShape(8.dp))
         .background(if (Info.enabled.value) Tb.Raised else Tb.Panel)
-        .navClickable(onLongClick = onTour) { Info.enabled.value = !Info.enabled.value; if (!Info.enabled.value) Info.body.value = null },
+        .navClickable(label = "?", onLongClick = onTour) { Info.enabled.value = !Info.enabled.value; if (!Info.enabled.value) Info.body.value = null },
         contentAlignment = Alignment.Center) {
-        Text("?", color = if (Info.enabled.value) Tb.Key else Tb.Dim, fontWeight = FontWeight.Black, fontSize = 13.sp)
+        Text("?", color = if (Info.enabled.value) Tb.Key else Tb.Dim, fontWeight = FontWeight.Black, fontSize = 14.sp)
     }
 }
 

@@ -144,8 +144,11 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 val pop = if (on) kotlin.math.exp(-(tel.timeSec - since[p.id]) * 18f) else 0f
                 drawRoundRect(if (on) p.color else p.color.copy(alpha = 0.18f), o - Offset(pop * 4f, pop * 4f), Size(s.width + pop * 8f, s.height + pop * 8f), r)
                 // Glyph lives top-right, clear of the name (top-left) and the XY hint (bottom).
-                val gArea = Offset(o.x + s.width * 0.54f, o.y + 6.dp.toPx())
-                val gSize = Size(s.width * 0.42f, (s.height - 30.dp.toPx()).coerceAtLeast(12.dp.toPx()))
+                // Long names (TAPE STOP) push the glyph right so the two never overlap.
+                val nameRight = o.x + 12.dp.toPx() + tm.measure(p.name, nameStyle).size.width + 8.dp.toPx()
+                val gLeft = maxOf(o.x + s.width * 0.54f, nameRight)
+                val gArea = Offset(gLeft, o.y + 6.dp.toPx())
+                val gSize = Size((o.x + s.width - 6.dp.toPx() - gLeft).coerceAtLeast(12.dp.toPx()), (s.height - 30.dp.toPx()).coerceAtLeast(12.dp.toPx()))
                 // HAZE's film lives in its own pad (never over the other screen): it fills the pad while HAZE is on.
                 if (p.id == NativeEngine.Fx.HAZE) noirScene(if (on) o + Offset(4.dp.toPx(), 26.dp.toPx()) else gArea,
                     if (on) Size(s.width - 8.dp.toPx(), s.height - 30.dp.toPx()) else gSize, tel.timeSec, if (on) tel.timeSec - since[p.id] else -1f,

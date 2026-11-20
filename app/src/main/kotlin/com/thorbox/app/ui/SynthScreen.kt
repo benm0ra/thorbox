@@ -85,7 +85,7 @@ fun SynthScreen(state: AppState) {
         }
 
         // ---- presets + dice ----
-        PresetBar(state, patch.name, cat?.label ?: "DICE", cat?.let { synthCategoryColor(it) } ?: Tb.Key,
+        PresetBar(state, patch.name, cat?.label, cat?.let { synthCategoryColor(it) } ?: Tb.Key,
             onPrev = { state.stepSynthPreset(-1) }, onNext = { state.stepSynthPreset(+1) }, onOpen = { saving = false; browsing = true },
             onDice = state::diceSynth, onMutate = { state.mutateSynth() }, onUndo = state::undoPatch, canUndo = state.canUndoPatch.value,
             onSave = { saving = true; browsing = true }, modifier = Modifier.fillMaxWidth())
