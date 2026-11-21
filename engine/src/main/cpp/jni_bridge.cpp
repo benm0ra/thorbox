@@ -47,20 +47,33 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetMasterGainDb)(JNIEnv*, jobject, jfloa
     return gEngine->setMasterGainDb(db);
 }
 
-JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthNoteOn)(JNIEnv*, jobject, jint note, jfloat vel) {
-    return gEngine && finite(vel) && gEngine->synthNoteOn(note, vel);
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthNoteOn)(JNIEnv*, jobject, jint track, jint note, jfloat vel) {
+    return gEngine && finite(vel) && gEngine->synthNoteOn(track, note, vel);
 }
-JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthNoteOff)(JNIEnv*, jobject, jint note) {
-    return gEngine && gEngine->synthNoteOff(note);
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthNoteOff)(JNIEnv*, jobject, jint track, jint note) {
+    return gEngine && gEngine->synthNoteOff(track, note);
 }
-JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthParam)(JNIEnv*, jobject, jint id, jfloat value) {
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthParam)(JNIEnv*, jobject, jint track, jint id, jfloat value) {
     if (!gEngine || !finite(value) || id < 0 || id >= synth::kParamCount) return JNI_FALSE;
     const auto r = synth::kRanges[id];
     if (value < r.lo || value > r.hi) return JNI_FALSE;      // reject rather than silently clamp: surfaces UI bugs
-    return gEngine->synthParam(id, value);
+    return gEngine->synthParam(track, id, value);
 }
-JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthAllOff)(JNIEnv*, jobject) {
-    return gEngine && gEngine->synthAllOff();
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSynthAllOff)(JNIEnv*, jobject, jint track) {
+    return gEngine && gEngine->synthAllOff(track);
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetTrackType)(JNIEnv*, jobject, jint track, jint type) {
+    return gEngine && gEngine->setTrackType(track, type);
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetFocus)(JNIEnv*, jobject, jint track) {
+    return gEngine && gEngine->setFocus(track);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeGetMeters)(JNIEnv* env, jobject, jfloatArray out) {
+    constexpr int n = 2 * AudioEngine::kTracks + 2 + AudioEngine::kTracks;
+    if (!gEngine || !out || env->GetArrayLength(out) < n) return;
+    float tmp[n];
+    gEngine->getMeters(tmp);
+    env->SetFloatArrayRegion(out, 0, n, tmp);
 }
 
 JNIEXPORT void JNICALL JNI_FN(nativeLoadSampleFd)(JNIEnv*, jobject, jint fd, jint requestId) {
@@ -71,7 +84,7 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadRegion)(JNIEnv*, jobject, jint pad
     return gEngine && start >= 0 && end >= -1 && gEngine->setPadRegion(pad, start, end);
 }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadGain)(JNIEnv*, jobject, jint pad, jfloat g) {
-    return gEngine && finite(g) && g >= 0.f && g <= 4.f && gEngine->setPadGain(pad, g);
+    return gEngine && finite(g) && g >= 0.f && g <= 16.f && gEngine->setPadGain(pad, g);   // up to +24 dB (NORMALIZE on quiet chops)
 }
 // Safe from any thread (reads an immutable buffer).
 JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sampleId, jfloat sens, jint maxSlices, jlongArray out) {
@@ -84,9 +97,10 @@ JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sa
     env->SetLongArrayRegion(out, 0, n, j);
     return n;
 }
-JNIEXPORT void JNICALL JNI_FN(nativeStretchSample)(JNIEnv*, jobject, jint sampleId, jdouble tempo, jdouble semis, jint requestId) {
+JNIEXPORT void JNICALL JNI_FN(nativeStretchSample)(JNIEnv*, jobject, jint sampleId, jdouble tempo, jdouble semis, jint requestId, jlong cropStart, jlong cropEnd) {
     if (!gEngine || sampleId <= 0 || !std::isfinite(tempo) || !std::isfinite(semis) || tempo < 0.25 || tempo > 4.0 || semis < -24 || semis > 24) return;
-    gEngine->stretchSampleAsync(sampleId, tempo, semis, requestId);
+    if (cropStart < 0 || cropEnd < 0 || (cropEnd != 0 && cropEnd <= cropStart)) return;   // the worker also checks against the buffer
+    gEngine->stretchSampleAsync(sampleId, tempo, semis, requestId, (int64_t)cropStart, (int64_t)cropEnd);
 }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeAssignSample)(JNIEnv*, jobject, jint pad, jint sampleId) {
     return gEngine && sampleId >= 0 && gEngine->assignSample(pad, sampleId);
@@ -110,6 +124,19 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeGetPeaks)(JNIEnv* env, jobject, jint sam
     const bool ok = gEngine->getPeaks(sampleId, len / 2, p);
     env->ReleaseFloatArrayElements(out, p, ok ? 0 : JNI_ABORT);
     return ok;
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeRegionLevels)(JNIEnv* env, jobject, jint sampleId, jlongArray regions, jfloatArray out) {
+    if (!gEngine || !regions || !out) return JNI_FALSE;
+    const jsize rl = env->GetArrayLength(regions), ol = env->GetArrayLength(out);
+    const int n = rl / 2;
+    if (n < 1 || n > 64 || ol < 2 * n) return JNI_FALSE;
+    jlong r[128]; env->GetLongArrayRegion(regions, 0, 2 * n, r);
+    int64_t a[64], e[64]; float pk[64], ld[64];
+    for (int i = 0; i < n; ++i) { a[i] = (int64_t)r[2 * i]; e[i] = (int64_t)r[2 * i + 1]; }
+    if (!gEngine->regionLevels(sampleId, a, e, n, pk, ld)) return JNI_FALSE;
+    jfloat o[128]; for (int i = 0; i < n; ++i) { o[2 * i] = pk[i]; o[2 * i + 1] = ld[i]; }
+    env->SetFloatArrayRegion(out, 0, 2 * n, o);
+    return JNI_TRUE;
 }
 JNIEXPORT jfloat JNICALL JNI_FN(nativePlayhead)(JNIEnv*, jobject) { return gEngine ? gEngine->playhead() : -1.f; }
 JNIEXPORT jfloat JNICALL JNI_FN(nativePeakLevel)(JNIEnv*, jobject) { return gEngine ? gEngine->peakLevel() : 0.f; }
@@ -210,6 +237,9 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetChannel)(JNIEnv*, jobject, jint strip
     if (!gEngine || !finite(value)) return JNI_FALSE;
     if (param == 0 && (value < -60.f || value > 6.f)) return JNI_FALSE;
     if (param == 1 && (value < -1.f || value > 1.f)) return JNI_FALSE;
+    if (param == 4 && (value < -1.f || value >= (float)AudioEngine::kTracks)) return JNI_FALSE;
+    if (param == 5 && (value < 0.f || value > 1.f)) return JNI_FALSE;
+    if (param == 6 && (value < 20.f || value > 1000.f)) return JNI_FALSE;
     return gEngine->setChannel(strip, param, value);
 }
 static inline bool unit(float v) { return finite(v) && v >= 0.f && v <= 1.f; }
@@ -227,12 +257,28 @@ JNIEXPORT void JNICALL JNI_FN(nativeGetVisual)(JNIEnv* env, jobject, jfloatArray
     if (!gEngine || !jBands || !jWave || !jEnergy || env->GetArrayLength(jEnergy) < 3) return;
     const int nb = std::min<jsize>(env->GetArrayLength(jBands), viz::kMaxBands);
     const int nw = std::min<jsize>(env->GetArrayLength(jWave), viz::kFft);
-    float b[viz::kMaxBands], w[viz::kFft], e[3];
+    const int ne = env->GetArrayLength(jEnergy) >= 5 ? 5 : 3;
+    float b[viz::kMaxBands], w[viz::kFft], e[5] = {};
     if (nb < 1) return;
-    gEngine->getVisual(b, nb, w, nw, e);
+    gEngine->getVisual(b, nb, w, nw, e, ne);
     env->SetFloatArrayRegion(jBands, 0, nb, b);
     env->SetFloatArrayRegion(jWave, 0, nw, w);
-    env->SetFloatArrayRegion(jEnergy, 0, 3, e);
+    env->SetFloatArrayRegion(jEnergy, 0, ne, e);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeGetLoudness)(JNIEnv* env, jobject, jfloatArray out) {
+    if (!gEngine || !out || env->GetArrayLength(out) < 6) return;
+    float o[6]; gEngine->getLoudness(o);
+    env->SetFloatArrayRegion(out, 0, 6, o);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeResetLoudness)(JNIEnv*, jobject) { if (gEngine) gEngine->resetLoudness(); }
+JNIEXPORT jint JNICALL JNI_FN(nativeGetStereo)(JNIEnv* env, jobject, jfloatArray jMid, jfloatArray jSide) {
+    if (!gEngine || !jMid || !jSide) return 0;
+    const int n = std::min<jsize>(std::min(env->GetArrayLength(jMid), env->GetArrayLength(jSide)), (jsize)2048);   // = AudioEngine::kScope
+    float m[2048], sd[2048];
+    const int got = gEngine->getStereo(m, sd, n);
+    env->SetFloatArrayRegion(jMid, 0, got, m);
+    env->SetFloatArrayRegion(jSide, 0, got, sd);
+    return got;
 }
 
 JNIEXPORT jint JNICALL JNI_FN(nativePollRecord)(JNIEnv* env, jobject, jdoubleArray out) {
@@ -243,10 +289,31 @@ JNIEXPORT jint JNICALL JNI_FN(nativePollRecord)(JNIEnv* env, jobject, jdoubleArr
     return type;
 }
 JNIEXPORT void JNICALL JNI_FN(nativeGetTransport)(JNIEnv* env, jobject, jdoubleArray out) {
-    if (!gEngine || !out || env->GetArrayLength(out) < 16) return;
-    double tmp[16];
+    if (!gEngine || !out || env->GetArrayLength(out) < 20) return;
+    double tmp[20];
     gEngine->getTransport(tmp);
-    env->SetDoubleArrayRegion(out, 0, 16, tmp);
+    env->SetDoubleArrayRegion(out, 0, 20, tmp);
+}
+
+// ---------------- drum synth ----------------
+JNIEXPORT jboolean JNICALL JNI_FN(nativeDrumTrigger)(JNIEnv*, jobject, jint track, jint slot, jfloat vel) {
+    return gEngine && slot >= 0 && slot < drums::kSlots && finite(vel) && gEngine->drumTrigger(track, slot, std::clamp(vel, 0.f, 1.f));
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeDrumParam)(JNIEnv*, jobject, jint track, jint slot, jint id, jfloat v) {
+    if (!gEngine || !finite(v)) return JNI_FALSE;
+    if (slot == drums::kBusSlot) {                       // kit-wide character bus, all 0..1
+        if (id < 0 || id >= drums::kBusParamCount) return JNI_FALSE;
+        return gEngine->drumParam(track, slot, id, std::clamp(v, 0.f, 1.f));
+    }
+    if (slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount) return JNI_FALSE;
+    return gEngine->drumParam(track, slot, id, std::clamp(v, drums::kRanges[id].lo, drums::kRanges[id].hi));
+}
+JNIEXPORT void JNICALL JNI_FN(nativeGetDrumTelemetry)(JNIEnv* env, jobject, jint track, jfloatArray jLevels, jintArray jHits) {
+    if (!gEngine || !jLevels || !jHits || env->GetArrayLength(jLevels) < drums::kSlots || env->GetArrayLength(jHits) < drums::kSlots) return;
+    float lv[drums::kSlots]; int32_t h[drums::kSlots];
+    gEngine->getDrumTelemetry(track, lv, h);
+    env->SetFloatArrayRegion(jLevels, 0, drums::kSlots, lv);
+    env->SetIntArrayRegion(jHits, 0, drums::kSlots, reinterpret_cast<jint*>(h));
 }
 
 } // extern "C"

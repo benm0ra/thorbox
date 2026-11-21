@@ -21,7 +21,7 @@
 namespace seq {
 
 constexpr int kPpqn = 960;
-constexpr int kTracks = 2;            // 0 = sampler (note = pad index), 1 = synth (note = MIDI)
+constexpr int kTracks = 8;            // any mix of sampler (note = pad), synth (note = MIDI) and drum (note = slot) tracks
 constexpr int kMaxEvents = 512;       // per pattern
 constexpr int kMaxPendingOffs = 256;
 constexpr int kMaxRepeats = 16;
@@ -34,7 +34,7 @@ struct Event {
     int16_t note = 0;
     float velocity = 0.8f; // 0..1
     float probability = 1.f;
-    // OP-XY-style step components
+    // Step components
     int8_t ratchet = 1;    // 1..4 retriggers spread across the note's length
     int8_t condEvery = 1;  // play on loop `condPhase` of every `condEvery` loops (1 = always)
     int8_t condPhase = 0;
@@ -231,13 +231,13 @@ private:
     float mSwing = 0.5f;
     int mSwingGrid = 240;
     bool mPlaying = false, mMetro = false, mFlushOffs = false;
-    const Pattern* mPattern[kTracks] = {nullptr, nullptr};
+    const Pattern* mPattern[kTracks] = {};
     Off mOffs[kMaxPendingOffs];
     int mOffCount = 0;
     Repeat mRepeats[kMaxRepeats];
     double mLastLive[kTracks][128];
     uint32_t mRng = 0xC0FFEEu;
-    bool mStepPass[kTracks] = {true, true};
+    bool mStepPass[kTracks] = {true, true, true, true, true, true, true, true};
 
 public:
     Sequencer() { for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }

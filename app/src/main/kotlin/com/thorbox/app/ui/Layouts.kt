@@ -11,34 +11,55 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import com.thorbox.app.AppState
 import com.thorbox.app.ScreenRole
 
 /** What a screen shows, by role (Session = wide top panel, Deck = near-square bottom panel). */
 @Composable
-fun RoleContent(role: ScreenRole, state: AppState) {
-    Box(Modifier.fillMaxSize().background(Tb.Black)) {
+fun RoleContent(role: ScreenRole, state: AppState) = NavWindow(state, intArrayOf(role.ordinal)) {
+    Box(Modifier.fillMaxSize().background(Tb.Void)) {
         when (role) {
             ScreenRole.SESSION -> TopScreen(state)
             ScreenRole.DECK -> DeckScreen(state)
         }
+        Scanlines()
     }
 }
 
 /** No second panel available (lid half-closed, display off, emulator): squeeze both onto one. */
 @Composable
-fun SingleScreenContent(role: ScreenRole, state: AppState) {
+fun SingleScreenContent(role: ScreenRole, state: AppState) = NavWindow(state, intArrayOf(0, 1)) {
+    Box(Modifier.fillMaxSize()) {
     if (role == ScreenRole.SESSION) {
         Row(Modifier.fillMaxSize().background(Tb.Bg)) {
             Box(Modifier.weight(1.6f).fillMaxHeight()) { TopScreen(state) }
             Box(Modifier.width(1.dp).fillMaxHeight().background(Tb.Line))
             Box(Modifier.weight(1f).fillMaxHeight()) { DeckScreen(state) }
         }
+        Scanlines()
     } else {
         Column(Modifier.fillMaxSize().background(Tb.Bg)) {
             Box(Modifier.weight(1f).fillMaxWidth()) { TopScreen(state) }
             Box(Modifier.weight(1f).fillMaxWidth()) { DeckScreen(state) }
         }
+        Scanlines()
     }
 }
+}
+
+/**
+ * Tells every control inside which screen it's on (for the NAV cursor) and records the window's
+ * size, so the cursor can hop between the two panels at their facing edges.
+ */
+@Composable
+private fun NavWindow(state: AppState, roles: IntArray, content: @Composable () -> Unit) {
+    val screen = roles.first()
+    androidx.compose.runtime.CompositionLocalProvider(com.thorbox.app.input.LocalNavScreen provides screen) {
+        Box(Modifier.fillMaxSize().then(onSizeChangedModifier(screen))) { content() }
+    }
+}
+
+private fun onSizeChangedModifier(screen: Int): Modifier =
+    Modifier.onSizeChanged { com.thorbox.app.input.Nav.screenSize[screen] = androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) }

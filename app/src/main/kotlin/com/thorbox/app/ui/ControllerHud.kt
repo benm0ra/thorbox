@@ -39,29 +39,40 @@ import kotlinx.coroutines.delay
 fun BoxScope.ControllerHud(state: AppState) {
     val held = state.input.shiftHeld.value
     var show by remember { mutableStateOf(false) }
-    LaunchedEffect(held) { if (held) { delay(280); show = true } else show = false }
+    val pinned = state.showControllerMap.value                 // SETTINGS → CONTROLS → SHOW
+    LaunchedEffect(held, pinned) { if (pinned) show = true else if (held) { delay(280); show = true } else show = false }
 
     AnimatedVisibility(show, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
         val view = state.topView.value
         Row(
             Modifier.padding(16.dp)
-                .background(Color(0xE6101014), RoundedCornerShape(18.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
+                .background(Tb.Bg.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                .border(1.dp, Tb.Line, RoundedCornerShape(18.dp))
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 HudTitle("SELECT +", Tb.Key)
                 HudRow("◀ ▶", "view  ${TopView.entries.joinToString(" · ") { short(it) }}")
-                HudRow("▲ ▼", "deck  PADS · KEYS · STEP · FX")
+                HudRow("▲ ▼", "deck  PADS · KEYS · DRUMS · STEP · FX")
                 HudRow("L1 R1", "tempo −1 / +1")
-                HudRow("A", "tap tempo")
-                HudRow("X", "metronome")
-                HudRow("Y", "glass look")
+                HudRow("A", "NAV cursor: reach anything")
+                HudRow("X", "tap tempo")
+                HudRow("Y", "metronome")
+                HudRow("L3 / R3", "theme / glass look")
                 HudRow("B", "diagnostics")
                 HudRow("release", "on its own = RECORD", dim = true)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (state.input.navMode.value) Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                HudTitle("NAV", Tb.Key)
+                HudRow("D-pad / L-stick", "move the ring")
+                HudRow("A", "press")
+                HudRow("R-stick / A+D-pad", "turn knob · slider · fader")
+                HudRow("L1 / R1", "top / bottom screen")
+                HudRow("L2 / R2", "prev / next top view")
+                HudRow("X / Y", "prev / next bottom deck")
+                HudRow("B", "leave NAV")
+            } else Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 HudTitle(short(view), accent(view))
                 contextRows(view).forEach { (k, v) -> HudRow(k, v) }
                 HudTitle("ALWAYS", Tb.Muted)
@@ -75,11 +86,11 @@ fun BoxScope.ControllerHud(state: AppState) {
 }
 
 private fun short(v: TopView) = when (v) {
-    TopView.SAMPLER -> "SMP"; TopView.SYNTH -> "SYN"; TopView.SEQ -> "SEQ"; TopView.MIX -> "MIX"; TopView.VIZ -> "VIZ"
+    TopView.SAMPLER -> "SAMPLE"; TopView.SYNTH -> "SYNTH"; TopView.DRUM -> "DRUMS"; TopView.SEQ -> "STEPS"; TopView.MIX -> "MIXER"; TopView.VIZ -> "VISUAL"
 }
 
 private fun accent(v: TopView) = when (v) {
-    TopView.SAMPLER -> Tb.Pads[0]; TopView.SYNTH -> Tb.EncOrange; TopView.SEQ -> Tb.Good
+    TopView.SAMPLER -> Tb.Pads[0]; TopView.SYNTH -> Tb.EncOrange; TopView.DRUM -> Tb.Pads[1]; TopView.SEQ -> Tb.Good
     TopView.MIX -> Tb.EncWhite; TopView.VIZ -> Tb.EncBlue
 }
 
@@ -89,7 +100,10 @@ private fun contextRows(v: TopView): List<Pair<String, String>> = when (v) {
         "L-stick ▲▼" to "pitch ±12", "X" to "play mode", "Y" to "reset pitch")
     TopView.SYNTH -> listOf(
         "sticks" to "the 4 encoders", "◀ ▶" to "page", "▲ ▼" to "octave",
-        "A / R1" to "play root", "X" to "chord mode", "Y" to "reset page")
+        "A / R1" to "play root", "X" to "chord mode", "Y" to "reset page", "L3 / R3" to "next preset / DICE")
+    TopView.DRUM -> listOf(
+        "◀ ▶" to "step", "▲ ▼" to "sound", "A" to "toggle step", "R1" to "play sound",
+        "sticks" to "the 4 encoders", "X / Y" to "dice beat / undo", "L3 / R3" to "next kit / dice kit")
     TopView.SEQ -> listOf(
         "◀ ▶" to "step cursor", "▲ ▼" to "edit lane", "A" to "toggle step", "X" to "dice", "Y" to "undo")
     TopView.MIX -> listOf(

@@ -51,7 +51,19 @@ jobs:
           THORBOX_KEYSTORE_PASSWORD: ${{ secrets.THORBOX_KEYSTORE_PASSWORD }}
           THORBOX_KEY_ALIAS: ${{ secrets.THORBOX_KEY_ALIAS }}
           THORBOX_KEY_PASSWORD: ${{ secrets.THORBOX_KEY_PASSWORD }}
+      # The minified (R8) release build, so shrinker problems show up on every push, not on release day.
+      - name: Release build (R8)
+        run: ./gradlew :app:assembleRelease --stacktrace
+        env:
+          THORBOX_ALLOW_DEBUG_SIGNING: "1"
+      - name: Model unit tests (project files, presets)
+        run: ./gradlew :core-model:test :app:testDebugUnitTest --stacktrace
       - run: ./gradlew :app:lintDebug
+      - name: Lint summary (issue counts by id)
+        if: always()
+        run: |
+          f=$(ls app/build/reports/lint-results-debug.xml 2>/dev/null || true)
+          if [ -n "$f" ]; then grep -o 'id="[^"]*"' "$f" | sort | uniq -c | sort -rn | head -40; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -71,6 +83,8 @@ jobs:
     name: Launch smoke test (emulator)
     needs: [wrapper, host-tests]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -96,3 +110,55 @@ jobs:
           name: smoke-logs
           path: smoke/
           retention-days: 14
+      # The clean screenshots go to an orphan ci-shots branch (one folder per commit, newest replaces it),
+      # so reviewing the UI doesn't need artifact downloads. Same-repo branches only.
+      - name: Publish screenshots to ci-shots
+        if: always() && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          [ -d smoke/shots ] || exit 0
+          mkdir -p /tmp/shots && cp smoke/shots/*.png /tmp/shots/ 2>/dev/null || exit 0
+          cp smoke/shots/*.txt /tmp/shots/ 2>/dev/null || true
+          cd /tmp/shots
+          echo "$SHA" > COMMIT
+          git init -q && git checkout -q -b ci-shots
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screenshots for ${SHA:0:7}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-shots
+
+  # Rolling "dev" pre-release: the newest green build from this repo's own branches, at a fixed URL,
+  # so the Thor dev loop (tools/thor-dev.ps1) can fetch it without anyone clicking through CI.
+  # Fork PRs and Dependabot never get here (no write token, and their builds aren't ours to ship).
+  dev-release:
+    name: Publish dev build
+    needs: [android, smoke]
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: dev-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: thorbox-debug-apk, path: apk }
+      - name: Replace the dev pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          cp "$(ls apk/*.apk | head -n1)" dist/ClamshellBeats-dev-debug.apk
+          printf '%s\n%s\n' "$SHA" "$BRANCH" > dist/build.txt
+          (cd dist && sha256sum ClamshellBeats-dev-debug.apk > SHA256SUMS.txt)
+          gh release delete dev --cleanup-tag --yes || true
+          gh release create dev dist/* --prerelease --target "$SHA" \
+            --title "Dev build ${SHA:0:7} (${BRANCH})" \
+            --notes "Newest green CI build of \`${BRANCH}\` at ${SHA:0:7}. For testing only; it changes on every push. Stable builds are the v* releases."

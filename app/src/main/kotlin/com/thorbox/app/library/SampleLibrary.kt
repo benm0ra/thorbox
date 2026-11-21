@@ -14,7 +14,7 @@ data class LibraryItem(val uri: Uri, val name: String, val folder: String, val s
 
 /**
  * A "watched" samples folder: you grant one folder once (Storage Access Framework) and it's
- * browsable instantly from then on, with no picker per import. That fits the Koala flow better.
+ * browsable instantly from then on, with no picker per import. That keeps the flow fast.
  * Uses DocumentsContract queries directly (much faster than DocumentFile for big folders).
  */
 class SampleLibrary(private val context: Context) {

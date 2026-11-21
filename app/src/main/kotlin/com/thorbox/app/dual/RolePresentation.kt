@@ -43,6 +43,8 @@ class RolePresentation(
             setContent { ThorboxTheme { RoleContent(role, state) } }
         }
         setContentView(view)
+        // NAV cursor: the root must be focusable so the cursor can land here even when the other screen has input focus.
+        view.isFocusable = true; view.isFocusableInTouchMode = true
         window?.let { w ->
             w.decorView.setViewTreeLifecycleOwner(activity)
             w.decorView.setViewTreeViewModelStoreOwner(activity)
@@ -53,6 +55,12 @@ class RolePresentation(
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }
+    }
+
+    // Re-hide the bars whenever focus hops between the two screens (Android shows them again otherwise).
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        window?.insetsController?.hide(WindowInsets.Type.systemBars())
     }
 
     // Key focus follows the last-touched display, so gamepad input can land here.

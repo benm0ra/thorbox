@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clamshell Beats: the Thor's two shells on a hinge. Neon screen with a music note on top,
+     purple controller below (D-pad + face buttons). Purple + neon green. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#9DFF3C"
+        android:pathData="M36,24 H72 A6,6 0 0 1 78,30 V44 A6,6 0 0 1 72,50 H36 A6,6 0 0 1 30,44 V30 A6,6 0 0 1 36,24 Z" />
+    <!-- beamed eighth notes -->
+    <path android:fillColor="#2A1147"
+        android:pathData="M43.46,45.02 A3.3,2.5 -18 1,1 49.74,42.98 A3.3,2.5 -18 1,1 43.46,45.02 Z
+                          M56.46,43.02 A3.3,2.5 -18 1,1 62.74,40.98 A3.3,2.5 -18 1,1 56.46,43.02 Z
+                          M48.6,31 H50.5 V44 H48.6 Z M61.6,29 H63.5 V42 H61.6 Z
+                          M48.6,31 L63.5,28.6 L63.5,32 L48.6,34.4 Z" />
+    <path android:fillColor="#8C9DFF3C" android:pathData="M43,52 H65 A1,1 0 0 1 66,53 A1,1 0 0 1 65,54 H43 A1,1 0 0 1 42,53 A1,1 0 0 1 43,52 Z" />
+    <path android:fillColor="#7C3AED"
+        android:pathData="M36,56 H72 A6,6 0 0 1 78,62 V76 A6,6 0 0 1 72,82 H36 A6,6 0 0 1 30,76 V62 A6,6 0 0 1 36,56 Z" />
+    <!-- D-pad + face buttons -->
+    <path android:fillColor="#9DFF3C"
+        android:pathData="M36,67 H46 A1,1 0 0 1 47,68 V70 A1,1 0 0 1 46,71 H36 A1,1 0 0 1 35,70 V68 A1,1 0 0 1 36,67 Z
+                          M40,63 H42 A1,1 0 0 1 43,64 V74 A1,1 0 0 1 42,75 H40 A1,1 0 0 1 39,74 V64 A1,1 0 0 1 40,63 Z
+                          M65,65 A2,2 0 1,1 69,65 A2,2 0 1,1 65,65 Z M65,73 A2,2 0 1,1 69,73 A2,2 0 1,1 65,73 Z
+                          M61,69 A2,2 0 1,1 65,69 A2,2 0 1,1 61,69 Z M69,69 A2,2 0 1,1 73,69 A2,2 0 1,1 69,69 Z" />
+    <path android:fillColor="#999DFF3C"
+        android:pathData="M51.2,68.3 H52.8 A0.7,0.7 0 0 1 52.8,69.7 H51.2 A0.7,0.7 0 0 1 51.2,68.3 Z M55.2,68.3 H56.8 A0.7,0.7 0 0 1 56.8,69.7 H55.2 A0.7,0.7 0 0 1 55.2,68.3 Z" />
+</vector>

@@ -96,6 +96,32 @@ int main() {
       double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
       CHECK(ms < 1000.0, "8 voices × 10 s rendered in %.0f ms (%.1f%% of real time, desktop)", ms, ms / 100.0); }
 
+    // ---- 0.7 additions: pitch envelope, glide, mono legato, drive, noise ----
+    {   Synth s = openSaw(); s.setParam(Osc1Shape, 0.f); s.setParam(PitchEnvAmt, 24.f); s.setParam(PitchEnvDecay, 60.f);
+        s.noteOn(45, 1.f); std::vector<float> m; run(s, SR / 2, &m);
+        std::vector<float> a(m.begin(), m.begin() + 1200), b(m.begin() + 12000, m.begin() + 24000);
+        double f0 = zcFreq(a, 0), f1 = zcFreq(b, 0);
+        CHECK(f0 > 1.6 * f1 && std::fabs(f1 - 110.0) < 4.0, "pitch env: starts high, settles on A2 (%.0f → %.1f Hz)", f0, f1); }
+    {   Synth s = openSaw(); s.setParam(Mono, 1.f); s.setParam(GlideMs, 200.f);
+        s.noteOn(57, 1.f); run(s, SR / 4); s.noteOn(69, 1.f);
+        std::vector<float> m; run(s, SR / 2, &m);
+        std::vector<float> early(m.begin(), m.begin() + 1440), late(m.begin() + 14400, m.end());
+        double fe = zcFreq(early, 0), fl = zcFreq(late, 0);
+        CHECK(fe < 330.0 && std::fabs(fl - 440.0) < 5.0, "glide: slides from A3 up to A4 (%.0f → %.1f Hz)", fe, fl);
+        CHECK(s.telemetry().activeVoices == 1, "mono: one voice for two held notes");
+        s.noteOff(69); std::vector<float> m2; run(s, SR / 2, &m2);
+        std::vector<float> back(m2.begin() + 14400, m2.end());
+        CHECK(std::fabs(zcFreq(back, 0) - 220.0) < 4.0, "mono: releasing the top key returns to the held one (%.1f Hz)", zcFreq(back, 0));
+        s.noteOff(57); run(s, SR);
+        CHECK(!s.anyActive(), "mono: all keys up → silent"); }
+    {   Synth a = openSaw(), b = openSaw(); a.setParam(Osc1Shape, 0.f); b.setParam(Osc1Shape, 0.f); b.setParam(Drive, 1.f);
+        a.noteOn(57, 1.f); b.noteOn(57, 1.f);
+        auto oa = run(a, SR / 2), ob = run(b, SR / 2);
+        CHECK(hfRms(ob, SR / 4) > 1.5 * hfRms(oa, SR / 4) && allFinite(ob), "drive adds harmonics to a sine (%.3f vs %.3f)", hfRms(ob, SR / 4), hfRms(oa, SR / 4)); }
+    {   Synth s = openSaw(); s.setParam(OscMix, 0.f); s.setParam(Osc1Shape, 0.f); s.setParam(Noise, 1.f);
+        s.noteOn(30, 1.f); auto o = run(s, SR / 2);
+        Synth q = openSaw(); q.setParam(Osc1Shape, 0.f); q.noteOn(30, 1.f); auto oq = run(q, SR / 2);
+        CHECK(hfRms(o, SR / 4) > 5.0 * hfRms(oq, SR / 4), "noise knob adds broadband noise"); }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

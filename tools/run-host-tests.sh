@@ -20,6 +20,9 @@ run() {   # name, then compiler args
 run analysis  "$SRC/Analysis.cpp" "$T/analysis_test.cpp"
 run voice     -pthread "$T/voice_test.cpp"
 run synth     "$T/synth_test.cpp"
+run drums     "$T/drum_test.cpp"
+run loudness  "$T/loudness_test.cpp"
+run pcm       "$T/pcm_test.cpp"
 run sequencer "$T/sequencer_test.cpp"
 # The engine test compiles AudioEngine.cpp against tiny Oboe/Android stubs (test/cpp/stubs).
 run fx        "$T/fx_test.cpp"

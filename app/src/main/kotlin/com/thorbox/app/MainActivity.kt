@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private lateinit var screens: DualScreenController
     private val state get() = appState
+    private val askMic = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok -> state.onMicPermission(ok) }
 
     private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { state.setLibraryRoot(it) }
@@ -39,6 +40,11 @@ class MainActivity : ComponentActivity() {
                 state.folderPickRequests.collect { pickFolder.launch(null) }
             }
         }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                state.micPermissionRequests.collect { askMic.launch(android.Manifest.permission.RECORD_AUDIO) }
+            }
+        }
         if (state.library.root.value != null && state.library.items.value.isEmpty()) state.rescanLibrary()
 
         setContent {
@@ -48,9 +54,47 @@ class MainActivity : ComponentActivity() {
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
+        applyLaunchExtras(intent)
         // Only after setContent: before it the window has no DecorView, and asking for its insets
         // controller crashes (NPE inside PhoneWindow) on Android 13.
         hideSystemBars()
+    }
+
+    // Touching the other screen moves window focus there, and Android brings the status bar back on
+    // this one. Hide it again whenever focus changes, in either direction.
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); hideSystemBars() }
+    override fun onResume() { super.onResume(); hideSystemBars() }
+
+    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); applyLaunchExtras(intent) }
+
+    /** `--es view DRUM --es deck FX`: open a given view/deck (used by the emulator smoke test; harmless otherwise). */
+    private fun applyLaunchExtras(i: android.content.Intent?) {
+        // The launcher activity is exported: in release builds no other app may drive it with extras.
+        if (!BuildConfig.DEBUG) return
+        i?.getStringExtra("view")?.let { v -> TopView.entries.firstOrNull { it.name == v }?.let(state::selectTop) }
+        i?.getStringExtra("deck")?.let { d -> com.thorbox.model.Deck.entries.firstOrNull { it.name == d }?.let(state::selectDeck) }
+        i?.getStringExtra("add")?.let { k -> com.thorbox.model.TrackKind.entries.firstOrNull { it.name == k }?.let(state::addTrack) }
+        if (i?.hasExtra("fx") == true) i.getIntExtra("fx", -1).let { id -> if (id >= 0) state.groove.fxDown(id, 0.6f, 0.6f) else for (k in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.fxUp(k) }
+        if (i?.hasExtra("nav") == true) state.input.setNav(i.getBooleanExtra("nav", false))
+        if (i?.hasExtra("settings") == true) i.getIntExtra("settings", -1).let { t -> state.showSettings.value = t >= 0; if (t >= 0) state.settingsTab.intValue = t }
+        if (i?.getBooleanExtra("scratch", false) == true) { state.projects.enterScratch(); state.showWelcome.value = false }   // tours never touch your projects
+        if (i?.getBooleanExtra("demo", false) == true) state.loadDemo()
+        if (i?.getBooleanExtra("dice", false) == true) {                                    // fill every track with a pattern
+            for (t in 0 until com.thorbox.model.TRACK_COUNT) if (state.trackKind(t) != com.thorbox.model.TrackKind.EMPTY) state.groove.diceNotes(t)
+        }
+        i?.getStringExtra("kit")?.let { n -> state.presets.allKits().firstOrNull { it.name == n.replace('_', ' ') }?.let(state.drums::loadKit) }
+        if (i?.hasExtra("drumpage") == true) state.drums.page.intValue = i.getIntExtra("drumpage", 0).coerceIn(0, 2)
+        if (i?.hasExtra("latch") == true) i.getIntExtra("latch", -1).let { id -> if (id in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.toggleLatch(id, 0.3f, 0.7f) }
+        if (i?.getBooleanExtra("dry", false) == true) state.groove.stopAll()
+        // recorder test hooks: open the sheet + start / stop a take (the mic permission must already be granted)
+        if (i?.getBooleanExtra("recstart", false) == true) { state.showMic.value = true; if (!state.mic.recording.value) state.toggleMicRecording() }
+        if (i?.getBooleanExtra("recstop", false) == true && state.mic.recording.value) state.toggleMicRecording()
+        i?.getStringExtra("levels")?.let { m -> com.thorbox.app.levels.LevelMode.entries.firstOrNull { it.name == m }?.let(state::setLevels) }
+        if (i?.hasExtra("fxxy") == true) state.groove.fxXyMode.value = i.getBooleanExtra("fxxy", false)
+        if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))
+        if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
+        i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
+        if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
     }
 
     override fun onStart() {

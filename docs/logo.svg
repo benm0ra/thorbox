@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <rect width="108" height="108" rx="24" fill="#2A1147"/>
+  <!-- top shell: neon screen with a music note -->
+  <path fill="#9DFF3C" d="M36,24 H72 A6,6 0 0 1 78,30 V44 A6,6 0 0 1 72,50 H36 A6,6 0 0 1 30,44 V30 A6,6 0 0 1 36,24 Z"/>
+  <g fill="#2A1147">
+    <ellipse cx="46.6" cy="44" rx="3.3" ry="2.5" transform="rotate(-18 46.6 44)"/>
+    <ellipse cx="59.6" cy="42" rx="3.3" ry="2.5" transform="rotate(-18 59.6 42)"/>
+    <rect x="48.6" y="31" width="1.9" height="13"/>
+    <rect x="61.6" y="29" width="1.9" height="13"/>
+    <path d="M48.6,31 L63.5,28.6 L63.5,32 L48.6,34.4 Z"/>
+  </g>
+  <!-- hinge -->
+  <rect x="42" y="52" width="24" height="2" rx="1" fill="#9DFF3C" fill-opacity="0.55"/>
+  <!-- bottom shell: purple with neon controls -->
+  <path fill="#7C3AED" d="M36,56 H72 A6,6 0 0 1 78,62 V76 A6,6 0 0 1 72,82 H36 A6,6 0 0 1 30,76 V62 A6,6 0 0 1 36,56 Z"/>
+  <g fill="#9DFF3C">
+    <rect x="35" y="67" width="12" height="4" rx="1"/>
+    <rect x="39" y="63" width="4" height="12" rx="1"/>
+    <circle cx="67" cy="65" r="2"/><circle cx="67" cy="73" r="2"/>
+    <circle cx="63" cy="69" r="2"/><circle cx="71" cy="69" r="2"/>
+    <rect x="50.5" y="68.3" width="3" height="1.4" rx="0.7" fill-opacity="0.6"/>
+    <rect x="54.5" y="68.3" width="3" height="1.4" rx="0.7" fill-opacity="0.6"/>
+  </g>
+</svg>

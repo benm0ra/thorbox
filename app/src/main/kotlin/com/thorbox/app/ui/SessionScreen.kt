@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import com.thorbox.app.LoadedSample
 import com.thorbox.app.TopView
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -45,39 +46,50 @@ import java.util.Locale
 @Composable
 fun TopScreen(state: AppState) {
     val view = state.topView.value
-    // Every touch on the top screen resets the visualizer's idle timer (observed, never consumed).
-    AuroraBackground(state, Modifier.pointerInput(Unit) {
-        awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); state.noteTopTouch() } }
-    }) {
+    AuroraBackground(state, Modifier) {
     Row(Modifier.fillMaxSize().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Column(Modifier.width(56.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            HwButton("SMP", Modifier.fillMaxWidth(), active = view == TopView.SAMPLER, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.SAMPLER) }
-            HwButton("SYN", Modifier.fillMaxWidth(), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.SYNTH) }
-            HwButton("SEQ", Modifier.fillMaxWidth(), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.SEQ) }
-            HwButton("MIX", Modifier.fillMaxWidth(), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 44.dp, fontSize = 12) { state.selectTop(TopView.MIX) }
-            HwButton("VIZ", Modifier.fillMaxWidth(), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 44.dp, fontSize = 12) {
+        // The rail fits any screen height: view buttons share the space (never shorter than 28 dp), and the
+        // gear + ? keep a fixed size, so they can't be pushed off the bottom on the Thor's short top panel.
+        Column(Modifier.width(64.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            HwButton("SAMPLE", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SAMPLER, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SAMPLER) }
+            HwButton("SYNTH", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
+            HwButton("DRUMS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
+            HwButton("STEPS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
+            HwButton("MIXER", Modifier.fillMaxWidth().weight(1f), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
+            HwButton("VISUAL", Modifier.fillMaxWidth().weight(1f), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) {
                 if (view == TopView.VIZ) state.exitViz() else state.selectTop(TopView.VIZ)
             }
             // Transport: always visible whatever view you're in
-            HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth(), active = state.groove.playing.value, accent = Tb.Good, minHeight = 40.dp, fontSize = 14) { state.groove.togglePlay() }
-            Box(Modifier.weight(1f))
-            LevelMeter(state.level, Modifier.fillMaxWidth().weight(2f)
+            HwButton(if (state.groove.playing.value) "■" else "▶", Modifier.fillMaxWidth().weight(1f), active = state.groove.playing.value, accent = Tb.Good, minHeight = 28.dp, fontSize = 14) { state.groove.togglePlay() }
+            GearButton(state.showSettings.value, Modifier.fillMaxWidth()) { state.showSettings.value = !state.showSettings.value }
+            InfoToggle(onTour = { state.showWelcome.value = true }, modifier = Modifier.fillMaxWidth())
+            LevelMeter(state.level, Modifier.fillMaxWidth().weight(0.9f)
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { state.showDiagnostics.value = !state.showDiagnostics.value }) })
         }
-        Box(Modifier.weight(1f).fillMaxHeight().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (state.miniMeters.value) MiniMeters(state, Modifier.fillMaxWidth())       // SETTINGS → LOOK → METERS
+        Box(Modifier.weight(1f).fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
             when (view) {
                 TopView.SAMPLER -> ChopScreen(state)
                 TopView.SYNTH -> SynthScreen(state)
+                TopView.DRUM -> DrumScreen(state)
                 TopView.SEQ -> SeqScreen(state)
                 TopView.MIX -> MixScreen(state)
                 TopView.VIZ -> VizScreen(state)
             }
-            // OP-XY style: holding a step on the STEP deck opens its components here, over any view.
+            // Holding a step on the STEP deck opens its components here, over any view.
             if (state.groove.heldStep.intValue >= 0)
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
         }
+        }
     }
+    InfoLine()   // plain-words explanation of whatever you just touched
+    NavBadge(state, 0)
+    if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
+    if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
+    if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
+    if (state.showSettings.value) SettingsSheet(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls
     }
 }
@@ -106,14 +118,17 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
     val loading by state.loadingName.collectAsState()
 
     Column(modifier) {
-        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("SAMPLES", style = Tb.Label, modifier = Modifier.weight(1f))
-            HwButton("FOLDER", minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
+        // Title on its own line, buttons sharing the row under it: the panel is narrow on the Thor's
+        // top screen and "SAMPLES" used to wrap to "SAM / PLES" beside two buttons.
+        Text("SAMPLES", style = Tb.Label, maxLines = 1, modifier = Modifier.padding(start = 10.dp, top = 8.dp, end = 10.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            HwButton("MIC", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12, accent = Tb.Warn) { state.openMic() }
+            HwButton("FOLDER", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
         }
         when {
-            root == null -> Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
-                HwButton("CHOOSE SAMPLES FOLDER", active = true, minHeight = 64.dp) { state.requestFolder() }
-            }
+            // The big CHOOSE FOLDER / RECORD lives in the empty sample area; here, just say what will appear.
+            root == null -> Text("Your samples folder shows up here.", color = Tb.Muted, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
             scanning && files.isEmpty() -> Text("Scanning…", color = Tb.Muted, modifier = Modifier.padding(12.dp))
             files.isEmpty() -> Text("No wav / mp3 files in that folder", color = Tb.Muted, modifier = Modifier.padding(12.dp))
             else -> LazyColumn(Modifier.fillMaxSize()) {
@@ -122,7 +137,7 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
                     Column(
                         Modifier.fillMaxWidth().height(52.dp)
                             .background(if (isCurrent) Tb.Raised.copy(alpha = 0.85f) else Color.Transparent)
-                            .clickable { state.load(item) }       // one tap: load + analyse onto the pad
+                            .navClickable { state.load(item) }       // one tap: load + analyse onto the pad
                             .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.Center,
                     ) {

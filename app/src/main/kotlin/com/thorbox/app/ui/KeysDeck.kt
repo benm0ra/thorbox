@@ -2,7 +2,6 @@
 package com.thorbox.app.ui
 
 import android.view.MotionEvent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +34,7 @@ import com.thorbox.app.AppState
 private val NOTE_NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 /**
- * Deck 2, the scale keyboard: a 4×4 grid laid out like an MPC/Koala (bottom-left is lowest).
+ * Deck 2, the scale keyboard: a 4×4 grid laid out like MPC pads (bottom-left is lowest).
  * With LOCK on, every pad is in key (the loaded sample's detected key), so there are no wrong notes.
  * Pads light from the engine's real sounding-note mask, so release tails glow.
  *
@@ -50,7 +49,7 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
     val key = state.lockKey()
     val lock = state.keyLock.value
     val chord = state.chordMode.value
-    val octave = state.keyOctave.value
+    val octave = state.keyOctave.intValue
     val tel = state.telemetry
     val gridSize = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Pair<Int, IntArray>>() }   // pointerId → (cell, notes)
@@ -74,7 +73,10 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
             Text(String.format(java.util.Locale.US, "%+d", octave), color = Tb.Text, fontFamily = Tb.Mono,
                 fontWeight = FontWeight.Black, fontSize = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
             HwButton("OCT+", minHeight = 44.dp, fontSize = 12) { state.shiftOctave(+1) }
-            Box(Modifier.weight(1f))
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                if (sample?.key == null && lock) Text("no sample key · using ${key.label()}", color = Tb.Muted, fontSize = 11.sp,
+                    maxLines = 1, modifier = Modifier.padding(end = 6.dp))
+            }
             HwButton("CHORD", active = chord, accent = Tb.EncGreen, minHeight = 44.dp, fontSize = 12) { state.chordMode.value = !chord }
             HwButton(if (lock) key.label().uppercase() else "CHROM", active = lock, accent = Tb.Key, minHeight = 44.dp, fontSize = 12) {
                 state.releaseAllKeys(); state.keyLock.value = !lock
@@ -136,10 +138,6 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-            }
-            if (sample?.key == null && lock) {
-                Text("no sample key: using C MIN", color = Tb.Muted, fontSize = 10.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).background(Tb.Black).padding(horizontal = 4.dp))
             }
         }
     }

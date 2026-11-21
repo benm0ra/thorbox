@@ -20,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.sampler.StretchMode
 import com.thorbox.app.sampler.ChopLogic
 import com.thorbox.app.sampler.ChopMode
 import com.thorbox.model.PlayMode
@@ -48,7 +51,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The sampler's top screen: Serato-style chopping.
+ * The sampler's top screen: chopping.
  *   browser | sample → project match bar | waveform with 16 coloured slices | chop modes + selected pad.
  * Waveform gestures: drag a marker to move it · tap a slice to play and select it.
  */
@@ -59,6 +62,7 @@ fun ChopScreen(state: AppState) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             MatchBar(state)
             SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
+            GrooveStrip(state, state.samplerTrack.intValue, showLabel = false)
             ChopControls(state)
         }
     }
@@ -84,15 +88,42 @@ private fun MatchBar(state: AppState) {
             Text("→", color = Tb.Muted, fontSize = 16.sp, fontWeight = FontWeight.Black)
             KeyBpmChip("PROJECT", project.label().uppercase(), fmtBpm(bpm))
         }
-        Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        var choosing by remember { mutableStateOf(false) }
+        if (!choosing) Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val semis = sm.keyShift()
             HwButton(String.format(Locale.US, "KEY MATCH %+d", semis), Modifier.weight(1f).fillMaxHeight(), active = sm.keyMatch.value,
                 enabled = s?.key != null, accent = Tb.Key, fontSize = 12) { sm.toggleKeyMatch() }
-            HwButton("BPM SYNC " + (s?.bpm?.let { com.thorbox.app.sampler.ChopLogic.syncLabel(it, bpm) } ?: ""), Modifier.weight(1f).fillMaxHeight(),
-                active = sm.bpmSync.value, enabled = s?.bpm != null, accent = Tb.Tempo, fontSize = 12) { sm.toggleBpmSync() }
-            HwButton("PROJECT ← SAMPLE", Modifier.fillMaxHeight(), enabled = s != null, fontSize = 11) { state.setProjectFromSample() }
-            if (sm.rendering.value) Text("rendering…", color = Tb.Muted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterVertically))
-        }
+            // STRETCH: one button that says what it's doing; tap it for the choices (one tap picks and closes).
+            val on = sm.stretch.value != com.thorbox.app.sampler.StretchMode.OFF
+            HwButton("STRETCH " + (if (sm.rendering.value) "…" else sm.stretchLabel()), Modifier.weight(1.2f).fillMaxHeight(),
+                active = on, enabled = s != null, accent = Tb.Tempo, fontSize = 12) { choosing = true }
+            HwButton("USE SAMPLE KEY+BPM", Modifier.fillMaxHeight(), enabled = s != null, fontSize = 11) { state.setProjectFromSample() }
+        } else StretchChooser(state) { choosing = false }
+    }
+}
+
+/**
+ * Pick how the sample is time-stretched (pitch always kept). Big, labelled, one tap each:
+ * OFF · SYNC to the project tempo (needs a detected BPM) · HALF-TIME · DOUBLE-TIME · FIT 1/2/4/8 bars
+ * (stretches whatever length it is to exactly that many bars: great for field recordings and loops
+ * with no clean BPM). ✕ closes without changing anything.
+ */
+@Composable
+private fun StretchChooser(state: AppState, close: () -> Unit) {
+    val sm = state.sampler
+    val cur = sm.stretch.value
+    val hasBpm = state.sample.collectAsState().value?.bpm != null
+    fun pick(m: StretchMode, bars: Int = sm.fitBars.intValue) { sm.setStretch(m, bars); close() }
+    Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("STRETCH", style = Tb.Label, color = Tb.Tempo, modifier = Modifier.padding(horizontal = 4.dp))
+        HwButton("OFF", Modifier.fillMaxHeight(), active = cur == StretchMode.OFF, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(StretchMode.OFF) }
+        HwButton("SYNC", Modifier.fillMaxHeight(), active = cur == StretchMode.SYNC, enabled = hasBpm, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(StretchMode.SYNC) }
+        HwButton("½×", Modifier.fillMaxHeight(), active = cur == StretchMode.HALF, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(StretchMode.HALF) }
+        HwButton("2×", Modifier.fillMaxHeight(), active = cur == StretchMode.DOUBLE, accent = Tb.Tempo, fontSize = 12, hPad = 8.dp) { pick(StretchMode.DOUBLE) }
+        Text("FIT", style = Tb.Label, color = Tb.Muted, modifier = Modifier.padding(start = 4.dp))
+        for (b in intArrayOf(1, 2, 4, 8)) HwButton("$b BAR${if (b == 1) "" else "S"}", Modifier.weight(1f).fillMaxHeight(),
+            active = cur == StretchMode.FIT && sm.fitBars.intValue == b, accent = Tb.Tempo, fontSize = 11, hPad = 4.dp) { pick(StretchMode.FIT, b) }
+        HwButton("✕", Modifier.width(44.dp).fillMaxHeight(), fontSize = 13) { close() }
     }
 }
 
@@ -100,11 +131,11 @@ private fun fmtBpm(b: Float) = if (b % 1f == 0f) "${b.roundToInt()}" else String
 
 @Composable
 private fun KeyBpmChip(label: String, key: String, bpm: String) {
-    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Black.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Void.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Text(label, style = Tb.Label)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(key, color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
-            Text(bpm, color = Tb.Tempo, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Text(if (bpm == "—") bpm else "$bpm BPM", color = Tb.Tempo, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
         }
     }
 }
@@ -120,8 +151,8 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     val dims = remember { IntArray(2) }
     val drag = remember { intArrayOf(-1, 0) }     // [marker index being dragged, moved?]
     val path = remember { Path() }
-    val tm = rememberTextMeasurer()
-    val tab = remember { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
+    val tm = rememberTextMeasurer(cacheSize = 64)
+    val tab = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val tel = state.telemetry
     val grabPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
 
@@ -133,10 +164,10 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     }
 
     Box(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Black.copy(alpha = 0.78f))
+        modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
-                if (frames <= 0) return@pointerInteropFilter true
+                if (frames <= 0) return@pointerInteropFilter false   // empty: let the CHOOSE / RECORD buttons have the touch
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { drag[0] = nearestMarker(ev.x); drag[1] = 0 }
                     MotionEvent.ACTION_MOVE -> if (drag[0] > 0) { drag[1] = 1; sm.moveMarker(drag[0], xToFrame(ev.x)) }
@@ -166,6 +197,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     }
                 }
                 val waveStroke = Stroke(1f)
+                val tabLabels = List(16) { tm.measure("${it + 1}", tab) }      // measured once per size/theme, not per frame
                 val tabSize = Size(18.dp.toPx(), 15.dp.toPx()); val tabR = CornerRadius(3.dp.toPx())
                 val thin = 2.dp.toPx(); val thick = 3.dp.toPx(); val phW = 2.5f.dp.toPx()
                 onDrawBehind {
@@ -179,15 +211,32 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                         val x = r.start.toFloat() / frames * w
                         val c = Tb.Pads[i % Tb.Pads.size]
                         drawLine(c, Offset(x, 0f), Offset(x, h), if (i == selected) thick else thin)
-                        drawRoundRect(c, Offset(x, 0f), tabSize, tabR)
-                        drawText(tm, "${i + 1}", Offset(x + 3.dp.toPx(), 1.dp.toPx()), tab)
+                        // Keep the number tab on screen: a slice starting near the right edge used to
+                        // ask drawText for a negative width and crash.
+                        val tx = x.coerceAtMost(w - tabSize.width).coerceAtLeast(0f)
+                        drawRoundRect(c, Offset(tx, 0f), tabSize, tabR)
+                        drawText(tabLabels[i % tabLabels.size], topLeft = Offset(tx + 3.dp.toPx(), 1.dp.toPx()))
                     }
                     tel.frame.longValue                    // only the playhead needs every frame
                     val ph = state.playhead.floatValue
                     if (ph in 0f..1f) drawLine(Tb.Text, Offset(ph * w, 0f), Offset(ph * w, h), phW)
                 }
             }
-    )
+    ) {
+        // Empty state: the big dark box is where your first sample goes, so the ways to get one live here.
+        if (frames <= 0 && state.loadingName.collectAsState().value == null) {
+            androidx.compose.foundation.layout.Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("No sample yet", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                Text("Pick a folder of loops and breaks, record one with the mic, or try the demo break.", color = Tb.Muted, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HwButton("CHOOSE FOLDER", active = true, minHeight = 48.dp, fontSize = 13) { state.requestFolder() }
+                    HwButton("RECORD", accent = Tb.Warn, active = true, minHeight = 48.dp, fontSize = 13) { state.openMic() }
+                    HwButton("DEMO BREAK", accent = Tb.EncGreen, active = true, minHeight = 48.dp, fontSize = 13) { state.loadDemo() }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -195,26 +244,58 @@ private fun ChopControls(state: AppState) {
     val sm = state.sampler
     val mode = sm.chopMode.value
     val pad = sm.pads.value[sm.selected.intValue]
-    Row(Modifier.fillMaxWidth().height(52.dp).glass(state, 12.dp).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
+    // Two rows on the Thor's top screen: how to chop (top), then the selected pad (bottom). One row
+    // squeezed ÷4 / ÷8 / ÷16 to blank buttons and pushed + and the play mode off the edge.
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(state, 12.dp).padding(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         HwButton("AUTO", Modifier.fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12) { sm.setChopMode(ChopMode.AUTO) }
         if (mode == ChopMode.AUTO)
-            DragValue("SENS", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(70.dp).fillMaxHeight(), pxPerUnit = 300f,
+            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(70.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })
         listOf(4, 8, 16).forEach { n ->
-            HwButton("÷$n", Modifier.fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12) { sm.setEqualCount(n) }
+            HwButton("÷$n", Modifier.weight(1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12) { sm.setEqualCount(n) }
         }
-        HwButton(if (sm.lazyRunning.value) "LAZY ●" else "LAZY", Modifier.fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12) {
+        HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
-        HoldButton("▶", false, Tb.Good, Modifier.width(44.dp).fillMaxHeight()) { sm.togglePreview(it) }
+        HoldButton("▶", false, Tb.Good, Modifier.width(52.dp).fillMaxHeight()) { sm.togglePreview(it) }
+    }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // Wide (the Thor's top screen): one row. Narrow (single-screen phones / emulator): pitch on one
+    // row, WARP · NORMALIZE · PLAY on the next, so nothing is pushed off the edge.
+    val narrow = maxWidth < 720.dp
+    val padColor = Tb.Pads[sm.selected.intValue % Tb.Pads.size]
+    @Composable fun pitchGroup() {
+        Text("PAD ${sm.selected.intValue + 1}", color = padColor, fontWeight = FontWeight.Black, fontSize = 15.sp,
+            modifier = Modifier.padding(horizontal = 8.dp))
+        Text("PITCH", style = Tb.Label, color = Tb.Muted)
+        HwButton("−", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
+        Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp,
+            modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        HwButton("+", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
+    }
+    @Composable fun RowScopeTools(scope: androidx.compose.foundation.layout.RowScope) = with(scope) {
+        // WARP: pitch this chop without it speeding up (MPC-style); off = turntable pitch (faster + higher).
+        HwButton(if (pad.warp) "WARP ON" else "WARP", Modifier.width(96.dp).fillMaxHeight(), active = pad.warp, accent = Tb.Tempo, fontSize = 12) {
+            state.sampler.toggleWarp(state.sampler.selected.intValue)
+        }
+        // NORMALIZE: every chop to the same loudness (tap again to undo). The pad's gain shows beside it.
+        HwButton("NORMALIZE", Modifier.width(118.dp).fillMaxHeight(), active = sm.normalized.value, accent = Tb.Good, fontSize = 12) {
+            state.lastInput.value = sm.toggleNormalize()
+        }
+        if (pad.gainDb != 0f) Text(String.format(Locale.US, "%+.1f dB", pad.gainDb), color = Tb.Good, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         Box(Modifier.weight(1f))
-        // Selected pad
-        Text("PAD ${sm.selected.intValue + 1}", color = Tb.Pads[sm.selected.intValue % Tb.Pads.size], fontWeight = FontWeight.Black, fontSize = 13.sp)
-        HwButton("−", Modifier.fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
-        Text(String.format(Locale.US, "%+d", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 16.sp)
-        HwButton("+", Modifier.fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
-        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE"; PlayMode.GATE -> "GATE"; PlayMode.LOOP -> "LOOP" }, Modifier.fillMaxHeight(), fontSize = 11) { state.cyclePlayMode() }
+        Text("PLAY", style = Tb.Label, color = Tb.Muted)
+        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.width(120.dp).fillMaxHeight(),
+            active = true, accent = padColor, fontSize = 12) { state.cyclePlayMode() }
+    }
+    if (narrow) androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) { pitchGroup() }
+        Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) { RowScopeTools(this) }
+    } else Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically) { pitchGroup(); RowScopeTools(this) }
+    }
     }
 }
 
@@ -230,9 +311,9 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
     val dims = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Int>() }
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
-    val num = remember { TextStyle(color = Tb.Black, fontSize = 16.sp, fontWeight = FontWeight.Black) }
-    val hint = remember { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    val tm = rememberTextMeasurer(cacheSize = 64)
+    val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 16.sp, fontWeight = FontWeight.Black) }
+    val hint = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
 
     fun cellAt(x: Float, y: Float): Pair<Int, Float> {
         val cw = dims[0].coerceAtLeast(1) / 4f; val ch = dims[1].coerceAtLeast(1) / 4f
@@ -271,9 +352,25 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
             val empty = k >= count
             drawRoundRect(if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.72f), o, s, r)
             if (k == sel) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
-            drawText(tm, "${k + 1}", o + Offset(8.dp.toPx(), 6.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
+            drawTextSafe(tm, "${k + 1}", o + Offset(8.dp.toPx(), 6.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
             val p = sm.pads.value[k].pitch
-            if (p != 0) drawText(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
+            if (p != 0) drawTextSafe(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
+        }
+        val lm = state.levelMode.value
+        if (lm != com.thorbox.app.levels.LevelMode.OFF) {
+            // 16 LEVELS: repaint every pad as the source pad, shaded low → high, with its level
+            val src = state.levelSrc.intValue
+            val c = Tb.Pads[src % Tb.Pads.size]
+            val on = active and (1 shl src) != 0
+            for (k in 0 until 16) {
+                val col = k % 4; val rowTop = 3 - k / 4
+                val o = Offset(col * cw + gap, rowTop * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
+                drawRoundRect(Tb.Void, o, s, r)
+                drawRoundRect(c.copy(alpha = 0.25f + 0.6f * k / 15f + if (on) 0.12f else 0f), o, s, r)
+                if (k == 8 && lm == com.thorbox.app.levels.LevelMode.TUNE) drawRoundRect(Tb.Text, o, s, r, style = Stroke(2.dp.toPx()))
+                drawTextSafe(tm, com.thorbox.app.levels.Levels.label(lm, k), o + Offset(8.dp.toPx(), 6.dp.toPx()), num)
+                drawTextSafe(tm, "L${k + 1}", o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
+            }
         }
         if (lazy) drawRoundRect(Tb.Warn, Offset(gap, gap), Size(size.width - 2 * gap, size.height - 2 * gap), r, style = Stroke(3.dp.toPx()))
     }

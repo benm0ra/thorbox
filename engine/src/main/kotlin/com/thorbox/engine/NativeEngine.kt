@@ -32,7 +32,8 @@ object NativeEngine {
             val keyRoot: Int, val keyMinor: Boolean, val keyConfidence: Float,
             val bpm: Float, val bpmConfidence: Float,
         ) : Event
-        data class LoadFailed(val requestId: Int) : Event
+        /** [reason] is a [LoadError] code. */
+        data class LoadFailed(val requestId: Int, val reason: Int = LoadError.UNKNOWN) : Event
     }
 
     fun start(): Boolean = nativeStart()
@@ -45,11 +46,11 @@ object NativeEngine {
     fun setMasterGainDb(db: Float) = nativeSetMasterGainDb(db)
 
     // ---- Synth ----
-    fun synthNoteOn(note: Int, velocity: Float) = nativeSynthNoteOn(note, velocity)
-    fun synthNoteOff(note: Int) = nativeSynthNoteOff(note)
+    fun synthNoteOn(track: Int, note: Int, velocity: Float) = nativeSynthNoteOn(track, note, velocity)
+    fun synthNoteOff(track: Int, note: Int) = nativeSynthNoteOff(track, note)
     /** [id] = SynthParam.id, [value] in physical units. Rejected (false) if out of range or not finite. */
-    fun synthParam(id: Int, value: Float) = nativeSynthParam(id, value)
-    fun synthAllOff() = nativeSynthAllOff()
+    fun synthParam(track: Int, id: Int, value: Float) = nativeSynthParam(track, id, value)
+    fun synthAllOff(track: Int) = nativeSynthAllOff(track)
 
     /**
      * Live synth state for animations, filled in place (zero allocation per frame).
@@ -79,34 +80,86 @@ object NativeEngine {
         nativeSetPattern(track, lengthTicks, ticks, lengths, notes, velocities, probabilities, flags, lockIds, lockVals)
 
     // ---- Sampler pads & chopping ----
+    /** Sampler pads are global: track * PADS_PER_TRACK + pad. Pad 16 of each track is its chop-preview voice. */
+    const val PADS_PER_TRACK = 17
     const val PREVIEW_PAD = 16
+    fun pad(track: Int, local: Int) = track * PADS_PER_TRACK + local
+
+    // ---- Tracks: 8, each a sampler, synth or drum machine (ordinals match TrackType in Commands.h) ----
+    const val TRACKS = 8
+    object TrackType { const val NONE = 0; const val SAMPLER = 1; const val SYNTH = 2; const val DRUMS = 3 }
+    fun setTrackType(track: Int, type: Int) = nativeSetTrackType(track, type)
+    /** Which synth feeds the synth telemetry / scope, and which sampler track the pad telemetry. */
+    fun setFocus(track: Int) = nativeSetFocus(track)
+    /** [2k, 2k+1] strip k L/R peaks, [16, 17] master, [18 + k] strip k sidechain gain (1 = none). */
+    fun meters(out: FloatArray) = nativeGetMeters(out)
+    const val METERS = 2 * TRACKS + 2 + TRACKS
     /** Slice region for a pad, in frames of its sample (end -1 = to the end). */
     fun setPadRegion(pad: Int, startFrame: Int, endFrame: Int) = nativeSetPadRegion(pad, startFrame, endFrame)
     fun setPadGain(pad: Int, linear: Float) = nativeSetPadGain(pad, linear)
+    /** Peak and loudness (loudest 50 ms RMS) in dBFS for each region (start, end pairs) of a sample → out[2i], out[2i+1]. */
+    fun regionLevels(sampleId: Int, regions: LongArray, out: FloatArray) = nativeRegionLevels(sampleId, regions, out)
     /** Onset frames for auto-chop (first is 0). Thread-safe: call it off the main thread. */
     fun transients(sampleId: Int, sensitivity: Float, maxSlices: Int, out: LongArray): Int = nativeGetTransients(sampleId, sensitivity, maxSlices, out)
     /** Time-stretch / pitch-shift a loaded sample on the worker. The result arrives via pollEvent as a new sample. */
-    fun stretchSample(sampleId: Int, tempo: Double, semitones: Double, requestId: Int) = nativeStretchSample(sampleId, tempo, semitones, requestId)
+    /** Render [sampleId] at [tempo] (speed) and [semitones], pitch and time independent. A crop renders one slice only. */
+    fun stretchSample(sampleId: Int, tempo: Double, semitones: Double, requestId: Int, cropStart: Long = 0, cropEnd: Long = 0) =
+        nativeStretchSample(sampleId, tempo, semitones, requestId, cropStart, cropEnd)
 
     fun repeatOn(track: Int, note: Int, rateTicks: Int, velocity: Float) = nativeRepeatOn(track, note, rateTicks, velocity)
     fun repeatOff(track: Int, note: Int) = nativeRepeatOff(track, note)
     fun repeatVelocity(v: Float) = nativeRepeatVelocity(v)
 
-    // ---- Mixer: strip 0 sampler, 1 synth, 2 master (volume only) ----
-    object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3 }
+    // ---- Mixer: strip 0 sampler, 1 synth, 2 drums, 3 master (volume only) ----
+    object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3
+        const val SC_SOURCE = 4; const val SC_AMOUNT = 5; const val SC_RELEASE = 6 }
+    const val STRIP_MASTER = TRACKS
+
+    // ---- Drum synth: 8 slots, each a synthesis model (ordinals match drums::Model in DrumSynth.h) ----
+    enum class DrumModel(val label: String) { KICK("KICK"), SNARE("SNARE"), CLAP("CLAP"), HAT("HAT"), TOM("TOM"), RIM("RIM"),
+        COWBELL("BELL"), CYMBAL("CYMB"), ZAP("ZAP"), SHAKER("SHAKE") }
+    object DrumParam { const val MODEL = 0; const val TUNE = 1; const val DECAY = 2; const val TONE = 3; const val SNAP = 4
+        const val DRIVE = 5; const val LEVEL_DB = 6; const val PAN = 7; const val CHOKE = 8; const val COUNT = 9 }
+    const val DRUM_SLOTS = 16
+    fun drumTrigger(track: Int, slot: Int, velocity: Float) = nativeDrumTrigger(track, slot, velocity)
+    fun drumParam(track: Int, slot: Int, id: Int, value: Float) = nativeDrumParam(track, slot, id, value)
+    /** Kit-wide character bus (drums::BusParam), each 0..1; sent as the pseudo-slot DRUM_BUS_SLOT. */
+    object DrumBusParam { const val CRUNCH = 0; const val MUFFLE = 1; const val TAPE = 2; const val DUST = 3; const val COUNT = 4 }
+    const val DRUM_BUS_SLOT = DRUM_SLOTS
+    fun drumBus(track: Int, id: Int, value: Float) = nativeDrumParam(track, DRUM_BUS_SLOT, id, value)
+    /** Per-slot level (0..1) and hit counters (compare with the last read to spot new hits). */
+    fun drumTelemetry(track: Int, levels: FloatArray, hits: IntArray) = nativeGetDrumTelemetry(track, levels, hits)
     fun setChannel(strip: Int, param: Int, value: Float) = nativeSetChannel(strip, param, value)
 
     // ---- Punch-in FX ----
-    object Fx { const val STUTTER = 0; const val FILTER = 1; const val TAPE_STOP = 2; const val CRUSH = 3; const val VINYL = 4; const val REVERSE = 5; const val GATE = 6; const val COUNT = 7 }
+    /** Punch-in master FX ids (match fx::Id in MasterFx.h). */
+    /** Why a sample didn't load (mirrors DecodeError in Decoder.h). */
+    object LoadError {
+        const val UNKNOWN = 0; const val FORMAT = 1; const val TOO_LONG = 2; const val RATE = 3
+        const val DEPTH = 4; const val EMPTY = 5; const val READ = 6
+        fun describe(code: Int): String = when (code) {
+            FORMAT -> "format not supported (use WAV, AIFF, MP3, FLAC, OGG or M4A)"
+            TOO_LONG -> "longer than 10 minutes"
+            RATE -> "sample rate not supported"
+            DEPTH -> "bit depth or channel layout not supported"
+            EMPTY -> "no audio in the file"
+            READ -> "file can't be read"
+            else -> "decode failed"
+        }
+    }
+
+    object Fx { const val LOOPER = 0; const val FILTER = 1; const val TAPE_STOP = 2; const val LOFI = 3; const val VINYL = 4; const val SCATTER = 5
+        const val SLICER = 6; const val REVERB = 7; const val ECHO = 8; const val ISOLATOR = 9; const val CASSETTE = 10; const val RESONATOR = 11; const val COUNT = 12 }
     fun fxOn(id: Int, x: Float, y: Float) = nativeFxOn(id, x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
     fun fxMove(id: Int, x: Float, y: Float) = nativeFxMove(id, x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
     fun fxOff(id: Int) = nativeFxOff(id)
     fun fxAllOff() = nativeFxAllOff()
 
     /**
-     * Transport + meters, filled in place. Layout (16): 0 tick (absolute since PLAY), 1 playing,
+     * Transport + meters, filled in place. Layout (20): 0 tick (absolute since PLAY), 1 playing,
      * 2 recording, 3 bpm, 4/5 sampler L/R peak, 6/7 synth L/R, 8/9 master L/R, 10 swing,
-     * 11 metronome, 12 active FX bitmask. Peaks are held until read.
+     * 11 metronome, 12 active FX bitmask, 13 sounding pads mask, 14 newest pad, 16/17 drums L/R,
+     * 18 sounding drum slots mask. Peaks are held until read.
      */
     fun transport(out: DoubleArray) = nativeGetTransport(out)
 
@@ -115,7 +168,13 @@ object NativeEngine {
 
     /** Visualizer: FFT of the master output into [bands] (≤64, 0..1, log 30 Hz–16 kHz), latest
      *  [wave] samples, and [energy] = bass, mid, treble. Runs the FFT on the calling (main) thread. */
+    /** energy: [0..2] bass/mid/high 0..1; if it has ≥ 5 slots, also [3] dominant Hz (0 = none) and [4] its dBFS. */
     fun visual(bands: FloatArray, wave: FloatArray, energy: FloatArray) = nativeGetVisual(bands, wave, energy)
+    /** Master loudness (R128): [0] momentary, [1] short-term, [2] integrated LUFS, [3]/[4] peak L/R dBFS, [5] seconds. −100 = nothing yet. */
+    fun loudness(out: FloatArray) = nativeGetLoudness(out)
+    fun resetLoudness() = nativeResetLoudness()
+    /** The last n master samples as mid/side (n = min of the array sizes, ≤ 2048). Returns n. */
+    fun stereo(mid: FloatArray, side: FloatArray): Int = nativeGetStereo(mid, side)
 
     /** Takes ownership of [fd] (a detached ParcelFileDescriptor). The result arrives via [pollEvent]. */
     fun loadSample(fd: Int, requestId: Int) = nativeLoadSampleFd(fd, requestId)
@@ -149,7 +208,7 @@ object NativeEngine {
                 bpm = it[8].toFloat(), bpmConfidence = it[9].toFloat(),
             )
         }
-        2 -> Event.LoadFailed(evBuf[0].toInt())
+        2 -> Event.LoadFailed(evBuf[0].toInt(), evBuf[1].toInt())
         else -> null
     }
 
@@ -168,10 +227,13 @@ object NativeEngine {
     private external fun nativePlayhead(): Float
     private external fun nativePeakLevel(): Float
     private external fun nativeGetStats(out: DoubleArray)
-    private external fun nativeSynthNoteOn(note: Int, velocity: Float): Boolean
-    private external fun nativeSynthNoteOff(note: Int): Boolean
-    private external fun nativeSynthParam(id: Int, value: Float): Boolean
-    private external fun nativeSynthAllOff(): Boolean
+    private external fun nativeSynthNoteOn(track: Int, note: Int, velocity: Float): Boolean
+    private external fun nativeSynthNoteOff(track: Int, note: Int): Boolean
+    private external fun nativeSynthParam(track: Int, id: Int, value: Float): Boolean
+    private external fun nativeSynthAllOff(track: Int): Boolean
+    private external fun nativeSetTrackType(track: Int, type: Int): Boolean
+    private external fun nativeSetFocus(track: Int): Boolean
+    private external fun nativeGetMeters(out: FloatArray)
     private external fun nativeGetSynthTelemetry(values: FloatArray, notes: LongArray)
     private external fun nativeGetScope(out: FloatArray): Int
     private external fun nativeSetTempo(bpm: Float): Boolean
@@ -183,8 +245,9 @@ object NativeEngine {
                                           flags: IntArray, lockIds: IntArray, lockVals: FloatArray): Boolean
     private external fun nativeSetPadRegion(pad: Int, start: Int, end: Int): Boolean
     private external fun nativeSetPadGain(pad: Int, g: Float): Boolean
+    private external fun nativeRegionLevels(sampleId: Int, regions: LongArray, out: FloatArray): Boolean
     private external fun nativeGetTransients(sampleId: Int, sens: Float, maxSlices: Int, out: LongArray): Int
-    private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int)
+    private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int, cropStart: Long, cropEnd: Long)
     private external fun nativeRepeatOn(track: Int, note: Int, rate: Int, vel: Float): Boolean
     private external fun nativeRepeatOff(track: Int, note: Int): Boolean
     private external fun nativeRepeatVelocity(v: Float): Boolean
@@ -194,6 +257,12 @@ object NativeEngine {
     private external fun nativeFxOff(id: Int): Boolean
     private external fun nativeFxAllOff(): Boolean
     private external fun nativeGetTransport(out: DoubleArray)
+    private external fun nativeDrumTrigger(track: Int, slot: Int, velocity: Float): Boolean
+    private external fun nativeDrumParam(track: Int, slot: Int, id: Int, value: Float): Boolean
+    private external fun nativeGetDrumTelemetry(track: Int, levels: FloatArray, hits: IntArray)
     private external fun nativePollRecord(out: DoubleArray): Int
     private external fun nativeGetVisual(bands: FloatArray, wave: FloatArray, energy: FloatArray)
+    private external fun nativeGetLoudness(out: FloatArray)
+    private external fun nativeResetLoudness()
+    private external fun nativeGetStereo(mid: FloatArray, side: FloatArray): Int
 }

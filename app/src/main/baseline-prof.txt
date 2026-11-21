@@ -1,0 +1,9 @@
+# Baseline profile: ahead-of-time compile the app's own code at install (via androidx.profileinstaller),
+# so the UI doesn't stutter for the first minutes while the JIT warms up. Compose and the other
+# AndroidX libraries ship their own profiles, which the build merges with this one.
+HSPLcom/thorbox/app/**->**(**)**
+Lcom/thorbox/app/**;
+HSPLcom/thorbox/engine/**->**(**)**
+Lcom/thorbox/engine/**;
+HSPLcom/thorbox/model/**->**(**)**
+Lcom/thorbox/model/**;

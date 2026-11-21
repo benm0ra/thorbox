@@ -44,6 +44,13 @@ enum Param : int {
     LfoShape,        // 0 sine, 1 tri, 2 saw, 3 square, 4 sample&hold
     LfoTarget,       // 0 pitch, 1 cutoff, 2 amp, 3 shape
     GainDb,          // -40..+6
+    // --- added in 0.7 (ids appended so saved p-locks keep their meaning) ---
+    PitchEnvAmt,     // semitones -48..48: the pitch starts this far off and falls back (808 "boom", zaps)
+    PitchEnvDecay,   // ms 1..5000
+    GlideMs,         // 0..2000: portamento time between notes
+    Mono,            // 0 poly, 1 mono (last-note priority; with glide > 0 it's legato: no retrigger)
+    Drive,           // 0..1: pre-filter saturation (0 = the original gentle soft clip)
+    Noise,           // 0..1: white noise mixed into the oscillators
     kParamCount
 };
 
@@ -54,7 +61,9 @@ inline constexpr std::array<ParamRange, kParamCount> kRanges = {{
     {0.5f, 10000, 5}, {1, 10000, 250}, {0, 1, 0.8f}, {1, 10000, 300},
     {0.5f, 10000, 2}, {1, 10000, 350}, {0, 1, 0.15f}, {1, 10000, 300},
     {0.05f, 20, 1.5f}, {0, 1, 0.2f}, {0, 4, 0}, {0, 3, 1}, {-40, 6, -9},
+    {-48, 48, 0}, {1, 5000, 80}, {0, 2000, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
 }};
+static_assert(kParamCount <= 32, "p-lock mask is 32 bits");
 
 // ---------- small fast math ----------
 inline float fastSin(float x) {   // x in [-π, π], max err ≈ 0.001
@@ -155,6 +164,8 @@ struct Svf {
 struct Voice {
     int note = -1;
     float velocity = 0.f;
+    float pitch = 60.f;      // current (gliding) pitch in semitones
+    float penv = 0.f;        // pitch envelope, 1 → 0
     float ph1 = 0.f, ph2 = 0.f;
     float lastCutoff = 1000.f;
     uint64_t stamp = 0;
@@ -177,7 +188,7 @@ public:
 
     void setSampleRate(float sr) { mSr = std::max(8000.f, sr); }
 
-    // A parameter lock: overrides one param until the next unlocked step (OP-XY / Elektron "p-lock").
+    // A parameter lock: overrides one param until the next unlocked step ("p-lock").
     void lockParam(int id, float v) {
         if (id < 0 || id >= kParamCount) return;
         p[id] = std::clamp(v, kRanges[id].lo, kRanges[id].hi);
@@ -204,6 +215,7 @@ public:
 
     void noteOn(int note, float vel) {
         if (note < 0 || note > 127) return;
+        if (p[Mono] >= 0.5f) { monoOn(note, vel); return; }
         Voice* v = nullptr;
         for (auto& vc : voices) if (vc.active() && vc.note == note) { v = &vc; break; }   // retrigger same note
         if (!v) for (auto& vc : voices) if (!vc.active()) { v = &vc; break; }
@@ -214,19 +226,20 @@ public:
         const bool wasSilent = !anyActive();
         // Stolen/retriggered voices keep their envelope level and phase, so there's no click.
         if (!v->active()) { v->ph1 = 0.f; v->ph2 = 0.25f; v->filter.reset(); v->amp.level = 0.f; v->fenv.level = 0.f; }
-        v->note = note; v->velocity = std::clamp(vel, 0.f, 1.f); v->stamp = ++mStamp;
-        v->amp.gateOn(p[AmpA], p[AmpD], p[AmpS], mSr);
-        v->fenv.gateOn(p[FEnvA], p[FEnvD], p[FEnvS], mSr);
+        // Poly glide slides from the last played note.
+        v->pitch = (p[GlideMs] > 0.f && mLastNote >= 0) ? (float)mLastNote : (float)note;
+        trigger(*v, note, vel, true);
         if (wasSilent) { mLfoPhase = 0.f; }   // LFO retrigger on the first note
     }
 
     void noteOff(int note) {
+        if (p[Mono] >= 0.5f) { monoOff(note); return; }
         for (auto& vc : voices)
             if (vc.active() && vc.note == note && vc.amp.stage != Adsr::Release) {
                 vc.amp.gateOff(p[AmpR], mSr); vc.fenv.gateOff(p[FEnvR], mSr);
             }
     }
-    void allNotesOff() { for (auto& vc : voices) { vc.amp.gateOff(p[AmpR], mSr); vc.fenv.gateOff(p[FEnvR], mSr); } }
+    void allNotesOff() { mHeldCount = 0; for (auto& vc : voices) { vc.amp.gateOff(p[AmpR], mSr); vc.fenv.gateOff(p[FEnvR], mSr); } }
     bool anyActive() const { for (auto& v : voices) if (v.active()) return true; return false; }
 
     // Adds into interleaved stereo `out`. Writes mono synth output to `mono` (for the scope) if non-null.
@@ -235,6 +248,9 @@ public:
         const float mixA = std::cos(p[OscMix] * kPi * 0.5f), mixB = std::sin(p[OscMix] * kPi * 0.5f);
         const float dtSec = 1.f / mSr;
         if (mono) std::fill(mono, mono + n, 0.f);
+        // Drive: 0 keeps the original ×1.2 soft clip; 1 pushes ×19 into it, with level compensation.
+        const float drive = 1.2f * std::exp2(p[Drive] * 4.f), driveComp = 1.f / (1.f + 1.6f * p[Drive]);
+        const float noiseAmt = p[Noise];
 
         for (int off = 0; off < n; off += kCtrl) {
             const int len = std::min(kCtrl, n - off);
@@ -247,24 +263,30 @@ public:
             const float sh1 = std::clamp(p[Osc1Shape] + lfoShape, 0.f, 1.f);
             const float sh2 = std::clamp(p[Osc2Shape] + lfoShape, 0.f, 1.f);
 
+            // Glide and pitch-envelope coefficients for this control block ("time to ≈98 %", like the ADSRs).
+            const float glideK = p[GlideMs] > 0.f ? 1.f - std::exp(-(float)len * 4.f / (p[GlideMs] * 0.001f * mSr)) : 1.f;
+            const float penvK = std::exp(-(float)len * 4.f / (p[PitchEnvDecay] * 0.001f * mSr));
             for (auto& v : voices) {
                 if (!v.active()) continue;
-                const float note = (float)v.note + lfoPitch;
+                v.pitch += ((float)v.note - v.pitch) * glideK;
+                const float note = v.pitch + lfoPitch + p[PitchEnvAmt] * v.penv;
+                v.penv *= penvK;
                 const float f1 = noteHz(note + 12.f * p[Osc1Octave]);
                 const float f2 = noteHz(note + 12.f * p[Osc2Octave] + p[Osc2Detune] / 100.f);
                 const float dt1 = std::min(0.49f, f1 / mSr), dt2 = std::min(0.49f, f2 / mSr);
 
                 const float octs = p[FilterEnvAmt] * 5.f * v.fenv.level * (0.6f + 0.4f * v.velocity)
-                                 + p[KeyTrack] * ((float)v.note - 60.f) / 12.f + lfoCut;
+                                 + p[KeyTrack] * (v.pitch - 60.f) / 12.f + lfoCut;
                 v.lastCutoff = std::clamp(p[CutoffHz] * std::exp2(octs), 20.f, 0.45f * mSr);
                 v.filter.set(v.lastCutoff, p[Resonance], mSr);
                 const float vgain = gain * (0.3f + 0.7f * v.velocity) * lfoAmp;
 
                 for (int i = 0; i < len; ++i) {
                     float s = mixA * oscSample(v.ph1, dt1, sh1) + mixB * oscSample(v.ph2, dt2, sh2);
+                    if (noiseAmt > 0.f) s += noiseAmt * nextRandom();
                     v.ph1 += dt1; if (v.ph1 >= 1.f) v.ph1 -= 1.f;
                     v.ph2 += dt2; if (v.ph2 >= 1.f) v.ph2 -= 1.f;
-                    s = v.filter.process(softClip(s * 1.2f));
+                    s = v.filter.process(softClip(s * drive) * driveComp);
                     v.fenv.tick(dtSec);
                     const float a = v.amp.tick(dtSec);
                     s *= a * vgain;
@@ -281,6 +303,44 @@ public:
     const Telemetry& telemetry() const { return tel; }
 
 private:
+    void trigger(Voice& v, int note, float vel, bool envelopes) {
+        v.note = note; v.velocity = std::clamp(vel, 0.f, 1.f); v.stamp = ++mStamp;
+        if (envelopes) {
+            v.amp.gateOn(p[AmpA], p[AmpD], p[AmpS], mSr);
+            v.fenv.gateOn(p[FEnvA], p[FEnvD], p[FEnvS], mSr);
+            v.penv = 1.f;
+        }
+        mLastNote = note;
+    }
+
+    // ---- mono: one voice, last-note priority, held-note stack so releasing returns to the previous key ----
+    void monoOn(int note, float vel) {
+        for (int i = 0; i < mHeldCount; ++i) if (mHeld[i] == note) { std::copy(mHeld + i + 1, mHeld + mHeldCount, mHeld + i); --mHeldCount; break; }
+        if (mHeldCount == kHeld) { std::copy(mHeld + 1, mHeld + kHeld, mHeld); --mHeldCount; }
+        mHeld[mHeldCount++] = note;
+        Voice& v = voices[0];
+        for (int i = 1; i < kVoices; ++i) if (voices[i].active()) { voices[i].amp.gateOff(5.f, mSr); voices[i].fenv.gateOff(5.f, mSr); }
+        const bool sounding = v.active() && v.amp.stage != Adsr::Release;
+        const bool legato = sounding && p[GlideMs] > 0.f;
+        if (!v.active()) { v.ph1 = 0.f; v.ph2 = 0.25f; v.filter.reset(); v.amp.level = 0.f; v.fenv.level = 0.f; v.pitch = (float)note; mLfoPhase = 0.f; }
+        else if (p[GlideMs] <= 0.f) v.pitch = (float)note;
+        trigger(v, note, vel, !legato);
+    }
+    void monoOff(int note) {
+        int i = 0;
+        for (; i < mHeldCount; ++i) if (mHeld[i] == note) break;
+        if (i == mHeldCount) return;
+        std::copy(mHeld + i + 1, mHeld + mHeldCount, mHeld + i); --mHeldCount;
+        Voice& v = voices[0];
+        if (v.note != note) return;                       // a key that wasn't sounding
+        if (mHeldCount > 0) {                             // fall back to the previous held key (legato, no retrigger)
+            if (p[GlideMs] <= 0.f) v.pitch = (float)mHeld[mHeldCount - 1];
+            trigger(v, mHeld[mHeldCount - 1], v.velocity, false);
+        } else if (v.amp.stage != Adsr::Release) {
+            v.amp.gateOff(p[AmpR], mSr); v.fenv.gateOff(p[FEnvR], mSr);
+        }
+    }
+
     float advanceLfo(int len) {
         const float shape = p[LfoShape];
         mLfoPhase += p[LfoRateHz] * (float)len / mSr;
@@ -331,6 +391,10 @@ private:
     float mLfoPhase = 0.f, mLfoValue = 0.f, mShValue = 0.f;
     uint32_t mRng = 0x9E3779B9u;
     uint64_t mStamp = 0;
+    int mLastNote = -1;
+    static constexpr int kHeld = 16;
+    int mHeld[kHeld] = {};
+    int mHeldCount = 0;
 };
 
 } // namespace synth

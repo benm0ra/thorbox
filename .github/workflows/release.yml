@@ -51,16 +51,16 @@ jobs:
       - name: Collect files
         run: |
           mkdir dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/Thorbox-${THORBOX_VERSION_NAME}.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/Thorbox-${THORBOX_VERSION_NAME}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/ClamshellBeats-${THORBOX_VERSION_NAME}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/ClamshellBeats-${THORBOX_VERSION_NAME}-debug.apk"
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
           cat > notes.md <<NOTES
           ## Install on the AYN Thor
-          1. Download **Thorbox-${THORBOX_VERSION_NAME}.apk** below (on the Thor, or on a computer and copy it over).
-          2. Open it and allow *Install unknown apps* when asked. Or, from a computer: \`adb install -r Thorbox-${THORBOX_VERSION_NAME}.apk\`
+          1. Download **ClamshellBeats-${THORBOX_VERSION_NAME}.apk** below (on the Thor, or on a computer and copy it over).
+          2. Open it and allow *Install unknown apps* when asked. Or, from a computer: \`adb install -r ClamshellBeats-${THORBOX_VERSION_NAME}.apk\`
           3. New versions install straight over the old one: your projects and settings stay.
 
-          **Which file?** \`Thorbox-${THORBOX_VERSION_NAME}.apk\` is the optimized build: smaller and faster.
+          **Which file?** \`ClamshellBeats-${THORBOX_VERSION_NAME}.apk\` is the optimized build: smaller and faster.
           If it misbehaves, try \`-debug.apk\` and please report what happened. Both are the same app and update each other.
 
           Build ${THORBOX_VERSION_CODE} · signed with the ${SIGNING} · checksums in SHA256SUMS.txt

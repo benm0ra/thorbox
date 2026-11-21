@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Decoder.h"
+#include "PcmFile.h"
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaFormat.h>
 #include <android/log.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cmath>
@@ -13,7 +15,7 @@
 
 namespace {
 // android.media.AudioFormat encodings
-constexpr int32_t kPcm16 = 2, kPcmFloat = 4, kPcm24Packed = 21, kPcm32 = 22;
+constexpr int32_t kPcm8 = 3, kPcm16 = 2, kPcmFloat = 4, kPcm24Packed = 21, kPcm32 = 22;
 constexpr int64_t kMaxSeconds = 10 * 60;            // Hard cap: 10 min stereo at 48k ≈ 230 MB of float
 constexpr off_t   kMaxFileBytes = 1024LL * 1024 * 1024; // Refuse >1 GB inputs before touching the parser
 constexpr int32_t kMinRate = 8000, kMaxRate = 384000, kMaxChannels = 32;
@@ -26,8 +28,8 @@ struct FmtGuard { AMediaFormat* p; ~FmtGuard() { if (p) AMediaFormat_delete(p); 
 
 // Appends decoded PCM, folding >2 channels down to the first two.
 void appendPcm(const uint8_t* src, size_t bytes, int32_t enc, int srcCh, int dstCh, std::vector<float>& dst) {
-    if (enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return;  // unknown: skip
-    const int bps = enc == kPcm16 ? 2 : enc == kPcm24Packed ? 3 : 4;
+    if (enc != kPcm8 && enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return;  // unknown: skip
+    const int bps = enc == kPcm8 ? 1 : enc == kPcm16 ? 2 : enc == kPcm24Packed ? 3 : 4;
     const size_t frames = bytes / (size_t)(bps * srcCh);
     dst.reserve(dst.size() + frames * dstCh);
     for (size_t f = 0; f < frames; ++f) {
@@ -35,6 +37,7 @@ void appendPcm(const uint8_t* src, size_t bytes, int32_t enc, int srcCh, int dst
             const uint8_t* p = src + (f * srcCh + c) * bps;
             float v;
             switch (enc) {
+                case kPcm8: v = (p[0] - 128) / 128.f; break;
                 case kPcm16: { int16_t s; std::memcpy(&s, p, 2); v = s / 32768.f; break; }
                 case kPcm24Packed: { int32_t s = (p[0] << 8) | (p[1] << 16) | (p[2] << 24); v = (s >> 8) / 8388608.f; break; }
                 case kPcm32: { int32_t s; std::memcpy(&s, p, 4); v = (float)(s / 2147483648.0); break; }
@@ -54,6 +57,17 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
     if (fstat(fd, &st) != 0 || st.st_size <= 0) return fail("cannot stat file");
     if (!S_ISREG(st.st_mode)) return fail("not a regular file");
     if (st.st_size > kMaxFileBytes) return fail("file too large");
+
+    // WAV / AIFF: read directly (the platform has no AIFF and skips 8-bit / 64-bit-float WAV).
+    if (void* m = mmap(nullptr, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0); m != MAP_FAILED) {
+        madvise(m, (size_t)st.st_size, MADV_SEQUENTIAL);
+        const char* why = nullptr;
+        bool tryPlatform = false;
+        auto pcmOut = pcm::decode(static_cast<const uint8_t*>(m), (size_t)st.st_size, kMaxSeconds, &why, &tryPlatform);
+        munmap(m, (size_t)st.st_size);
+        if (pcmOut) return pcmOut;
+        if (!tryPlatform) return fail(why ? why : "unreadable WAV/AIFF");
+    }
 
     ExGuard ex{AMediaExtractor_new()};
     if (AMediaExtractor_setDataSourceFd(ex.p, fd, 0, st.st_size) != AMEDIA_OK) return fail("unsupported or corrupt file");
@@ -138,7 +152,7 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
 
     if (sr < kMinRate || sr > kMaxRate) return fail("unsupported sample rate");
     if (ch < 1 || ch > kMaxChannels || out->data.empty()) return fail("decoded no audio");
-    if (enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return fail("unsupported PCM encoding");
+    if (enc != kPcm8 && enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return fail("unsupported PCM encoding");
     out->sampleRate = sr;
     out->channels = ch > 2 ? 2 : ch;
     out->frames = (int64_t)out->data.size() / out->channels;

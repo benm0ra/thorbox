@@ -14,6 +14,7 @@
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "ThorboxEngine", __VA_ARGS__)
 
 AudioEngine::AudioEngine() {
+    for (auto& g : mScGain) g.store(1.f, std::memory_order_relaxed);
     mWorker = std::thread([this] { workerLoop(); });
 }
 
@@ -28,30 +29,60 @@ AudioEngine::~AudioEngine() {
 // ================= Lifecycle =================
 
 bool AudioEngine::openStream() {
-    oboe::AudioStreamBuilder b;
-    b.setDirection(oboe::Direction::Output)
-        ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-        ->setSharingMode(oboe::SharingMode::Exclusive)   // MMAP path when available
-        ->setFormat(oboe::AudioFormat::Float)
-        ->setChannelCount(oboe::ChannelCount::Stereo)
-        ->setUsage(oboe::Usage::Media)
-        ->setContentType(oboe::ContentType::Music)
-        ->setDataCallback(this)
-        ->setErrorCallback(this);
-    // Sample rate deliberately left unset: we take the device's native rate to avoid a
-    // resampler in the output path (which costs latency).
-    oboe::Result r = b.openStream(mStream);
-    if (r != oboe::Result::OK) { LOGW("openStream failed: %s", oboe::convertToText(r)); mStream.reset(); return false; }
+    // Ask for the lowest-latency output the device will give, most demanding first, and keep the
+    // first that lands on the exclusive (MMAP) fast path, else the one with the smallest burst.
+    // Many Qualcomm devices only grant MMAP / FAST tracks for 16-bit at the native 48 kHz with
+    // Usage::Game; Float + Media is the safe fallback (what earlier builds always used).
+    struct Try { oboe::SharingMode share; oboe::AudioFormat fmt; oboe::Usage usage; const char* name; };
+    const Try tries[] = {
+        {oboe::SharingMode::Exclusive, oboe::AudioFormat::I16,   oboe::Usage::Game,  "exclusive i16 game"},
+        {oboe::SharingMode::Exclusive, oboe::AudioFormat::Float, oboe::Usage::Game,  "exclusive float game"},
+        {oboe::SharingMode::Shared,    oboe::AudioFormat::I16,   oboe::Usage::Game,  "shared i16 game"},
+        {oboe::SharingMode::Exclusive, oboe::AudioFormat::Float, oboe::Usage::Media, "exclusive float media"},
+    };
+    std::shared_ptr<oboe::AudioStream> best;
+    const char* bestName = "";
+    for (const Try& t : tries) {
+        oboe::AudioStreamBuilder b;
+        b.setDirection(oboe::Direction::Output)
+            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
+            ->setSharingMode(t.share)
+            ->setFormat(t.fmt)
+            ->setFormatConversionAllowed(false)
+            ->setChannelCount(oboe::ChannelCount::Stereo)
+            ->setSampleRate(48000)
+            ->setSampleRateConversionQuality(oboe::SampleRateConversionQuality::None)
+            ->setUsage(t.usage)
+            ->setContentType(oboe::ContentType::Music)
+            ->setDataCallback(this)
+            ->setErrorCallback(this);
+        std::shared_ptr<oboe::AudioStream> s;
+        if (b.openStream(s) != oboe::Result::OK || !s) continue;
+        LOGI("try %s: %d Hz, burst %d, sharing %s, format %s", t.name, s->getSampleRate(), s->getFramesPerBurst(),
+             oboe::convertToText(s->getSharingMode()), oboe::convertToText(s->getFormat()));
+        const bool fmtOk = s->getFormat() == oboe::AudioFormat::Float || s->getFormat() == oboe::AudioFormat::I16;
+        if (!fmtOk) { s->close(); continue; }
+        const bool better = !best || (s->getSharingMode() == oboe::SharingMode::Exclusive && best->getSharingMode() != oboe::SharingMode::Exclusive)
+            || (s->getSharingMode() == best->getSharingMode() && s->getFramesPerBurst() < best->getFramesPerBurst());
+        if (better) { if (best) best->close(); best = s; bestName = t.name; }
+        else s->close();
+        if (best && best->getSharingMode() == oboe::SharingMode::Exclusive) break;   // can't do better than MMAP
+    }
+    if (!best) { LOGW("openStream failed for every configuration"); return false; }
+    mStream = best;
+    mOutI16 = mStream->getFormat() == oboe::AudioFormat::I16;
+    if (mOutI16 && mI16Scratch.size() < (size_t)kI16ScratchFrames * 2) mI16Scratch.assign((size_t)kI16ScratchFrames * 2, 0.f);
 
-    // Start at 2× burst: the usual low-latency sweet spot. M8 will add adaptive tuning.
-    mStream->setBufferSizeInFrames(mStream->getFramesPerBurst() * 2);
+    // Start at the smallest buffer the device allows; the tuner adds a burst whenever it underruns.
+    mStream->setBufferSizeInFrames(mStream->getFramesPerBurst());
+    mTuner = std::make_unique<oboe::LatencyTuner>(*mStream);
     mDeviceRate.store(mStream->getSampleRate());
-    LOGI("stream open: %d Hz, burst %d, buffer %d, sharing %s, api %s",
+    LOGI("stream open (%s): %d Hz, burst %d, buffer %d, sharing %s, api %s", bestName,
          mStream->getSampleRate(), mStream->getFramesPerBurst(), mStream->getBufferSizeInFrames(),
          oboe::convertToText(mStream->getSharingMode()), oboe::convertToText(mStream->getAudioApi()));
 
-    r = mStream->requestStart();
-    if (r != oboe::Result::OK) { LOGW("requestStart failed: %s", oboe::convertToText(r)); mStream->close(); mStream.reset(); return false; }
+    oboe::Result r = mStream->requestStart();
+    if (r != oboe::Result::OK) { LOGW("requestStart failed: %s", oboe::convertToText(r)); mStream->close(); mStream.reset(); mTuner.reset(); return false; }
     return true;
 }
 
@@ -65,7 +96,7 @@ bool AudioEngine::start() {
 void AudioEngine::stop() {
     std::lock_guard<std::mutex> l(mStreamMtx);
     mWantRunning = false;
-    if (mStream) { mStream->stop(); mStream->close(); mStream.reset(); }
+    if (mStream) { mStream->stop(); mStream->close(); mStream.reset(); mTuner.reset(); }
 }
 
 void AudioEngine::onErrorAfterClose(oboe::AudioStream* stream, oboe::Result error) {
@@ -99,19 +130,29 @@ bool AudioEngine::setPlayMode(int pad, int mode) {
     if (pad < 0 || pad >= kMaxPads || mode < 0 || mode > 2) return false;
     return mCmds.push({CmdType::SetPlayMode, pad, mode, 0.f, nullptr});
 }
-bool AudioEngine::synthNoteOn(int note, float vel) {
-    if (note < 0 || note > 127) return false;
-    return mCmds.push({CmdType::SynthNoteOn, 0, note, std::clamp(vel, 0.f, 1.f), nullptr});
+static inline bool validTrack(int t) { return t >= 0 && t < seq::kTracks; }
+bool AudioEngine::synthNoteOn(int track, int note, float vel) {
+    if (!validTrack(track) || note < 0 || note > 127) return false;
+    return mCmds.push({CmdType::SynthNoteOn, track, note, std::clamp(vel, 0.f, 1.f), nullptr});
 }
-bool AudioEngine::synthNoteOff(int note) {
-    if (note < 0 || note > 127) return false;
-    return mCmds.push({CmdType::SynthNoteOff, 0, note, 0.f, nullptr});
+bool AudioEngine::synthNoteOff(int track, int note) {
+    if (!validTrack(track) || note < 0 || note > 127) return false;
+    return mCmds.push({CmdType::SynthNoteOff, track, note, 0.f, nullptr});
 }
-bool AudioEngine::synthParam(int id, float value) {
-    if (id < 0 || id >= synth::kParamCount) return false;
-    return mCmds.push({CmdType::SynthParam, 0, id, value, nullptr});
+bool AudioEngine::synthParam(int track, int id, float value) {
+    if (!validTrack(track) || id < 0 || id >= synth::kParamCount) return false;
+    return mCmds.push({CmdType::SynthParam, track, id, value, nullptr});
 }
-bool AudioEngine::synthAllOff() { return mCmds.push({CmdType::SynthAllOff, 0, 0, 0.f, nullptr}); }
+bool AudioEngine::synthAllOff(int track) { return validTrack(track) && mCmds.push({CmdType::SynthAllOff, track, 0, 0.f, nullptr}); }
+bool AudioEngine::setTrackType(int track, int type) {
+    if (!validTrack(track) || type < 0 || type > 3) return false;
+    return mCmds.push({CmdType::SetTrackType, track, type});
+}
+bool AudioEngine::setFocus(int track) { return validTrack(track) && mCmds.push({CmdType::SetFocus, track}); }
+void AudioEngine::getMeters(float* out) {
+    for (int i = 0; i < 2 * kStrips + 2; ++i) out[i] = mMeters[i].exchange(0.f, std::memory_order_relaxed);
+    for (int k = 0; k < kStrips; ++k) out[2 * kStrips + 2 + k] = mScGain[k].exchange(1.f, std::memory_order_relaxed);
+}
 
 bool AudioEngine::setTempo(float bpm) { return mCmds.push({CmdType::SetTempo, 0, 0, std::clamp(bpm, 30.f, 300.f)}); }
 bool AudioEngine::setSwing(float a, int grid) {
@@ -137,7 +178,7 @@ bool AudioEngine::repeatOn(int track, int note, int rate, float vel) {
 bool AudioEngine::repeatOff(int track, int note) { return mCmds.push({CmdType::RepeatOff, track, note}); }
 bool AudioEngine::repeatVelocity(float v) { return mCmds.push({CmdType::RepeatVelocity, 0, 0, std::clamp(v, 0.f, 1.f)}); }
 bool AudioEngine::setChannel(int strip, int param, float value) {
-    if (strip < 0 || strip > kStrips || param < 0 || param > 3) return false;
+    if (strip < 0 || strip > kStrips || param < 0 || param > 6) return false;
     return mCmds.push({CmdType::SetChannel, strip, param, value});
 }
 
@@ -167,12 +208,36 @@ void AudioEngine::getTransport(double* out) {
     const int f = mTelFlags.load(std::memory_order_relaxed);
     out[1] = f & 1; out[2] = (f >> 1) & 1; out[11] = (f >> 2) & 1;
     out[3] = mTelBpm.load(std::memory_order_relaxed);
-    for (int i = 0; i < 6; ++i) out[4 + i] = mMeters[i].exchange(0.f, std::memory_order_relaxed);
+    for (int i = 0; i < 6; ++i) out[4 + i] = 0;   // meters moved to getMeters()
     out[10] = mTelSwing.load(std::memory_order_relaxed);
     out[12] = mTelFx.load(std::memory_order_relaxed);
     out[13] = (double)mTelPads.load(std::memory_order_relaxed);
     out[14] = mTelPlayPad.load(std::memory_order_relaxed);
-    out[15] = 0;
+    out[15] = mTelEchoTail.load(std::memory_order_relaxed);   // FX tails (echo / reverb) for the pads
+
+    out[16] = 0; out[17] = 0;
+    out[18] = (double)mTelDrums.load(std::memory_order_relaxed);
+    out[19] = mTelRevTail.load(std::memory_order_relaxed);
+}
+
+bool AudioEngine::drumTrigger(int track, int slot, float vel) {
+    if (!validTrack(track) || slot < 0 || slot >= drums::kSlots) return false;
+    Command c{CmdType::DrumTrigger, slot, 0, std::clamp(vel, 0.f, 1.f)}; c.i1 = track;
+    return mCmds.push(c);
+}
+bool AudioEngine::drumParam(int track, int slot, int id, float v) {
+    if (!validTrack(track) || !std::isfinite(v)) return false;
+    const bool bus = slot == drums::kBusSlot && id >= 0 && id < drums::kBusParamCount;
+    if (!bus && (slot < 0 || slot >= drums::kSlots || id < 0 || id >= drums::kParamCount)) return false;
+    Command c{CmdType::DrumParam, slot, id, v}; c.i1 = track;
+    return mCmds.push(c);
+}
+void AudioEngine::getDrumTelemetry(int track, float* levels, int32_t* hits) {
+    if (!validTrack(track)) return;
+    for (int s = 0; s < drums::kSlots; ++s) {
+        levels[s] = mDrumLevel[track * drums::kSlots + s].load(std::memory_order_relaxed);
+        hits[s] = mDrumHits[track * drums::kSlots + s].load(std::memory_order_relaxed);
+    }
 }
 
 bool AudioEngine::setPadRegion(int pad, int64_t s, int64_t e) {
@@ -182,7 +247,7 @@ bool AudioEngine::setPadRegion(int pad, int64_t s, int64_t e) {
 }
 bool AudioEngine::setPadGain(int pad, float g) {
     if (pad < 0 || pad >= kMaxPads) return false;
-    return mCmds.push({CmdType::SetPadGain, pad, 0, std::clamp(g, 0.f, 4.f)});
+    return mCmds.push({CmdType::SetPadGain, pad, 0, std::clamp(g, 0.f, 16.f)});
 }
 
 int AudioEngine::transients(int sampleId, float sensitivity, int maxSlices, int64_t* out) {
@@ -212,8 +277,8 @@ void AudioEngine::loadSampleAsync(int fd, int requestId) {
     }
 }
 
-void AudioEngine::stretchSampleAsync(int sampleId, double tempo, double semis, int requestId) {
-    { std::lock_guard<std::mutex> l(mJobMtx); Job j{-1, requestId, sampleId, tempo, semis}; mJobs.push_back(j); }
+void AudioEngine::stretchSampleAsync(int sampleId, double tempo, double semis, int requestId, int64_t cropStart, int64_t cropEnd) {
+    { std::lock_guard<std::mutex> l(mJobMtx); Job j{-1, requestId, sampleId, tempo, semis, cropStart, cropEnd}; mJobs.push_back(j); }
     mJobCv.notify_one();
 }
 
@@ -243,7 +308,14 @@ void AudioEngine::workerLoop() {
             if (src) {
                 decoded = std::make_unique<SampleBuffer>();
                 decoded->sampleRate = src->sampleRate; decoded->channels = src->channels;
-                decoded->data = stretch::process(src->data, src->channels, src->sampleRate, job.tempo, job.semis);
+                if (job.cropEnd > job.cropStart && job.cropStart >= 0 && job.cropEnd <= src->frames) {
+                    // one slice only (per-pad WARP): stretch just [cropStart, cropEnd)
+                    const auto ch = (int64_t)src->channels;
+                    std::vector<float> part(src->data.begin() + (ptrdiff_t)(job.cropStart * ch), src->data.begin() + (ptrdiff_t)(job.cropEnd * ch));
+                    decoded->data = stretch::process(part, src->channels, src->sampleRate, job.tempo, job.semis);
+                } else {
+                    decoded->data = stretch::process(src->data, src->channels, src->sampleRate, job.tempo, job.semis);
+                }
                 decoded->frames = (int64_t)(decoded->data.size() / src->channels);
                 analyse = false;                            // the UI derives key/BPM from the original
             }
@@ -256,10 +328,15 @@ void AudioEngine::workerLoop() {
             res.sampleRate = decoded->sampleRate;
             res.channels = decoded->channels;
             std::lock_guard<std::mutex> l(mRegMtx);
-            decoded->id = mNextSampleId++;
-            res.sampleId = decoded->id;
-            mRegistry[decoded->id] = RegistryEntry{std::shared_ptr<SampleBuffer>(std::move(decoded)), 0, false};
+            // Take the id BEFORE moving the buffer. In `mRegistry[decoded->id] = Entry{move(decoded)}` C++17
+            // evaluates the right side first, so decoded is already null when the key is read: a
+            // guaranteed null dereference, which the optimiser turned into a crash on every sample load.
+            const int id = mNextSampleId++;
+            decoded->id = id;
+            res.sampleId = id;
+            mRegistry[id] = RegistryEntry{std::shared_ptr<SampleBuffer>(std::move(decoded)), 0, false};
         }
+        else res.error = decodeErrorCode(err);
         std::lock_guard<std::mutex> l(mResultMtx);
         mResults.push_back(res);
     }
@@ -318,7 +395,7 @@ int AudioEngine::pollEvent(double* out) {
     WorkerResult r = mResults.front();
     mResults.pop_front();
     out[0] = r.requestId;
-    out[1] = r.sampleId;
+    out[1] = r.sampleId != 0 ? r.sampleId : r.error;   // a failure carries its DecodeError here
     out[2] = (double)r.frames;
     out[3] = r.sampleRate;
     out[4] = r.channels;
@@ -350,6 +427,39 @@ bool AudioEngine::getPeaks(int sampleId, int buckets, float* out) {
             mn = std::min(mn, s); mx = std::max(mx, s);
         }
         out[2 * b] = mn; out[2 * b + 1] = mx;
+    }
+    return true;
+}
+
+bool AudioEngine::regionLevels(int sampleId, const int64_t* starts, const int64_t* ends, int n, float* outPeakDb, float* outLoudDb) {
+    std::shared_ptr<SampleBuffer> buf;
+    {
+        std::lock_guard<std::mutex> l(mRegMtx);
+        auto it = mRegistry.find(sampleId);
+        if (it == mRegistry.end()) return false;
+        buf = it->second.buf;
+    }
+    if (!buf || buf->frames <= 0) return false;
+    const int64_t win = std::max<int64_t>(64, (int64_t)(0.05 * buf->sampleRate)), hop = win / 2;
+    auto toDb = [](double v) { return v > 1e-9 ? (float)(20.0 * std::log10(v)) : -120.f; };
+    for (int i = 0; i < n; ++i) {
+        const int64_t a = std::clamp<int64_t>(starts[i], 0, buf->frames), e = std::clamp<int64_t>(ends[i], a, buf->frames);
+        double pk = 0.0, best = 0.0;
+        for (int64_t w0 = a; w0 < e; w0 += hop) {
+            const int64_t w1 = std::min(e, w0 + win);
+            double ss = 0.0;
+            for (int64_t f = w0; f < w1; ++f) {
+                float s = 0.f;
+                for (int c = 0; c < buf->channels; ++c) s += buf->at(c, f);
+                s /= (float)buf->channels;
+                ss += (double)s * s;
+                pk = std::max(pk, (double)std::fabs(s));
+            }
+            if (w1 > w0) best = std::max(best, ss / (double)(w1 - w0));
+            if (w1 >= e) break;
+        }
+        outPeakDb[i] = toDb(pk);
+        outLoudDb[i] = toDb(std::sqrt(best));
     }
     return true;
 }
@@ -399,11 +509,13 @@ void AudioEngine::handleCommand(const Command& c) {
     switch (c.type) {
         case CmdType::NoteOn:
             startPad(c.pad, c.f0, sr);
-            recordEvent(AudioEventType::NoteRecorded, 0, c.pad, c.f0, mSeq.tick());
+            if (c.pad % kPadsPerTrack != kPreviewPad)
+                recordEvent(AudioEventType::NoteRecorded, c.pad / kPadsPerTrack, c.pad % kPadsPerTrack, c.f0, mSeq.tick());
             break;
         case CmdType::NoteOff:
             releasePad(c.pad, sr);
-            recordEvent(AudioEventType::NoteReleased, 0, c.pad, 0.f, mSeq.tick());
+            if (c.pad % kPadsPerTrack != kPreviewPad)
+                recordEvent(AudioEventType::NoteReleased, c.pad / kPadsPerTrack, c.pad % kPadsPerTrack, 0.f, mSeq.tick());
             break;
         case CmdType::SetPitch: {
             const float ratio = std::pow(2.f, ((float)c.i0 + c.f0 / 100.f) / 12.f);
@@ -415,12 +527,12 @@ void AudioEngine::handleCommand(const Command& c) {
             mPads[c.pad].mode = (PlayMode)c.i0;
             break;
         case CmdType::SynthNoteOn:
-            mSynth.noteOn(c.i0, c.f0);
-            recordEvent(AudioEventType::NoteRecorded, 1, c.i0, c.f0, mSeq.tick());
+            mSynths[c.pad].noteOn(c.i0, c.f0);
+            recordEvent(AudioEventType::NoteRecorded, c.pad, c.i0, c.f0, mSeq.tick());
             break;
         case CmdType::SynthNoteOff:
-            mSynth.noteOff(c.i0);
-            recordEvent(AudioEventType::NoteReleased, 1, c.i0, 0.f, mSeq.tick());
+            mSynths[c.pad].noteOff(c.i0);
+            recordEvent(AudioEventType::NoteReleased, c.pad, c.i0, 0.f, mSeq.tick());
             break;
         case CmdType::SetTempo: mSeq.setTempo(c.f0); break;
         case CmdType::SetSwing: mSeq.setSwing(c.f0, c.i0); break;
@@ -443,6 +555,21 @@ void AudioEngine::handleCommand(const Command& c) {
         case CmdType::FxMove: mFx.move(c.i0, c.f0, c.f1); break;
         case CmdType::FxOff:  mFx.release(c.i0); break;
         case CmdType::FxAllOff: mFx.releaseAll(); break;
+        case CmdType::DrumTrigger: mDrums[c.i1].trigger(c.pad, c.f0); recordEvent(AudioEventType::NoteRecorded, c.i1, c.pad, c.f0, mSeq.tick()); break;
+        case CmdType::DrumParam: mDrums[c.i1].setParam(c.pad, c.i0, c.f0); break;
+        case CmdType::SetTrackType: {
+            const TrackType t = (TrackType)c.i0;
+            if (mTrackType[c.pad] == t) break;
+            // Silence whatever the track was playing before it changes instrument.
+            for (auto& v : mVoices) if (v.active() && v.pad() / kPadsPerTrack == c.pad) v.release(5.f, sr);
+            mSynths[c.pad].allNotesOff();
+            mTrackType[c.pad] = t;
+            break;
+        }
+        case CmdType::SetFocus:
+            if (mTrackType[c.pad] == TrackType::Synth) mFocusSynth = c.pad;
+            else if (mTrackType[c.pad] == TrackType::Sampler) mFocusSampler = c.pad;
+            break;
         case CmdType::SetChannel: {
             if (c.pad == kStrips) {                       // master: volume only
                 if (c.i0 == (int)ChannelParam::VolumeDb) mMasterGainTarget = std::pow(10.f, std::clamp(c.f0, -60.f, 6.f) / 20.f);
@@ -454,11 +581,14 @@ void AudioEngine::handleCommand(const Command& c) {
                 case ChannelParam::Pan: s.pan = std::clamp(c.f0, -1.f, 1.f); break;
                 case ChannelParam::Mute: s.mute = c.f0 != 0.f; break;
                 case ChannelParam::Solo: s.solo = c.f0 != 0.f; break;
+                case ChannelParam::ScSource: { const int src = (int)c.f0; s.scSrc = (src >= 0 && src < kStrips && src != c.pad) ? src : -1; break; }
+                case ChannelParam::ScAmount: s.scAmount = std::clamp(c.f0, 0.f, 1.f); break;
+                case ChannelParam::ScRelease: s.scReleaseMs = std::clamp(c.f0, 20.f, 1000.f); break;
             }
             break;
         }
-        case CmdType::SynthParam:   mSynth.setParam(c.i0, c.f0); break;
-        case CmdType::SynthAllOff:  mSynth.allNotesOff(); break;
+        case CmdType::SynthParam:   mSynths[c.pad].setParam(c.i0, c.f0); break;
+        case CmdType::SynthAllOff:  mSynths[c.pad].allNotesOff(); break;
         case CmdType::SetMasterGain:
             mMasterGainTarget = c.f0;
             break;
@@ -482,7 +612,7 @@ void AudioEngine::startPad(int pad, float vel, float sr) {
     if (pad < 0 || pad >= kMaxPads) return;
     PadState& p = mPads[pad];
     if (!p.buf) return;
-    // Each pad is monophonic like Koala and the SP: a retrigger fades the previous hit out over 4 ms.
+    // Each pad is monophonic, like classic samplers: a retrigger fades the previous hit out over 4 ms.
     for (auto& v : mVoices)
         if (v.active() && v.pad() == pad && !v.releasing()) v.release(4.f, sr);
     const float gain = 0.1f + 0.9f * vel * vel;   // a gentle curve: soft taps stay audible
@@ -509,8 +639,16 @@ void AudioEngine::applyFire(const seq::Fire& f, double tickAtChunk, double tps, 
         mClickEnv = 1.f; mClickPhase = 0.f; mClickFreq = f.note ? 2400.f : 1600.f;
         return;
     }
-    if (f.track == 0) { if (f.on) startPad(f.note, f.velocity, sr); else releasePad(f.note, sr); }
-    else {
+    const TrackType type = (f.track >= 0 && f.track < kTracks) ? mTrackType[f.track] : TrackType::None;
+    if (type == TrackType::Sampler) {
+        if (f.note >= 0 && f.note < kPreviewPad) {
+            const int pad = f.track * kPadsPerTrack + f.note;
+            if (f.on) startPad(pad, f.velocity, sr); else releasePad(pad, sr);
+        }
+    }
+    else if (type == TrackType::Drums) { if (f.on) mDrums[f.track].trigger(f.note, f.velocity); }   // one-shots: note-offs ignored
+    else if (type == TrackType::Synth) {
+        synth::Synth& mSynth = mSynths[f.track];
         if (f.on && f.src) {
             // Pattern hit: its p-locks apply now and hold until the next step without them.
             bool any = false;
@@ -520,14 +658,25 @@ void AudioEngine::applyFire(const seq::Fire& f, double tickAtChunk, double tps, 
         }
         if (f.on) mSynth.noteOn(f.note, f.velocity); else mSynth.noteOff(f.note);
     }
+    else return;
     if (f.fromRepeat) recordEvent(AudioEventType::NoteRecorded, f.track, f.note, f.velocity, tickAtChunk + f.offset * tps);
 }
 
 void AudioEngine::renderSegment(int a, int b, float sr, uint32_t& w) {
     const int n = b - a;
     if (n <= 0) return;
-    for (auto& v : mVoices) if (v.active()) v.render(mBus[0].data() + 2 * a, n, sr);
-    mSynth.render(mBus[1].data() + 2 * a, mSynthScratch.data() + a, n);
+    for (auto& v : mVoices) if (v.active()) v.render(mBus[v.pad() / kPadsPerTrack].data() + 2 * a, n, sr);
+    bool scoped = false;
+    for (int t = 0; t < kTracks; ++t) {
+        if (mTrackType[t] == TrackType::Synth) {
+            const bool focus = t == mFocusSynth;
+            mSynths[t].render(mBus[t].data() + 2 * a, focus ? mSynthScratch.data() + a : nullptr, n);
+            scoped |= focus;
+        } else if (mTrackType[t] == TrackType::Drums) {
+            mDrums[t].render(mBus[t].data() + 2 * a, n);
+        }
+    }
+    if (!scoped) std::fill(mSynthScratch.begin() + a, mSynthScratch.begin() + b, 0.f);
     for (int i = 0; i < n; ++i) mScope[(w++) & (kScope - 1)].store(mSynthScratch[a + i], std::memory_order_relaxed);
     if (mClickEnv > 1e-4f) {
         const float dec = std::exp(-1.f / (0.012f * sr)), inc = mClickFreq / sr;
@@ -546,6 +695,25 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
     for (auto& s : mStrips) anySolo |= s.solo;
     const float coeff = 1.f - std::exp(-1.f / (0.005f * sr));
     const float mcoeff = 1.f - std::exp(-1.f / (0.01f * sr));
+    // Sidechain ("pump"): each ducked strip follows its source strip's PRE-fader level (instant
+    // attack, release ms) and turns the gain down by up to `amount`. Keys are read from the raw
+    // buses before any ducking, so ducking order never matters.
+    for (int k = 0; k < kStrips; ++k) {
+        Strip& s = mStrips[k];
+        if (s.scSrc < 0 || s.scAmount <= 0.f) { s.scEnv = 0.f; continue; }
+        const float* key = mBus[s.scSrc].data();
+        const float rel = std::exp(-1.f / (s.scReleaseMs * 0.001f * sr));
+        float env = s.scEnv, gmin = s.scGainMin;
+        float* bus = mBus[k].data();
+        for (int i = 0; i < n; ++i) {
+            const float x = std::max(std::fabs(key[2 * i]), std::fabs(key[2 * i + 1]));
+            env = x > env ? x : env * rel;
+            const float g = 1.f - s.scAmount * std::min(1.f, env * 2.5f);
+            gmin = std::min(gmin, g);
+            bus[2 * i] *= g; bus[2 * i + 1] *= g;
+        }
+        s.scEnv = env; s.scGainMin = gmin;
+    }
     for (int k = 0; k < kStrips; ++k) {
         Strip& s = mStrips[k];
         const bool audible = !s.mute && (!anySolo || s.solo);
@@ -570,7 +738,9 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
         const float l = std::clamp(out[2 * i] * mMasterGain, -1.f, 1.f);
         const float r = std::clamp(out[2 * i + 1] * mMasterGain, -1.f, 1.f);
         mL = std::max(mL, std::fabs(l)); mR = std::max(mR, std::fabs(r));
+        mMasterSide[tw & (kScope - 1)].store(0.5f * (l - r), std::memory_order_relaxed);
         mMasterTap[(tw++) & (kScope - 1)].store(0.5f * (l + r), std::memory_order_relaxed);
+        mLoud.process(l, r);
         out[2 * i] = std::clamp(l + mClickBus[2 * i], -1.f, 1.f);         // click: monitoring only, after master
         out[2 * i + 1] = std::clamp(r + mClickBus[2 * i + 1], -1.f, 1.f);
     }
@@ -578,14 +748,31 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
     mMasterTapWrite.store(tw, std::memory_order_release);
 }
 
-void AudioEngine::getVisual(float* bands, int nBands, float* wave, int nWave, float* energy3) {
+void AudioEngine::getVisual(float* bands, int nBands, float* wave, int nWave, float* energy, int nEnergy) {
     const uint32_t w = mMasterTapWrite.load(std::memory_order_acquire);
     for (int i = 0; i < viz::kFft; ++i)
         mVizIn[i] = mMasterTap[(w - (uint32_t)viz::kFft + (uint32_t)i) & (kScope - 1)].load(std::memory_order_relaxed);
     const float sr = (float)mDeviceRate.load(std::memory_order_relaxed);
-    mSpectrum.analyze(mVizIn.data(), sr, bands, nBands, &energy3[0], &energy3[1], &energy3[2]);
+    mSpectrum.analyze(mVizIn.data(), sr, bands, nBands, &energy[0], &energy[1], &energy[2],
+                      nEnergy >= 5 ? &energy[3] : nullptr, nEnergy >= 5 ? &energy[4] : nullptr);
     nWave = std::clamp(nWave, 0, viz::kFft);
     for (int i = 0; i < nWave; ++i) wave[i] = mVizIn[viz::kFft - nWave + i];
+}
+
+void AudioEngine::getLoudness(float* out) const {
+    out[0] = mLoud.momentary(); out[1] = mLoud.shortTerm(); out[2] = mLoud.integrated();
+    out[3] = mLoud.peakDbL(); out[4] = mLoud.peakDbR(); out[5] = mLoud.seconds();
+}
+
+int AudioEngine::getStereo(float* mid, float* side, int n) const {
+    n = std::clamp(n, 0, (int)kScope);
+    const uint32_t w = mMasterTapWrite.load(std::memory_order_acquire);
+    for (int i = 0; i < n; ++i) {
+        const uint32_t k = (w - (uint32_t)n + (uint32_t)i) & (kScope - 1);
+        mid[i] = mMasterTap[k].load(std::memory_order_relaxed);
+        side[i] = mMasterSide[k].load(std::memory_order_relaxed);
+    }
+    return n;
 }
 
 static inline void atomicMax(std::atomic<float>& a, float v) {
@@ -594,6 +781,22 @@ static inline void atomicMax(std::atomic<float>& a, float v) {
 }
 
 oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, void* audioData, int32_t numFrames) {
+    if (mTuner) mTuner->tune();
+    if (!mOutI16) { renderFloat(stream, static_cast<float*>(audioData), numFrames); return oboe::DataCallbackResult::Continue; }
+    // 16-bit device: render float into scratch, then convert (with clipping) in slices.
+    auto* dst = static_cast<int16_t*>(audioData);
+    for (int32_t off = 0; off < numFrames; off += kI16ScratchFrames) {
+        const int32_t n = std::min<int32_t>(kI16ScratchFrames, numFrames - off);
+        renderFloat(stream, mI16Scratch.data(), n);
+        for (int32_t i = 0; i < 2 * n; ++i) {
+            const float v = std::clamp(mI16Scratch[(size_t)i], -1.f, 1.f);
+            dst[2 * off + i] = (int16_t)std::lrint(v * 32767.f);
+        }
+    }
+    return oboe::DataCallbackResult::Continue;
+}
+
+void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32_t numFrames) {
 #if defined(__aarch64__)
     // Flush denormals to zero: filter and envelope tails decaying toward 0 would otherwise hit
     // ~100× slower subnormal arithmetic and cause CPU spikes exactly when notes release.
@@ -605,8 +808,10 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     float* out = static_cast<float*>(audioData);
     std::memset(out, 0, sizeof(float) * (size_t)numFrames * 2);
     const float sr = (float)stream->getSampleRate();
-    mSynth.setSampleRate(sr);
-    for (auto& s : mStrips) { s.peakL = s.peakR = 0.f; }
+    for (auto& sy : mSynths) sy.setSampleRate(sr);
+    for (auto& d : mDrums) d.setSampleRate(sr);
+    mLoud.setSampleRate(sr);
+    for (auto& s : mStrips) { s.peakL = s.peakR = 0.f; s.scGainMin = 1.f; }
     mMasterPeakL = mMasterPeakR = 0.f;
     uint32_t w = mScopeWrite.load(std::memory_order_relaxed);
 
@@ -632,7 +837,7 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
 
     // ---- telemetry ----
     {
-        const synth::Telemetry& t = mSynth.telemetry();
+        const synth::Telemetry& t = mSynths[mFocusSynth].telemetry();
         const float vals[kTel] = {t.lfoValue, t.lfoPhase, t.ampLevel, t.ampStage, t.ampStageTime,
                                   t.fenvLevel, t.fenvStage, t.fenvStageTime, t.cutoffHz, t.activeVoices,
                                   t.newestNote, mMasterGain};
@@ -645,9 +850,28 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     mTelBpm.store(mSeq.bpm(), std::memory_order_relaxed);
     mTelSwing.store(mSeq.swing(), std::memory_order_relaxed);
     mTelFx.store(mFx.activeMask(), std::memory_order_relaxed);
-    atomicMax(mMeters[0], mStrips[0].peakL); atomicMax(mMeters[1], mStrips[0].peakR);
-    atomicMax(mMeters[2], mStrips[1].peakL); atomicMax(mMeters[3], mStrips[1].peakR);
-    atomicMax(mMeters[4], mMasterPeakL);     atomicMax(mMeters[5], mMasterPeakR);
+    mTelEchoTail.store(mFx.echoTail(), std::memory_order_relaxed);
+    mTelRevTail.store(mFx.reverbTail(), std::memory_order_relaxed);
+    for (int k = 0; k < kStrips; ++k) {
+        atomicMax(mMeters[2 * k], mStrips[k].peakL); atomicMax(mMeters[2 * k + 1], mStrips[k].peakR);
+        // keep the deepest ducking until read (min): stored as 1 - g so atomicMax works
+        const float gr = mStrips[k].scGainMin;
+        float cur = mScGain[k].load(std::memory_order_relaxed);
+        while (gr < cur && !mScGain[k].compare_exchange_weak(cur, gr, std::memory_order_relaxed)) {}
+    }
+    atomicMax(mMeters[2 * kStrips], mMasterPeakL); atomicMax(mMeters[2 * kStrips + 1], mMasterPeakR);
+    {
+        uint32_t dm = 0;
+        for (int t = 0; t < kTracks; ++t) {
+            if (mTrackType[t] != TrackType::Drums) continue;
+            for (int s = 0; s < drums::kSlots; ++s) {
+                if (mDrums[t].active(s)) dm |= 1u << s;
+                mDrumLevel[t * drums::kSlots + s].store(mDrums[t].slotLevel(s), std::memory_order_relaxed);
+                mDrumHits[t * drums::kSlots + s].store((int32_t)mDrums[t].hitCount(s), std::memory_order_relaxed);
+            }
+        }
+        mTelDrums.store(dm, std::memory_order_relaxed);
+    }
     atomicMax(mPeak, std::max(mMasterPeakL, mMasterPeakR));
 
     // Playhead (position in the whole sample) of the newest voice, which pad it's on, and the pad activity mask.
@@ -657,14 +881,16 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     uint32_t mask = 0;
     for (auto& v : mVoices) {
         if (!v.active() || !v.buffer()) continue;
-        if (v.sounding() && v.pad() >= 0 && v.pad() < 32) mask |= 1u << v.pad();
+        if (v.pad() / kPadsPerTrack != mFocusSampler) continue;      // pad telemetry = the focused sampler track
+        const int local = v.pad() % kPadsPerTrack;
+        if (v.sounding()) mask |= 1u << local;
         if (v.startedAt() >= newest) {
-            newest = v.startedAt(); phPad = v.pad();
+            newest = v.startedAt(); phPad = local;
             ph = (float)(v.position() / (double)v.buffer()->frames);
         }
     }
     mPlayhead.store(ph, std::memory_order_relaxed);
     mTelPads.store(mask, std::memory_order_relaxed);
     mTelPlayPad.store(phPad, std::memory_order_relaxed);
-    return oboe::DataCallbackResult::Continue;
+    return;
 }

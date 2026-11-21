@@ -9,15 +9,18 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 #include "Analysis.h"
 #include "Commands.h"
 #include "SampleBuffer.h"
 #include "SamplerVoice.h"
 #include "SpscQueue.h"
 #include "Synth.h"
+#include "DrumSynth.h"
 #include "Sequencer.h"
 #include "MasterFx.h"
 #include "Spectrum.h"
+#include "Loudness.h"
 
 // Results the worker hands back to the UI (via pollEvent). Non-RT, so a mutex is fine here.
 struct WorkerResult {
@@ -26,14 +29,19 @@ struct WorkerResult {
     int64_t frames = 0;
     int32_t sampleRate = 0;
     int32_t channels = 0;
+    int32_t error = 0;        // DecodeError when sampleId == 0
     AnalysisResult analysis;
 };
 
 class AudioEngine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErrorCallback {
 public:
-    static constexpr int kMaxPads = 17;        // 16 pads + the chop-preview voice
-    static constexpr int kPreviewPad = 16;
-    static constexpr int kMaxVoices = 32;
+    // 8 tracks; each can be a sampler, synth or drum machine. Sampler pads use GLOBAL ids:
+    // track * kPadsPerTrack + pad (pad 16 of each track is its chop-preview voice).
+    static constexpr int kTracks = seq::kTracks;
+    static constexpr int kPadsPerTrack = 17;
+    static constexpr int kMaxPads = kTracks * kPadsPerTrack;
+    static constexpr int kPreviewPad = 16;      // local index within a track
+    static constexpr int kMaxVoices = 48;
 
     AudioEngine();
     ~AudioEngine() override;
@@ -52,10 +60,19 @@ public:
     // Transient onsets of a loaded sample (frames, ascending, first is 0). Safe from any thread.
     int transients(int sampleId, float sensitivity, int maxSlices, int64_t* out);
     bool setMasterGainDb(float db);
-    bool synthNoteOn(int note, float velocity);
-    bool synthNoteOff(int note);
-    bool synthParam(int id, float value);
-    bool synthAllOff();
+    bool synthNoteOn(int track, int note, float velocity);
+    bool synthNoteOff(int track, int note);
+    bool synthParam(int track, int id, float value);
+    bool synthAllOff(int track);
+    bool drumTrigger(int track, int slot, float velocity);
+    bool drumParam(int track, int slot, int id, float value);
+    // Drum animation telemetry for one track: per-slot level (0..1) and hit counters (wrap).
+    void getDrumTelemetry(int track, float* levels8, int32_t* hits8);
+    bool setTrackType(int track, int type);
+    bool setFocus(int track);
+    // Per-strip peaks (held until read): [2k, 2k+1] = strip k L/R, [16, 17] = master,
+    // [18 + k] = strip k sidechain gain (1 = no ducking).
+    void getMeters(float* out26);
 
     // ---- Transport / groove / mixer (main thread → audio thread) ----
     bool setTempo(float bpm);
@@ -67,22 +84,28 @@ public:
     bool repeatOn(int track, int note, int rateTicks, float velocity);
     bool repeatOff(int track, int note);
     bool repeatVelocity(float v);
-    bool setChannel(int strip, int param, float value);  // strip 0 sampler, 1 synth, 2 master
+    bool setChannel(int strip, int param, float value);  // strips 0..7 = tracks, 8 = master
     bool fxOn(int id, float x, float y);
     bool fxMove(int id, float x, float y);
     bool fxOff(int id);
     bool fxAllOff();
     // Recorded live hits (main thread). Returns 0 none, 1 note-on, 2 note-off; out = {track, note, vel, tick}.
     int pollRecord(double* out4);
-    void getTransport(double* out16);   // [12] = active punch-in FX bitmask
+    void getTransport(double* out20);   // [12] = active punch-in FX bitmask, [15]/[19] echo/reverb tails, [16..17] drum meters, [18] drum activity mask
     // Visualizer (main thread): FFT of the latest master output. energy3 = bass, mid, treble (0..1).
-    void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy3);
+    // energy: [0..2] bass/mid/high; when nEnergy ≥ 5 also [3] dominant frequency (Hz, 0 = none), [4] its level (dBFS)
+    void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy, int nEnergy = 3);
+    // Master loudness: [0] momentary, [1] short-term, [2] integrated (LUFS), [3]/[4] peak L/R since reset (dBFS), [5] seconds measured
+    void getLoudness(float* out6) const;
+    void resetLoudness() { mLoud.reset(); }
+    // The last n master samples as mid (L+R)/2 and side (L−R)/2, oldest first (n ≤ kScope)
+    int getStereo(float* mid, float* side, int n) const;
 
     // ---- Sample management (main thread) ----
     void loadSampleAsync(int fd, int requestId);      // takes ownership of fd
     // Renders a time-stretched / pitch-shifted copy of a loaded sample on the worker. The result
     // arrives through pollEvent like a load (new sample id); the source stays loaded.
-    void stretchSampleAsync(int sampleId, double tempo, double semitones, int requestId);
+    void stretchSampleAsync(int sampleId, double tempo, double semitones, int requestId, int64_t cropStart = 0, int64_t cropEnd = 0);
     bool assignSample(int pad, int sampleId);         // sampleId 0 clears the pad
     void unloadSample(int sampleId);
 
@@ -90,6 +113,9 @@ public:
     // Returns 0 (nothing), 1 (sample loaded) or 2 (load failed). Fills out[0..10].
     int pollEvent(double* out);
     bool getPeaks(int sampleId, int buckets, float* outMinMax);
+    // Per region [starts[i], ends[i]) of a loaded sample: peak dBFS and loudness (the loudest 50 ms RMS window, dBFS).
+    // Main-thread call; reads the buffer outside the registry lock. Returns false for an unknown sample.
+    bool regionLevels(int sampleId, const int64_t* starts, const int64_t* ends, int n, float* outPeakDb, float* outLoudDb);
     float playhead() const { return mPlayhead.load(std::memory_order_relaxed); }
     float peakLevel() { return mPeak.exchange(0.f, std::memory_order_relaxed); }
     void getStats(double* out);                       // see NativeEngine.Stats for layout
@@ -113,7 +139,8 @@ private:
         int audioRefs = 0;        // pads on the audio thread pointing at this buffer
         bool pendingDelete = false;
     };
-    struct Job { int fd; int requestId; int srcSample = 0; double tempo = 1.0, semis = 0.0; };   // srcSample > 0 = stretch job
+    // srcSample > 0 = stretch job; [cropStart, cropEnd) frames of the source (cropEnd 0 = to the end).
+    struct Job { int fd; int requestId; int srcSample = 0; double tempo = 1.0, semis = 0.0; int64_t cropStart = 0, cropEnd = 0; };
 
     bool openStream();
     void handleCommand(const Command& c);
@@ -131,14 +158,18 @@ private:
     std::array<PadState, kMaxPads> mPads{};
     std::array<SamplerVoice, kMaxVoices> mVoices{};
     uint64_t mVoiceStamp = 0;
-    synth::Synth mSynth;
+    std::array<synth::Synth, kTracks> mSynths{};
+    std::array<drums::DrumSynth, kTracks> mDrums{};
+    std::array<TrackType, kTracks> mTrackType{TrackType::Sampler, TrackType::Synth, TrackType::Drums};
+    int mFocusSynth = 1, mFocusSampler = 0;
     seq::Sequencer mSeq;
     fx::MasterFx mFx;                  // punch-in effects on the master bus (ring allocated here, main thread)
     bool mRecording = false;
 
     // Rendering happens in chunks of kChunk frames, split at each sequencer event for sample accuracy.
     static constexpr int kChunk = 256;
-    static constexpr int kStrips = 2;
+    static constexpr int kI16ScratchFrames = 2048;
+    static constexpr int kStrips = kTracks;
     std::array<seq::Fire, 512> mFires{};
     std::array<std::array<float, 2 * kChunk>, kStrips> mBus{};   // per-track stereo buses
     std::array<float, 2 * kChunk> mClickBus{};                   // metronome (bypasses the mixer)
@@ -147,7 +178,10 @@ private:
         float volDb = 0.f, pan = 0.f; bool mute = false, solo = false;
         float gL = 1.f, gR = 1.f;       // smoothed gains
         float peakL = 0.f, peakR = 0.f; // block peaks (post-fader)
+        int scSrc = -1; float scAmount = 0.f, scReleaseMs = 150.f;   // sidechain
+        float scEnv = 0.f, scGainMin = 1.f;
     };
+    std::array<float, kStrips> mScKey{};   // per-strip key envelope (pre-fader), shared by all ducked strips
     std::array<Strip, kStrips> mStrips{};
     float mMasterPeakL = 0.f, mMasterPeakR = 0.f;
     float mClickPhase = 0.f, mClickEnv = 0.f, mClickFreq = 1500.f;
@@ -172,6 +206,8 @@ private:
     // Master output tap for the visualizer (mono, post-fader), and the main-thread analyzer.
     std::array<std::atomic<float>, kScope> mMasterTap{};
     std::atomic<uint32_t> mMasterTapWrite{0};
+    std::array<std::atomic<float>, kScope> mMasterSide{};   // (L−R)/2, written alongside mMasterTap (mid)
+    meter::Loudness mLoud;                                  // R128 loudness of the master (audio thread writes, UI reads atomics)
     viz::Spectrum mSpectrum;                   // main-thread only
     std::array<float, viz::kFft> mVizIn{};     // main-thread only
 
@@ -179,10 +215,15 @@ private:
     std::atomic<double> mTelTick{0.0};
     std::atomic<int32_t> mTelFlags{0};       // bit0 playing, bit1 recording, bit2 metronome
     std::atomic<uint32_t> mTelFx{0};
+    std::atomic<float> mTelEchoTail{0.f}, mTelRevTail{0.f};
     std::atomic<uint32_t> mTelPads{0};       // bitmask of pads with a sounding voice
     std::atomic<int32_t> mTelPlayPad{-1};    // pad of the newest voice (for the chop playhead)
     std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f};
-    std::array<std::atomic<float>, 6> mMeters{};  // sampler L/R, synth L/R, master L/R
+    std::array<std::atomic<float>, 2 * kStrips + 2> mMeters{};   // strips L/R, then master L/R
+    std::array<std::atomic<float>, kStrips> mScGain{};
+    std::array<std::atomic<float>, kTracks * drums::kSlots> mDrumLevel{};
+    std::array<std::atomic<int32_t>, kTracks * drums::kSlots> mDrumHits{};
+    std::atomic<uint32_t> mTelDrums{0};
     bool mMetroOn = false;
 
     // Main-thread-only staging for recorded notes (filled while draining mAudioEvents).
@@ -192,6 +233,11 @@ private:
     // Stream (guarded for open/close/stats; never touched by the callback's hot path)
     std::mutex mStreamMtx;
     std::shared_ptr<oboe::AudioStream> mStream;
+    // Output format actually granted (Float, or I16 on devices whose fast/MMAP path wants 16-bit).
+    bool mOutI16 = false;
+    std::vector<float> mI16Scratch;                       // float render target when the device wants I16
+    std::unique_ptr<oboe::LatencyTuner> mTuner;           // grows the buffer one burst at a time on underruns
+    void renderFloat(oboe::AudioStream* stream, float* out, int32_t numFrames);
     bool mWantRunning = false;
 
     // Registry (main + worker threads)
