@@ -1,0 +1,14 @@
+--------- beginning of main
+11-21 02:28:40.348  3113  3113 I ClamshellMic: REC pressed: starting
+11-21 02:28:40.821  3113  3113 I ClamshellMic: start: permission ok, raw source supported=false, min buffer=4096
+11-21 02:28:40.896  3113  3113 I ClamshellMic: start: opened MIC, 48000 Hz, state=1
+11-21 02:28:41.562  3113  6074 I ClamshellMic: capture: startRecording → recordingState=3 (3 = recording), device=sdk_gphone64_x86_64
+11-21 02:28:42.609  3113  6074 I ClamshellMic: capture: MIC 1.0 s, block peak -72.2 dBFS, gain 0.0 dB
+11-21 02:28:43.611  3113  6074 I ClamshellMic: capture: MIC 2.0 s, block peak -72.2 dBFS, gain 0.0 dB
+11-21 02:28:44.597  3113  6074 I ClamshellMic: capture: MIC 3.0 s, block peak -inf dBFS, gain 0.0 dB
+11-21 02:28:45.592  3113  6074 I ClamshellMic: capture: MIC 4.0 s, block peak -inf dBFS, gain 0.0 dB
+11-21 02:28:46.603  3113  6074 I ClamshellMic: capture: MIC 5.0 s, block peak -72.2 dBFS, gain 0.0 dB
+11-21 02:28:47.024  3113  3113 I ClamshellMic: REC pressed: stopping
+11-21 02:28:47.075  3113  6074 I ClamshellMic: stop: ok=true, 262144 frames, peak -72.2 dBFS
+11-21 02:28:47.661  3113  3113 I ClamshellMic: ui: recording=false, take=5.5 s
+11-21 02:28:47.993  3113  3113 I ClamshellMic: ui: review shown (Field 2026-11-21 02.28.40)
