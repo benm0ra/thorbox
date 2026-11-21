@@ -795,6 +795,9 @@ class AppState(private val app: Application) {
                 if (e.requestId != latestForTrack[track]) { NativeEngine.unloadSample(e.sampleId); return }   // superseded on that track
                 val target = samplerFor(track)
                 target.sourceUri = source
+                // 16 LEVELS spreads one pad of the *old* sample; a new sample puts the pads back
+                if (levelMode.value != com.thorbox.app.levels.LevelMode.OFF && !levelOnDrums && track == samplerTrack.intValue)
+                    setLevels(com.thorbox.app.levels.LevelMode.OFF)
                 val info = LoadedSample(
                     engineId = e.sampleId, name = name, frames = e.frames, sampleRate = e.sampleRate, channels = e.channels,
                     key = if (e.keyRoot in 0..11) MusicalKey(PitchClass.entries[e.keyRoot], if (e.keyMinor) ScaleMode.MINOR else ScaleMode.MAJOR) else null,
@@ -821,7 +824,8 @@ class AppState(private val app: Application) {
                 val name = pendingNames.remove(e.requestId)
                 pendingSources.remove(e.requestId)
                 pendingTargets.remove(e.requestId)?.let { samplerFor(it).onRestoreFailed() }
-                if (e.requestId == latestRequest) { _loadingName.value = null; _error.value = "Couldn't decode ${name ?: "file"}" }
+                if (e.requestId == latestRequest) { _loadingName.value = null; _error.value = "Couldn't load ${name ?: "file"}: ${NativeEngine.LoadError.describe(e.reason)}" }
+                Log.w(TAG, "load failed: reason=${e.reason} (${NativeEngine.LoadError.describe(e.reason)})")
             }
         }
     }

@@ -336,6 +336,7 @@ void AudioEngine::workerLoop() {
             res.sampleId = id;
             mRegistry[id] = RegistryEntry{std::shared_ptr<SampleBuffer>(std::move(decoded)), 0, false};
         }
+        else res.error = decodeErrorCode(err);
         std::lock_guard<std::mutex> l(mResultMtx);
         mResults.push_back(res);
     }
@@ -394,7 +395,7 @@ int AudioEngine::pollEvent(double* out) {
     WorkerResult r = mResults.front();
     mResults.pop_front();
     out[0] = r.requestId;
-    out[1] = r.sampleId;
+    out[1] = r.sampleId != 0 ? r.sampleId : r.error;   // a failure carries its DecodeError here
     out[2] = (double)r.frames;
     out[3] = r.sampleRate;
     out[4] = r.channels;

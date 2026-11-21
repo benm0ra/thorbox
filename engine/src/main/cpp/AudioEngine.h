@@ -29,6 +29,7 @@ struct WorkerResult {
     int64_t frames = 0;
     int32_t sampleRate = 0;
     int32_t channels = 0;
+    int32_t error = 0;        // DecodeError when sampleId == 0
     AnalysisResult analysis;
 };
 

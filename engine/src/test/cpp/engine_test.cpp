@@ -2,6 +2,7 @@
 // Integration test: drives the real AudioEngine callback with a fake Oboe stream (test/cpp/stubs).
 // Covers sequencing → synth → mixer strips → master, mute/solo/pan, recording events, pattern lifecycle.
 #include "AudioEngine.h"
+#include "Decoder.h"
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -17,8 +18,9 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** err) {
     for (int i = 0; i < 48000; ++i) b->data[(size_t)i] = 0.5f * std::sin(2.0 * 3.14159265358979 * 220.0 * i / 48000.0);
     return b;
 }
+static int gLastType = 0;
 static bool waitEvent(AudioEngine& e, double* ev) {
-    for (int i = 0; i < 400; ++i) { if (e.pollEvent(ev)) return true; std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
+    for (int i = 0; i < 400; ++i) { if ((gLastType = e.pollEvent(ev))) return true; std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
     return false;
 }
 
@@ -65,7 +67,8 @@ int main() {
         CHECK(waitEvent(e, cv) && (int)cv[0] == 44 && cv[1] > 0 && std::llabs((long long)cv[2] - 12000) < 600, "a cropped WARP render is just that slice, same length");
         e.loadSampleAsync(-1, 43);
         double fv[12] = {};
-        CHECK(waitEvent(e, fv) && (int)fv[0] == 43 && fv[1] == 0, "a file that won't decode reports a failure, not a crash");
+        CHECK(waitEvent(e, fv) && gLastType == 2 && (int)fv[0] == 43 && (int)fv[1] == kErrFormat,
+              "a file that won't decode reports a failure + its reason, not a crash");
     }
     {
         AudioEngine e;

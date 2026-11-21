@@ -103,6 +103,12 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         playingId = sampleId; playingFrames = frames
         keyMatch.value = false; stretch.value = StretchMode.OFF
         val r = pendingRestore; pendingRestore = null
+        if (r == null) {
+            // A new sample: per-pad levels were set for the old chops. Pads keep their play mode, pitch
+            // and WARP (re-rendered below), but start at 0 dB: NORMALIZE gains of up to +24 dB must not carry over.
+            normalized.value = false; preNormalize = null
+            pads.value = pads.value.map { it.copy(gainDb = 0f) }
+        }
         if (r != null) {
             // Opening a project: put back its slices, pads and settings instead of auto-chopping.
             pads.value = List(ChopLogic.PADS) { r.pads.getOrElse(it) { PadSlot() } }
@@ -259,7 +265,12 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     }
 
     private fun applyRegions(r: List<Region>) {
-        if (r != regions.value) { normalized.value = false; preNormalize = null }   // new slices: NORMALIZE no longer applies
+        if (r != regions.value && normalized.value) {
+            // new slices: NORMALIZE's gains were measured on the old ones; put the levels back first
+            val prev = preNormalize
+            pads.value = pads.value.mapIndexed { i, p -> p.copy(gainDb = prev?.getOrNull(i)?.gainDb ?: 0f) }
+            normalized.value = false; preNormalize = null
+        }
         regions.value = r
         pushRegions()
     }

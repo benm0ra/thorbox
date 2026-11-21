@@ -32,7 +32,8 @@ object NativeEngine {
             val keyRoot: Int, val keyMinor: Boolean, val keyConfidence: Float,
             val bpm: Float, val bpmConfidence: Float,
         ) : Event
-        data class LoadFailed(val requestId: Int) : Event
+        /** [reason] is a [LoadError] code. */
+        data class LoadFailed(val requestId: Int, val reason: Int = LoadError.UNKNOWN) : Event
     }
 
     fun start(): Boolean = nativeStart()
@@ -132,6 +133,21 @@ object NativeEngine {
 
     // ---- Punch-in FX ----
     /** Punch-in master FX ids (match fx::Id in MasterFx.h). */
+    /** Why a sample didn't load (mirrors DecodeError in Decoder.h). */
+    object LoadError {
+        const val UNKNOWN = 0; const val FORMAT = 1; const val TOO_LONG = 2; const val RATE = 3
+        const val DEPTH = 4; const val EMPTY = 5; const val READ = 6
+        fun describe(code: Int): String = when (code) {
+            FORMAT -> "format not supported (use WAV, AIFF, MP3, FLAC, OGG or M4A)"
+            TOO_LONG -> "longer than 10 minutes"
+            RATE -> "sample rate not supported"
+            DEPTH -> "bit depth or channel layout not supported"
+            EMPTY -> "no audio in the file"
+            READ -> "file can't be read"
+            else -> "decode failed"
+        }
+    }
+
     object Fx { const val LOOPER = 0; const val FILTER = 1; const val TAPE_STOP = 2; const val LOFI = 3; const val VINYL = 4; const val SCATTER = 5
         const val SLICER = 6; const val REVERB = 7; const val ECHO = 8; const val ISOLATOR = 9; const val CASSETTE = 10; const val RESONATOR = 11; const val COUNT = 12 }
     fun fxOn(id: Int, x: Float, y: Float) = nativeFxOn(id, x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
@@ -192,7 +208,7 @@ object NativeEngine {
                 bpm = it[8].toFloat(), bpmConfidence = it[9].toFloat(),
             )
         }
-        2 -> Event.LoadFailed(evBuf[0].toInt())
+        2 -> Event.LoadFailed(evBuf[0].toInt(), evBuf[1].toInt())
         else -> null
     }
 
