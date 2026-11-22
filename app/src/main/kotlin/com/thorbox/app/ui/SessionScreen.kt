@@ -37,17 +37,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.thorbox.model.PlayMode
 import java.util.Locale
 
-/**
- * Top (6", 16:9) screen for M1: sample browser | waveform with KEY/BPM header and pad settings |
- * a diagnostic footer (the M1 "probe"). In M4 the middle becomes the Session clip matrix and
- * this waveform moves into the contextual Detail View strip.
- */
-/** The whole top screen: a slim TE-style mode rail plus the contextual view. */
+/** The whole top screen: a slim mode rail plus the contextual view. */
 @Composable
 fun TopScreen(state: AppState) {
     val view = state.topView.value
     AuroraBackground(state, Modifier) {
-    Row(Modifier.fillMaxSize().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    // NAV on: the bottom NAV_BAR is kept free for the status line, so it never covers a control
+    val navOn = state.input.navMode.value
+    Row(Modifier.fillMaxSize().padding(start = 6.dp, top = 6.dp, end = 6.dp, bottom = if (navOn) 6.dp + NAV_BAR else 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         // The rail fits any screen height: view buttons share the space (never shorter than 28 dp), and the
         // gear + ? keep a fixed size, so they can't be pushed off the bottom on the Thor's short top panel.
         Column(Modifier.width(64.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),

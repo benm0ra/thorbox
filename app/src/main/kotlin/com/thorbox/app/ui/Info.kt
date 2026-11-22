@@ -273,10 +273,13 @@ fun InfoToggle(onTour: () -> Unit, modifier: Modifier = Modifier) {
 
 /**
  * NAV status: while the cursor is on, the screen that has it shows what's under it and what the
- * buttons do to it right now ("SWING · A grab · R-stick turn"). It sits at the edge *away* from the
- * cursor so it never covers the control you're on; the other screen shows a small marker pointing
+ * buttons do to it right now ("SWING · A grab · R-stick turn"), in a strip both screens keep free at
+ * the bottom (NAV_BAR) so it never covers a control; the other screen shows a small marker pointing
  * at where the cursor went. Replaces the hint line while NAV is on (hints are rationed, this isn't).
  */
+/** Height of the strip kept free at the bottom of each screen for the NAV status line. */
+val NAV_BAR = 30.dp
+
 @Composable
 fun BoxScope.NavBadge(state: com.thorbox.app.AppState, thisScreen: Int) {
     val inp = state.input
@@ -297,12 +300,10 @@ fun BoxScope.NavBadge(state: com.thorbox.app.AppState, thisScreen: Int) {
     val st = nav.status()
     val (title, body) = if (fresh.value && Info.body.value != null) Info.title.value to (Info.body.value ?: "")
         else st ?: ("NAV" to "D-pad to a control")
-    val cur = nav.cur()
-    val sz = nav.screenSize[thisScreen]
-    val atBottom = cur == null || sz.height <= 0f || cur.bounds.center.y < sz.height * 0.55f
-    Row(Modifier.align(if (atBottom) Alignment.BottomCenter else Alignment.TopCenter).padding(vertical = 6.dp).fillMaxWidth(0.9f)
-        .clip(RoundedCornerShape(10.dp)).background(Tb.Bg.copy(alpha = 0.95f)).border(1.dp, Tb.Text.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-        .padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    // it lives in the strip both screens keep free at the bottom while NAV is on (NAV_BAR)
+    Row(Modifier.align(Alignment.BottomCenter).height(NAV_BAR).padding(vertical = 3.dp).fillMaxWidth(0.96f)
+        .clip(RoundedCornerShape(8.dp)).background(Tb.Bg.copy(alpha = 0.95f)).border(1.dp, Tb.Text.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+        .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("NAV", color = Tb.Bg, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = 1.sp,
             modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Tb.Text).padding(horizontal = 5.dp, vertical = 1.dp))
         Text(title, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 0.5.sp, maxLines = 1,
