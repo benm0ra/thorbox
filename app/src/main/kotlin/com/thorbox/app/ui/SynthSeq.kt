@@ -242,7 +242,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
         set = { c -> g.cursor.intValue = page * 16 + c },
         down = { c -> val st = page * 16 + c; if (st < steps) { stepDownAt[0] = android.os.SystemClock.uptimeMillis(); g.holdStep(st) } },
         up = { c -> val st = page * 16 + c; if (st < steps) g.releaseStep(st, tapped = android.os.SystemClock.uptimeMillis() - stepDownAt[0] < 350) },
-        describe = { c -> "step ${page * 16 + c + 1}" }, verb = "toggle · hold edit", tag = "stepdeck")
+        describe = { c -> "step ${page * 16 + c + 1}" }, verb = "toggle · hold edit", tag = "stepdeck", slide = false)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

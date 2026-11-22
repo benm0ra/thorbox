@@ -193,6 +193,8 @@ class InputRouter(private val state: AppState) {
         // Only key-downs go through SHIFT, so a key that was already held (a pad, L1 repeat) still
         // gets its release when SELECT is pressed in between.
         if (shiftHeld.value && down && shiftKey(e, down, first)) return true
+        // a punch-in held from the FX deck always lets go with its button, even if the deck or NAV changed meanwhile
+        if (up && fxHeld >= 0 && e.keyCode == fxHeldBy) { state.groove.fxUp(fxHeld); fxHeld = -1; return true }
         if (navMode.value) return navKey(e, first, up)
 
         // Global keys

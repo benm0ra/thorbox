@@ -86,6 +86,8 @@ class NavGrid(
     val tag: String = "",
     /** What X does, for the status line. */
     val altVerb: String = "latch",
+    /** Moving with A held slides the held cell along (pads, keys, FX), like a finger. False: moving lets go. */
+    val slide: Boolean = true,
     /** ▲▼ on a one-row grid (lanes): edit the cell's value instead of moving (+1 up, −1 down). */
     val vertical: ((cell: Int, dir: Int) -> Unit)? = null,
 )
@@ -300,7 +302,12 @@ object Nav {
                 NavDir.DOWN -> if (row < g.rows - 1) c + g.cols else c
             }
             if (n != c) {
-                if (gridHeld >= 0) { g.up?.invoke(gridHeld); gridHeld = n; g.down(n) }   // slide while held, like a finger
+                // slide while held, like a finger across pads / keys; grids you toggle (steps, notes) don't paint
+                if (gridHeld >= 0) {
+                    val held = gridHeld
+                    g.up?.invoke(held)
+                    gridHeld = if (g.up != null && g.slide) { g.down(n); n } else -1
+                }
                 g.set(n)
             }
             tick.intValue++
