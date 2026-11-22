@@ -48,21 +48,21 @@ fun BoxScope.ControllerHud(state: AppState) {
     AnimatedVisibility(show, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
         val ctx = com.thorbox.app.input.playContext(state)
         Row(
-            Modifier.padding(16.dp)
+            Modifier.padding(8.dp)
                 .background(Tb.Bg.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
                 .border(1.dp, Tb.Line, RoundedCornerShape(18.dp))
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 18.dp, vertical = 10.dp),       // compact: the whole map fits the 1080p top panel
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 HudTitle("SELECT +", Tb.Key)
                 Bindings.shift.forEach { (k, v) -> HudRow(k, v) }
                 HudRow("SELECT", Bindings.SHIFT_TAP, dim = true)
             }
-            if (state.input.navMode.value) Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (state.input.navMode.value) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 HudTitle("NAV", Tb.Key)
                 Bindings.nav.forEach { (k, v) -> HudRow(k, v) }
-            } else Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            } else Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 HudTitle(ctx.title, Tb.Text)
                 Bindings.context(ctx).forEach { (k, v) -> HudRow(k, v) }
                 HudTitle("ALWAYS", Tb.Muted)
