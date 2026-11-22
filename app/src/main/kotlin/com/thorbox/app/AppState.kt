@@ -768,16 +768,30 @@ class AppState(private val app: Application) {
         mic.start { msg -> _error.value = msg }
     }
     /** KEEP: save the take, then drop it onto the current sampler track, auto-chopped. */
+    /**
+     * KEEP: save the take and lay it down on a sampler track, chopped onto its 16 pads. The track you're
+     * on if it's a sampler; else the sampler track you last used; else a new sampler track (if there's room).
+     */
     fun keepMicTake() {
         mic.keep { uri, name ->
             if (uri == null) { _error.value = name; return@keep }
-            if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) {
-                load(uri, name)
-                showMic.value = false
-                if (topView.value != TopView.SAMPLER) selectTop(TopView.SAMPLER)    // see it land on the pads
-            } else _error.value = "Saved $name. Add a SAMPLE track (MIXER → + TRACK) to chop it."
             lastInput.value = "Saved Music/Clamshell Beats/Field Recordings/$name"
+            val target = micTargetTrack()
+            if (target == null) { _error.value = "Saved $name, but all 8 tracks are used: free one in the MIXER to chop it"; return@keep }
+            load(uri, name, target)
+            showMic.value = false
+            selectTrack(target)                                   // see it land on the pads
+            com.thorbox.app.ui.Info.toast("RECORDING", "$name → track ${target + 1} (${tracks.value[target].name}), chopped onto the pads")
         }
+    }
+
+    /** Where KEEP lays the take down (see [keepMicTake]); null when there's no sampler track and no room for one. */
+    fun micTargetTrack(): Int? {
+        val cur = groove.seqTrack.intValue
+        if (trackKind(cur) == com.thorbox.model.TrackKind.SAMPLER) return cur
+        if (trackKind(samplerTrack.intValue) == com.thorbox.model.TrackKind.SAMPLER) return samplerTrack.intValue
+        tracks.value.indices.firstOrNull { trackKind(it) == com.thorbox.model.TrackKind.SAMPLER }?.let { return it }
+        return addTrack(com.thorbox.model.TrackKind.SAMPLER).takeIf { it >= 0 }
     }
     /** REDO: throw the take away and record again straight away. */
     fun redoMicTake() { mic.discard(); toggleMicRecording() }
@@ -806,7 +820,8 @@ class AppState(private val app: Application) {
         _error.value = null
         scope.launch {
             val fd = withContext(Dispatchers.IO) {
-                runCatching { app.contentResolver.openFileDescriptor(uri, "r")?.detachFd() }.getOrNull()
+                runCatching { app.contentResolver.openFileDescriptor(uri, "r")?.detachFd() }
+                    .onFailure { Log.w(TAG, "can't open $name: $it") }.getOrNull()
             }
             if (fd == null) {
                 pendingNames.remove(id); pendingTargets.remove(id); pendingSources.remove(id)

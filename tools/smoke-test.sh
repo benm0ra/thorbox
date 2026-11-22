@@ -72,13 +72,15 @@ tour() {
   if command -v ffmpeg >/dev/null; then
     for x in mp3 flac ogg m4a; do ffmpeg -loglevel error -f lavfi -i "sine=frequency=220:duration=2" -ac 2 "$gen/tone.$x" || true; done
   else echo "::warning::[$name] no ffmpeg on the runner: MP3/FLAC/OGG/M4A loads not tested"; fi
-  dev=/sdcard/Android/data/$PKG/files/cifiles; adb shell mkdir -p $dev
+  # into the app's own private folder (run-as works on the debug build), so no storage permission is involved
+  dev=/data/data/$PKG/files/cifiles; adb shell run-as $PKG mkdir -p files/cifiles
   for f in "$gen"/*; do
-    b=$(basename "$f"); adb push "$f" "$dev/$b" >/dev/null
+    b=$(basename "$f"); adb push "$f" "/data/local/tmp/$b" >/dev/null; adb shell chmod 644 "/data/local/tmp/$b"
+    adb shell run-as $PKG cp "/data/local/tmp/$b" "files/cifiles/$b"
     adb logcat -c
     adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS --es loadfile "$dev/$b" >/dev/null; sleep 4
     if adb logcat -d | grep -q "loaded $b"; then echo "::notice::[$name] sampler loaded $b"
-    else echo "::error::[$name] sampler could not load $b"; adb logcat -d | grep -E "Thorbox|NuMediaExtractor|NdkJavaVM" | tail -15; fail=1; fi
+    else echo "::error::[$name] sampler could not load $b"; adb logcat -d | grep -E "Thorbox|NuMediaExtractor|NdkJavaVM|can't open" | tail -15; fail=1; fi
   done
   adb exec-out screencap -p > "$OUT/$name-sampler-loaded-file.png" || true
   for t in 0 1 2 3 4; do                                 # SETTINGS pages, then the meters strip + recorder sheet

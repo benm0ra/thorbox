@@ -93,6 +93,10 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
                         drawLine(if (v > 0.98f) Tb.Warn else Tb.Text, Offset(px + 0.5f, mid - y), Offset(px + 0.5f, mid + y + 1f), 1f)
                     }
                     if (scale > 1.6f) drawTextSafe(tm, String.format(Locale.US, "display ×%.0f", scale), Offset(8.dp.toPx(), 6.dp.toPx()), small)
+                    if (mic.previewing.value) {                    // playhead while previewing
+                        val x = mic.previewPos * w
+                        drawLine(Tb.Key, Offset(x, 0f), Offset(x, h), 2.dp.toPx())
+                    }
                 }
             } else {
                 val count = mic.waveCount
@@ -128,12 +132,26 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
                     Text("peak ${take.peakDb.roundToInt()} dBFS" + if (take.peakDb < -24f) " · quiet: KEEP, then NORMALIZE on the pads, or raise GAIN and REDO" else "",
                         color = if (take.peakDb < -24f) Tb.Key else Tb.Muted, fontSize = 11.sp, fontFamily = Tb.Mono)
                 }
+                // PLAY: hear the take before deciding
+                HwButton(if (mic.previewing.value) "■ STOP" else "▶ PLAY", Modifier.height(56.dp), active = mic.previewing.value, accent = Tb.Key,
+                    minHeight = 56.dp, fontSize = 13, enabled = !saving) { mic.togglePreview() }
                 HwButton("DISCARD", Modifier.height(56.dp), accent = Tb.Warn, minHeight = 56.dp, fontSize = 13, enabled = !saving) { mic.discard() }
                 HwButton("REDO", Modifier.height(56.dp), minHeight = 56.dp, fontSize = 13, enabled = !saving) { state.redoMicTake() }
-                HwButton(if (saving) "SAVING…" else "KEEP · CHOP", Modifier.height(56.dp), active = true, accent = Tb.Good, minHeight = 56.dp, fontSize = 13, enabled = !saving) {
+                HwButton(if (saving) "SAVING…" else "KEEP → PADS", Modifier.height(56.dp), active = true, accent = Tb.Good, minHeight = 56.dp, fontSize = 13, enabled = !saving) {
                     state.keepMicTake() }
             }
-            Text("KEEP saves ${take.name}.wav to Music/Clamshell Beats/Field Recordings and chops it onto this sampler track's 16 pads. DISCARD deletes it.",
+            // where KEEP will lay it down (the same rule as AppState.micTargetTrack, without creating anything)
+            val tracks = state.tracks.value
+            val sampler = com.thorbox.model.TrackKind.SAMPLER
+            val cur = state.groove.seqTrack.intValue
+            val dest = when {
+                tracks.getOrNull(cur)?.kind == sampler -> "track ${cur + 1} (${tracks[cur].name})"
+                tracks.getOrNull(state.samplerTrack.intValue)?.kind == sampler -> "track ${state.samplerTrack.intValue + 1} (${tracks[state.samplerTrack.intValue].name})"
+                tracks.any { it.kind == sampler } -> tracks.indexOfFirst { it.kind == sampler }.let { "track ${it + 1} (${tracks[it].name})" }
+                tracks.any { it.kind == com.thorbox.model.TrackKind.EMPTY } -> "a new SAMPLER track"
+                else -> "nowhere: all 8 tracks are used (free one in the MIXER)"
+            }
+            Text("▶ PLAY to hear it. KEEP saves ${take.name}.wav to Music/Clamshell Beats/Field Recordings and chops it onto the 16 pads of $dest. DISCARD deletes it.",
                 color = Tb.Dim, fontSize = 11.sp)
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {

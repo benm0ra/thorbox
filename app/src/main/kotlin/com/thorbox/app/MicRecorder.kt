@@ -4,7 +4,9 @@ package com.thorbox.app
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -74,7 +76,7 @@ class MicRecorder(private val app: Context) {
     /** Start a new take (any take still under review is discarded). [onError] runs on the main thread. */
     fun start(onError: (String) -> Unit) {
         if (recording.value || saving.value) return
-        discard()
+        discard()                                                   // also stops a preview
         val rate = 48000
         val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
         val tryRaw = rawSupported()
@@ -190,7 +192,52 @@ class MicRecorder(private val app: Context) {
     fun stop() { stop = true }
 
     /** Throw the take away (temp file deleted). */
+    // ---- PREVIEW: play the take back before deciding (streams the temp file; nothing is saved) ----
+    val previewing = mutableStateOf(false)
+    /** 0..1 through the take while previewing (for the playhead). */
+    @Volatile var previewPos = 0f; private set
+    @Volatile private var previewStop = false
+
+    fun togglePreview() { if (previewing.value) stopPreview() else startPreview() }
+    fun stopPreview() { previewStop = true }
+
+    private fun startPreview() {
+        val t = take.value ?: return
+        if (previewing.value || saving.value) return
+        previewStop = false; previewing.value = true; previewPos = 0f
+        Thread({
+            val rate = 48000
+            val min = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
+            var at: AudioTrack? = null
+            try {
+                at = AudioTrack.Builder()
+                    .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                    .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setBufferSizeInBytes(min * 2).setTransferMode(AudioTrack.MODE_STREAM).build()
+                at.play()
+                java.io.FileInputStream(t.file).use { inp ->     // the file stays readable even if the take is discarded meanwhile
+                    val buf = ByteArray(min)
+                    var done = 0L
+                    while (!previewStop) {
+                        val n = inp.read(buf)
+                        if (n <= 0) break
+                        at.write(buf, 0, n)
+                        done += n
+                        previewPos = (done.toFloat() / t.bytes.coerceAtLeast(1L)).coerceIn(0f, 1f)
+                    }
+                }
+                if (!previewStop) Thread.sleep(min * 1000L / (rate * 2) + 50)   // let the last buffer play out
+            } catch (e: Exception) {
+                log("preview failed: $e")
+            } finally {
+                runCatching { at?.stop() }; runCatching { at?.release() }
+                android.os.Handler(android.os.Looper.getMainLooper()).post { previewing.value = false; previewPos = 0f }
+            }
+        }, "clamshell-mic-preview").start()
+    }
+
     fun discard() {
+        stopPreview()
         take.value?.file?.delete()
         take.value = null
         waveCount = 0; overviewCount = 0; seconds = 0f; peakHold = 0f
@@ -200,6 +247,7 @@ class MicRecorder(private val app: Context) {
     fun keep(onDone: (Uri?, String) -> Unit) {
         val t = take.value ?: return
         if (saving.value) return
+        stopPreview()
         saving.value = true
         Thread({
             val uri = runCatching { save(t.name, t.file, t.bytes, 48000) }.getOrNull()
