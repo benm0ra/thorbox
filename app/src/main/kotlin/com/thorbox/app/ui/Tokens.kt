@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -52,7 +53,7 @@ val WIDE = 520.dp
  * A text field the NAV cursor can reach: A focuses it, which brings up the on-screen keyboard
  * (the keyboard itself is driven with the D-pad like any Android keyboard).
  */
-fun Modifier.navTextField(label: String): Modifier = androidx.compose.ui.composed {
+fun Modifier.navTextField(label: String): Modifier = composed {
     val fr = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     focusRequester(fr).navTarget(label, action = { runCatching { fr.requestFocus() } })
 }
