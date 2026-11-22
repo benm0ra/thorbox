@@ -859,7 +859,7 @@ class AppState(private val app: Application) {
                 pendingSources.remove(e.requestId)
                 pendingTargets.remove(e.requestId)?.let { samplerFor(it).onRestoreFailed() }
                 if (e.requestId == latestRequest) { _loadingName.value = null; _error.value = "Couldn't load ${name ?: "file"}: ${NativeEngine.LoadError.describe(e.reason)}" }
-                Log.w(TAG, "load failed: reason=${e.reason} (${NativeEngine.LoadError.describe(e.reason)})")
+                Log.w(TAG, "load failed: ${name ?: "?"}: reason=${e.reason} (${NativeEngine.LoadError.describe(e.reason)})")
             }
         }
     }

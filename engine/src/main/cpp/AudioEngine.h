@@ -35,6 +35,14 @@ struct WorkerResult {
 
 class AudioEngine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErrorCallback {
 public:
+    /**
+     * Set by the JNI layer (JNI_OnLoad): attach / detach the decode worker thread to the Java VM.
+     * Android's media extractor (MP3, FLAC, OGG, M4A) needs a JVM-attached thread; on a bare
+     * std::thread it fails to create the extractor at all. Null on desktop builds (tests).
+     */
+    static inline void (*sThreadAttach)() = nullptr;
+    static inline void (*sThreadDetach)() = nullptr;
+public:
     // 8 tracks; each can be a sampler, synth or drum machine. Sampler pads use GLOBAL ids:
     // track * kPadsPerTrack + pad (pad 16 of each track is its chop-preview voice).
     static constexpr int kTracks = seq::kTracks;

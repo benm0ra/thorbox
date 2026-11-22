@@ -25,10 +25,11 @@ import kotlin.math.log10
  * table for review: KEEP saves a 48 kHz mono WAV to Music/Clamshell Beats/Field Recordings (then the
  * app chops it onto the pads), DISCARD deletes it, REDO deletes it and records again.
  *
- * Input: the raw UNPROCESSED source (no AGC / noise suppression) only where the device says it
- * really supports it; if it still delivers near-silence for the first half second (some HALs do),
- * the recorder quietly reopens on the normal MIC source and starts over. [gainDb] (0…+24 dB) lifts a
- * quiet source; it's applied before saving and soft-limited, so it can't wrap.
+ * Input: the normal MIC source first (the HAL applies the mic's analog gain there). The raw
+ * UNPROCESSED source is only a last resort: on the Thor it delivers about −52 dBFS with someone
+ * talking, i.e. an empty-looking take. If the raw source is used and is near-silent for the first
+ * half second, the recorder reopens on MIC. [gainDb] (0…+24 dB) lifts a quiet source; it's applied
+ * before saving and soft-limited, so it can't wrap.
  * Capped at 10 minutes. Capture runs on its own thread; the UI reads the volatiles every frame.
  */
 class MicRecorder(private val app: Context) {
@@ -78,11 +79,11 @@ class MicRecorder(private val app: Context) {
         val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
         val tryRaw = rawSupported()
         log("start: permission ok, raw source supported=$tryRaw, min buffer=$min")
-        var rec = (if (tryRaw) open(MediaRecorder.AudioSource.UNPROCESSED, rate, min) else null)
-        var src = if (rec != null) "RAW" else "MIC"
-        if (rec == null) rec = open(MediaRecorder.AudioSource.MIC, rate, min)
-        if (rec == null) rec = open(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate, min)?.also { src = "VOICE" }
+        var src = "MIC"
+        var rec = open(MediaRecorder.AudioSource.MIC, rate, min)
         if (rec == null) rec = open(MediaRecorder.AudioSource.CAMCORDER, rate, min)?.also { src = "CAM" }
+        if (rec == null) rec = open(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate, min)?.also { src = "VOICE" }
+        if (rec == null && tryRaw) rec = open(MediaRecorder.AudioSource.UNPROCESSED, rate, min)?.also { src = "RAW" }
         if (rec == null) { log("start: no input source would open"); onError("Couldn't open the microphone (no input source would open)"); return }
         log("start: opened $src, ${rec.sampleRate} Hz, state=${rec.state}")
         framesRead = 0L

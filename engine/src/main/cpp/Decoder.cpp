@@ -65,7 +65,11 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
         bool tryPlatform = false;
         auto pcmOut = pcm::decode(static_cast<const uint8_t*>(m), (size_t)st.st_size, kMaxSeconds, &why, &tryPlatform);
         munmap(m, (size_t)st.st_size);
-        if (pcmOut) return pcmOut;
+        if (pcmOut) {
+            __android_log_print(ANDROID_LOG_INFO, "ThorboxDecoder", "read WAV/AIFF directly: %d Hz, %d ch, %lld frames",
+                                pcmOut->sampleRate, pcmOut->channels, (long long)pcmOut->frames);
+            return pcmOut;
+        }
         if (!tryPlatform) return fail(why ? why : "unreadable WAV/AIFF");
     }
 

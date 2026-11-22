@@ -15,6 +15,15 @@
 #include "AudioEngine.h"
 
 static std::unique_ptr<AudioEngine> gEngine;
+static JavaVM* gVm = nullptr;
+
+// The decode worker runs Android's media extractor, which needs its thread attached to the VM.
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+    gVm = vm;
+    AudioEngine::sThreadAttach = [] { JNIEnv* env = nullptr; if (gVm) gVm->AttachCurrentThread(&env, nullptr); };
+    AudioEngine::sThreadDetach = [] { if (gVm) gVm->DetachCurrentThread(); };
+    return JNI_VERSION_1_6;
+}
 
 static AudioEngine& engine() {
     if (!gEngine) gEngine = std::make_unique<AudioEngine>();

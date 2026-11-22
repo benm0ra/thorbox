@@ -283,6 +283,10 @@ void AudioEngine::stretchSampleAsync(int sampleId, double tempo, double semis, i
 }
 
 void AudioEngine::workerLoop() {
+    struct JvmThread {
+        JvmThread() { if (sThreadAttach) sThreadAttach(); }
+        ~JvmThread() { if (sThreadDetach) sThreadDetach(); }
+    } jvm;
     for (;;) {
         Job job{};
         {
