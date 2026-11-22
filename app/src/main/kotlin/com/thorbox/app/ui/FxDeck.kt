@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -208,11 +209,14 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 // and on a narrow tile the index makes way, so text never runs under the dot
                 val name = FX_INFO[id]?.name ?: "?"
                 val dotRoom = 14.dp.toPx()
-                var nx = o.x + pad + 20.dp.toPx()
+                val nx = o.x + pad + 20.dp.toPx()
                 var ns = nameStyle
-                if (tm.measure(name, ns).size.width > o.x + s.width - pad - dotRoom - nx) ns = nameStyle.copy(fontSize = 10.sp, letterSpacing = 0.5.sp)
-                if (tm.measure(name, ns).size.width > o.x + s.width - pad - dotRoom - nx) nx = o.x + pad
-                else drawTextSafe(tm, String.format(java.util.Locale.US, "%02d", k + 1), o + Offset(pad, pad - 1f), idxStyle)
+                // every tile keeps its number; a long name steps down a size or two instead
+                for (fs in floatArrayOf(10f, 9f, 8f)) {
+                    if (tm.measure(name, ns).size.width <= o.x + s.width - pad - dotRoom - nx) break
+                    ns = nameStyle.copy(fontSize = fs.sp, letterSpacing = 0.3.sp)
+                }
+                drawTextSafe(tm, String.format(java.util.Locale.US, "%02d", k + 1), o + Offset(pad, pad - 1f), idxStyle)
                 drawTextSafe(tm, name, Offset(nx, o.y + pad - 3f), ns)
                 val dot = Offset(o.x + s.width - pad - 4.dp.toPx(), o.y + pad + 6.dp.toPx())
                 if (on) drawCircle(accent, 4.dp.toPx(), dot)
@@ -367,15 +371,15 @@ fun LevelsStrip(state: AppState, drums: Boolean, modifier: Modifier = Modifier) 
     val lm = state.levelMode.value
     val src = state.levelSrc.intValue
     Row(modifier.height(36.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        Text("16 LEVELS", color = if (lm != com.thorbox.app.levels.LevelMode.OFF) Tb.Key else Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Black,
-            letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 4.dp))
+        // the label names the sound being spread while it's on (no extra text crammed at the end)
+        val on = lm != com.thorbox.app.levels.LevelMode.OFF
+        val src0 = if (drums) state.drums.kit.value.voices.getOrNull(src)?.name ?: "" else "PAD ${src + 1}"
+        Text(if (on) src0 else "16 LEVELS", color = if (on) Tb.Key else Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Black,
+            letterSpacing = 1.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp).widthIn(max = 84.dp))
         com.thorbox.app.levels.LevelMode.entries.filter { drums || !it.drumsOnly }.forEach { m ->
             HwButton(m.label, Modifier.weight(1f).fillMaxHeight(), active = lm == m && m != com.thorbox.app.levels.LevelMode.OFF,
                 accent = Tb.Key, minHeight = 32.dp, fontSize = 10, hPad = 1.dp) { state.setLevels(m) }
         }
-        if (lm != com.thorbox.app.levels.LevelMode.OFF) Text(
-            if (drums) state.drums.kit.value.voices.getOrNull(src)?.name ?: "" else "PAD ${src + 1}",
-            color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 

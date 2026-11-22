@@ -66,9 +66,9 @@ fun DrumScreen(state: AppState) {
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // ---- header: pages + selected sound ----
-        Row(Modifier.fillMaxWidth().height(40.dp).glass(state, 12.dp).padding(horizontal = 6.dp, vertical = 4.dp),
+        Row(Modifier.fillMaxWidth().height(Heights.header).glass(state, 12.dp).padding(horizontal = 6.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("DRUMS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 2.sp, modifier = Modifier.padding(end = 4.dp))
+            SectionTag(state, Section.DRUMS)
             listOf("SOUND", "MIX", "DUST").forEachIndexed { i, l ->
                 // DUST is kit-wide; it lights amber while any of it is on, so you can see the kit is "dirty".
                 val dusty = i == DrumController.PAGE_DUST && kit.bus.let { it.crunch + it.muffle + it.tape + it.dust > 0.01f }
@@ -86,8 +86,10 @@ fun DrumScreen(state: AppState) {
                 Text("WHOLE KIT", color = Tb.Key, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
             } else {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(drumColor(sel)))
-                Text(voice.name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                Text(voice.model.label, color = drumColor(sel), fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+                Text(voice.name, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+                // the engine model, unless the name already says it ("KICK" · KICK was said twice)
+                if (!voice.name.uppercase().contains(voice.model.label.uppercase()))
+                    Text(voice.model.label, color = drumColor(sel), fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp, maxLines = 1)
             }
         }
 
@@ -99,7 +101,7 @@ fun DrumScreen(state: AppState) {
 
         // ---- drummer | grid ----
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.weight(0.85f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))) {
+            Box(Modifier.weight(0.85f).fillMaxHeight().bezel()) {
                 Drummer(state, Modifier.fillMaxSize().padding(4.dp))
             }
             Column(Modifier.weight(1.25f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {

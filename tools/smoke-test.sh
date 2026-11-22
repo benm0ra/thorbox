@@ -134,7 +134,19 @@ shots() {
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
   adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"
-  adb shell am start -n $PKG/$ACT --ei settings -1 >/dev/null
+  adb shell am start -n $PKG/$ACT --ei settings -1 >/dev/null; sleep 1
+  # NAV + buttons, driven by real key events: cursor, a grabbed knob, the bottom screen, a pad grid, the cheat sheet
+  key() { adb shell input keyevent "KEYCODE_$1"; sleep 0.4; }
+  adb shell am start -n $PKG/$ACT --es view SYNTH --es deck PADS --ez nav true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/nav-1.png"
+  for k in DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN; do key $k; done; adb exec-out screencap -p > "$d/nav-2-moved.png"
+  key BUTTON_A; key DPAD_RIGHT; key DPAD_UP; adb exec-out screencap -p > "$d/nav-3-grab.png"
+  key BUTTON_B; key BUTTON_R1; adb exec-out screencap -p > "$d/nav-4-bottom.png"
+  for k in DPAD_DOWN DPAD_DOWN DPAD_DOWN; do key $k; done; key BUTTON_A; key DPAD_RIGHT; adb exec-out screencap -p > "$d/nav-5-grid.png"
+  key BUTTON_B; key BUTTON_B; key BUTTON_B
+  adb shell am start -n $PKG/$ACT --ez nav false --ez controlmap true >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/controlmap.png"
+  adb shell am start -n $PKG/$ACT --ez controlmap false --es deck FX >/dev/null; sleep 1
+  key DPAD_RIGHT; key DPAD_DOWN; adb exec-out screencap -p > "$d/fx-buttons.png"
+  adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS >/dev/null; sleep 2; adb exec-out screencap -p > "$d/sampler-after.png"
   adb shell am force-stop $PKG
   adb shell wm size reset; adb shell wm density reset; sleep 2
   echo "::notice::screenshots: $(ls "$d" | wc -l) files"

@@ -101,7 +101,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 modifier = Modifier.align(Alignment.CenterVertically))
         }
         Canvas(
-            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Tb.Void.copy(alpha = 0.8f))
+            Modifier.weight(1f).fillMaxWidth().bezel()
                 .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
                 .pointerInteropFilter { ev ->
                     val cw = (dims[0] - nameCol) / 16f

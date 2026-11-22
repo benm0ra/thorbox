@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
-import com.thorbox.app.input.navModal
 
 import com.thorbox.app.input.navAdjustable
 
@@ -50,12 +49,8 @@ fun faderToDb(n: Float): Float = if (n >= 0.75f) (n - 0.75f) / 0.25f * 6f else -
 private fun meterNorm(peak: Float): Float = if (peak <= 1e-4f) 0f else dbToFader((20f * log10(peak)).coerceIn(-60f, 6f))
 
 /** Colour of each instrument kind, used on strips, chips and the add-track picker. */
-fun kindColor(k: com.thorbox.model.TrackKind) = when (k) {
-    com.thorbox.model.TrackKind.SAMPLER -> Tb.Pads[0]
-    com.thorbox.model.TrackKind.SYNTH -> Tb.EncOrange
-    com.thorbox.model.TrackKind.DRUMS -> Tb.Pads[1]
-    com.thorbox.model.TrackKind.EMPTY -> Tb.Dim
-}
+/** A track's colour is its section's colour (sampler = SAMPLE, …), the same on the rail, the deck tabs and here. */
+fun kindColor(k: com.thorbox.model.TrackKind) = k.section?.color ?: Tb.Dim
 
 /**
  * MIXER: one strip per track, then + (add a track) and MASTER. Tap a strip's name to open that
@@ -70,7 +65,17 @@ fun MixScreen(state: AppState) {
     var adding by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuFor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(-1) }
     Box(Modifier.fillMaxSize()) {
-    Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // header: name tag + what's here (same row height as every other screen's header)
+    Row(Modifier.fillMaxWidth().height(Heights.header).glass(state, 12.dp).padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionTag(state, Section.MIXER)
+        val n = tracks.count { it.kind != com.thorbox.model.TrackKind.EMPTY }
+        Text("$n TRACK${if (n == 1) "" else "S"} · tap a name to open it · ⋯ for PUMP", style = Type.label, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(String.format(java.util.Locale.US, "MASTER %+.1f dB", g.masterDb.floatValue), style = Type.value, maxLines = 1)
+    }
+    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         tracks.forEachIndexed { i, tr ->
             if (tr.kind == com.thorbox.model.TrackKind.EMPTY) return@forEachIndexed
             val ch = chans[i]
@@ -96,7 +101,7 @@ fun MixScreen(state: AppState) {
                 }
             }
         }
-        HwButton("MIDI", Modifier.fillMaxWidth(), minHeight = 52.dp, fontSize = 11, hPad = 2.dp, accent = Tb.Tempo) { state.exportMidi() }
+        HwButton("SAVE MIDI", Modifier.fillMaxWidth(), minHeight = 52.dp, fontSize = 11, hPad = 2.dp, accent = Tb.Tempo) { state.exportMidi() }
         }
         Strip(
             state, name = "MASTER", color = Tb.EncWhite, selected = g.mixSelected.intValue == MASTER_STRIP,
@@ -104,6 +109,7 @@ fun MixScreen(state: AppState) {
             onDb = { d -> g.mixSelected.intValue = MASTER_STRIP; g.setMaster(d) }, onPan = {}, onMute = {}, onSolo = {},
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
+    }
     }
     if (adding) AddTrackSheet(state, onDone = { adding = false }, modifier = Modifier.align(Alignment.Center).padding(16.dp))
     if (menuFor >= 0) TrackMenu(state, menuFor, onDone = { menuFor = -1 }, modifier = Modifier.align(Alignment.Center).padding(16.dp))
@@ -118,8 +124,7 @@ fun AddTrackSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modi
         Triple(com.thorbox.model.TrackKind.SYNTH, "SYNTH", "Basslines, 808s, leads, keys"),
         Triple(com.thorbox.model.TrackKind.DRUMS, "DRUMS", "A drum machine with its own kit"),
     )
-    Column(modifier.navModal(onDone).fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.sheet(onClose = onDone).fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("ADD A TRACK", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp)
             Box(Modifier.weight(1f))
@@ -174,8 +179,7 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
     val g = state.groove
     val ch = g.channels.value[t]
     val tracks = state.tracks.value
-    Column(modifier.navModal(onDone).fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.sheet(onClose = onDone).fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(12.dp).clip(androidx.compose.foundation.shape.CircleShape).background(kindColor(tracks[t].kind)))
             Text(tracks[t].name, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 1.sp)

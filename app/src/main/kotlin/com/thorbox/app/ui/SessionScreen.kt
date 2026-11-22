@@ -52,12 +52,12 @@ fun TopScreen(state: AppState) {
         // gear + ? keep a fixed size, so they can't be pushed off the bottom on the Thor's short top panel.
         Column(Modifier.width(64.dp).fillMaxHeight().glass(state, 14.dp).padding(5.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            HwButton("SAMPLE", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SAMPLER, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SAMPLER) }
-            HwButton("SYNTH", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SYNTH, accent = Tb.EncOrange, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
-            HwButton("DRUMS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DRUM, accent = Tb.Pads[1], minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
-            HwButton("STEPS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SEQ, accent = Tb.Good, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
-            HwButton("MIXER", Modifier.fillMaxWidth().weight(1f), active = view == TopView.MIX, accent = Tb.EncWhite, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
-            HwButton("VISUAL", Modifier.fillMaxWidth().weight(1f), active = view == TopView.VIZ, accent = Tb.EncBlue, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) {
+            HwButton("SAMPLE", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SAMPLER, accent = TopView.SAMPLER.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SAMPLER) }
+            HwButton("SYNTH", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SYNTH, accent = TopView.SYNTH.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
+            HwButton("DRUMS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DRUM, accent = TopView.DRUM.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
+            HwButton("STEPS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SEQ, accent = TopView.SEQ.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
+            HwButton("MIXER", Modifier.fillMaxWidth().weight(1f), active = view == TopView.MIX, accent = TopView.MIX.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
+            HwButton("VISUAL", Modifier.fillMaxWidth().weight(1f), active = view == TopView.VIZ, accent = TopView.VIZ.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) {
                 if (view == TopView.VIZ) state.exitViz() else state.selectTop(TopView.VIZ)
             }
             // Transport: always visible whatever view you're in
@@ -69,7 +69,8 @@ fun TopScreen(state: AppState) {
         }
         androidx.compose.foundation.layout.Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (state.miniMeters.value) MiniMeters(state, Modifier.fillMaxWidth())       // SETTINGS → LOOK → METERS
-        Box(Modifier.weight(1f).fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))) {
+          androidx.compose.runtime.CompositionLocalProvider(LocalWide provides (maxWidth >= WIDE)) {
             when (view) {
                 TopView.SAMPLER -> ChopScreen(state)
                 TopView.SYNTH -> SynthScreen(state)
@@ -81,6 +82,7 @@ fun TopScreen(state: AppState) {
             // Holding a step on the STEP deck opens its components here, over any view.
             if (state.groove.heldStep.intValue >= 0)
                 StepDetail(state, Modifier.align(androidx.compose.ui.Alignment.Center).fillMaxWidth(0.96f))
+          }
         }
         }
     }

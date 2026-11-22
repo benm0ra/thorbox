@@ -62,9 +62,11 @@ fun SeqScreen(state: AppState) {
     val accent = kindColor(state.trackKind(track))
 
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // ---- transport & groove ----
-        Row(Modifier.fillMaxWidth().height(56.dp).glass(state, 12.dp).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(Modifier.fillMaxWidth().height(56.dp).glass(state, 12.dp).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            if (LocalWide.current) SectionTag(state, Section.STEPS, Modifier.padding(start = 4.dp))
             HwButton(if (g.playing.value) "■" else "▶", Modifier.width(56.dp).fillMaxHeight(), active = g.playing.value, accent = Tb.Good, fontSize = 18) { g.togglePlay() }
             HwButton("●", Modifier.width(48.dp).fillMaxHeight(), active = g.recording.value, accent = Tb.Warn, fontSize = 18) { g.toggleRecord() }
             HwButton("CLK", Modifier.fillMaxHeight(), active = groove.metronome, accent = Tb.EncWhite, fontSize = 12) { g.toggleMetronome() }
@@ -179,7 +181,7 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
     fun valueAt(y: Float) = (1f - y / dims[1].coerceAtLeast(1)).coerceIn(0f, 1f)
 
     Canvas(
-        modifier.clip(RoundedCornerShape(10.dp)).background(Tb.Void.copy(alpha = 0.78f))
+        modifier.bezel()
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
                 when (ev.actionMasked) {

@@ -25,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
-import com.thorbox.app.input.navModal
 import java.util.Locale
 
 private val defaultsRev = androidx.compose.runtime.mutableIntStateOf(0)
@@ -42,15 +41,13 @@ private val defaultsRev = androidx.compose.runtime.mutableIntStateOf(0)
 @Composable
 fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
     val tab = state.settingsTab.intValue
-    Column(modifier.navModal { state.showSettings.value = false }.fillMaxSize().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(14.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.sheet { state.showSettings.value = false }.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("SETTINGS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp,
-                modifier = Modifier.padding(end = 10.dp))
+            if (LocalWide.current) Text("SETTINGS", style = Type.title, modifier = Modifier.padding(end = 6.dp))
+            // tabs share the row (and shrink their text) so the last one is never cut off
             listOf("PROJECTS", "LOOK", "DEFAULTS", "CONTROLS", "SYSTEM").forEachIndexed { i, name ->
-                HwButton(name, minHeight = 38.dp, fontSize = 12, active = tab == i, accent = Tb.Key) { state.settingsTab.intValue = i }
+                HwButton(name, Modifier.weight(1f), minHeight = 38.dp, fontSize = 12, hPad = 4.dp, active = tab == i, accent = Tb.Key) { state.settingsTab.intValue = i }
             }
-            Box(Modifier.weight(1f))
             HwButton("✕", Modifier.width(48.dp), minHeight = 38.dp, fontSize = 14) { state.showSettings.value = false }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {

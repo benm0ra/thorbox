@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
-import com.thorbox.app.input.navModal
 
 import android.content.Intent
 import android.os.Build
@@ -46,8 +45,7 @@ fun DiagnosticsPanel(state: AppState, modifier: Modifier = Modifier) {
     val tel = state.telemetry
     val t = state.tilt
     val saved = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    Column(modifier.navModal { state.showDiagnostics.value = false }.width(420.dp).background(Tb.Bg.copy(alpha = 0.95f), RoundedCornerShape(12.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(12.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.sheet { state.showDiagnostics.value = false }.width(420.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("DIAGNOSTICS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
             Box(Modifier.weight(1f))

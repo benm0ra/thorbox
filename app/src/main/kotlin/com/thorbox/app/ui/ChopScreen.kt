@@ -81,6 +81,7 @@ private fun MatchBar(state: AppState) {
     val bpm = state.groove.groove.value.bpm
     Column(Modifier.fillMaxWidth().glass(state, 12.dp).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (LocalWide.current) SectionTag(state, Section.SAMPLE)
             Column(Modifier.weight(1f)) {
                 Text(loading?.let { "Loading $it…" } ?: s?.name?.substringBeforeLast('.') ?: "Pick a sample",
                     color = Tb.Text, fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -167,7 +168,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     }
 
     Box(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Tb.Void.copy(alpha = 0.78f))
+        modifier.bezel()
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
                 if (frames <= 0) return@pointerInteropFilter false   // empty: let the CHOOSE / RECORD buttons have the touch

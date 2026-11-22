@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
         i?.getStringExtra("levels")?.let { m -> com.thorbox.app.levels.LevelMode.entries.firstOrNull { it.name == m }?.let(state::setLevels) }
         if (i?.hasExtra("fxxy") == true) state.groove.fxXyMode.value = i.getBooleanExtra("fxxy", false)
         if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))
+        if (i?.hasExtra("controlmap") == true) state.showControllerMap.value = i.getBooleanExtra("controlmap", false)
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()

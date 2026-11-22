@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
-import com.thorbox.app.input.navModal
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -124,9 +123,8 @@ fun PresetBrowser(
 ) {
     var confirmDelete by remember { mutableStateOf<String?>(null) }
     // B: cancel a delete question, then the save form, then close the browser
-    Column(modifier.navModal { if (confirmDelete != null) confirmDelete = null else if (saving) onCancelSave() else onClose() }
-        .fillMaxSize().background(Tb.Bg.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(10.dp),
+    Column(modifier.sheet(Radius.panel) { if (confirmDelete != null) confirmDelete = null else if (saving) onCancelSave() else onClose() }
+        .fillMaxSize().padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, modifier = Modifier.padding(end = 6.dp))

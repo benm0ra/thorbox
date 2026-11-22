@@ -68,8 +68,9 @@ fun SynthScreen(state: AppState) {
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
 
         // ---- header ----
-        Row(Modifier.fillMaxWidth().height(44.dp).glass(state, 12.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically,
+        Row(Modifier.fillMaxWidth().height(Heights.header).glass(state, 12.dp).padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (LocalWide.current) SectionTag(state, Section.SYNTH)
             SynthPage.entries.forEach { p ->
                 val on = p == page
                 Box(Modifier.fillMaxHeight().clip(RoundedCornerShape(5.dp))
@@ -92,8 +93,7 @@ fun SynthScreen(state: AppState) {
 
         // ---- hero: the instrument's "screen" (bezel · status line · page art · live waveform band) ----
         val swipe = remember { floatArrayOf(0f) }
-        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Tb.Void.copy(alpha = 0.82f))
-            .border(2.dp, Tb.Line, RoundedCornerShape(14.dp))
+        Box(Modifier.weight(1f).fillMaxWidth().bezel()
             .pointerInput(Unit) {
                 // Swipe the screen sideways to flip pages (the tabs still work too).
                 detectHorizontalDragGestures(onDragStart = { swipe[0] = 0f }) { ch, dx ->

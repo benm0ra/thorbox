@@ -214,7 +214,7 @@ object Glossary {
         "DENSITY" to "How busy the dice makes the pattern.",
         "UNDO" to "Undo the last pattern change.",
         // ---- FX ----
-        "MIDI" to "Export all tracks as a .mid file in Downloads: drag it into your DAW (drums use General MIDI notes).",
+        "SAVE MIDI" to "Export all tracks as a .mid file in Downloads: drag it into your DAW (drums use General MIDI notes).",
         "ADD TRACK" to "Add a track: pick a sampler, a synth or a drum machine. Up to 8 tracks.",
         "OPEN TRACK" to "Open this track in its editor (sampler, synth or drums).",
         "TRACK MENU" to "Track options: PUMP sidechain, clear the pattern, remove the track.",

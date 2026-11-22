@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.sp
  *  pads   the 8 slot colours: pads, clips, drum sounds, FX. Must stay distinguishable.
  *  enc*   the four encoder colours, matched 1:1 by the graphics they move
  *  aurora the 4 tints the glass backdrop shader blends (see Glass.kt)
+ *  sections one colour per section (SAMPLE · SYNTH · DRUMS · STEPS · MIXER · FX · VISUAL, see Tokens.kt):
+ *         all different, and none equal to `key` (active toggles) or `good` (PLAY)
  */
 data class Palette(
     val id: String, val label: String, val light: Boolean,
@@ -37,6 +39,7 @@ data class Palette(
     val key: Color, val tempo: Color, val good: Color, val warn: Color,
     val encBlue: Color, val encGreen: Color, val encWhite: Color, val encOrange: Color,
     val aurora: List<Color>,
+    val sections: List<Color> = emptyList(),
     val monoUi: Boolean = false,       // every label in monospace (TERMINAL)
     val scanlines: Float = 0f,         // CRT scanline overlay strength, 0 = off
 )
@@ -51,6 +54,7 @@ object Themes {
         key = Color(0xFFFFB000), tempo = Color(0xFF2FD1C5), good = Color(0xFF5BD75B), warn = Color(0xFFFF5A36),
         encBlue = Color(0xFF2F7BFF), encGreen = Color(0xFF1FCB6E), encWhite = Color(0xFFE9E9EC), encOrange = Color(0xFFFF6A13),
         aurora = listOf(Color(0xFF294DFF), Color(0xFFFF3D85), Color(0xFF14D9BF), Color(0xFFFF6B14)),
+        sections = listOf(Color(0xFF2FD1C5), Color(0xFFFF6A13), Color(0xFF9A6BFF), Color(0xFFFF5FAE), Color(0xFFE9E9EC), Color(0xFF3D8BFF), Color(0xFFE6E23A)),
     )
     val Cyberpunk = Palette(
         "cyberpunk", "CYBERPUNK", light = false,
@@ -61,6 +65,7 @@ object Themes {
         key = Color(0xFFFCEE0A), tempo = Color(0xFF01CDFE), good = Color(0xFF05FFA1), warn = Color(0xFFFF2A6D),
         encBlue = Color(0xFF01CDFE), encGreen = Color(0xFF05FFA1), encWhite = Color(0xFFF2E9FF), encOrange = Color(0xFFFF2A6D),
         aurora = listOf(Color(0xFFFF2A6D), Color(0xFF01CDFE), Color(0xFFB967FF), Color(0xFFFCEE0A)),
+        sections = listOf(Color(0xFF01CDFE), Color(0xFFFF8A00), Color(0xFFB967FF), Color(0xFFFF71CE), Color(0xFFF2E9FF), Color(0xFF3D5AFE), Color(0xFFFF2A6D)),
         scanlines = 0.05f,
     )
     val Pastel = Palette(
@@ -73,6 +78,7 @@ object Themes {
         key = Color(0xFFF08C1F), tempo = Color(0xFF239FB8), good = Color(0xFF6CC48A), warn = Color(0xFFFF7A7A),
         encBlue = Color(0xFF7FA6FF), encGreen = Color(0xFF6CC48A), encWhite = Color(0xFF5A5560), encOrange = Color(0xFFFF9F6E),
         aurora = listOf(Color(0xFFFFB3C7), Color(0xFFA8D8FF), Color(0xFFB9F2D0), Color(0xFFFFD9A8)),
+        sections = listOf(Color(0xFF239FB8), Color(0xFFFF8A8A), Color(0xFF8F78F0), Color(0xFFE472C4), Color(0xFF5A5560), Color(0xFF5F86F0), Color(0xFF5FB86F)),
     )
     val Terminal = Palette(
         "terminal", "TERMINAL", light = false,
@@ -83,6 +89,7 @@ object Themes {
         key = Color(0xFFFFB000), tempo = Color(0xFF33FFFF), good = Color(0xFF33FF66), warn = Color(0xFFFF5555),
         encBlue = Color(0xFF33FFFF), encGreen = Color(0xFF33FF66), encWhite = Color(0xFFCCFFDD), encOrange = Color(0xFFFFB000),
         aurora = listOf(Color(0xFF0F7A32), Color(0xFF0A4F2A), Color(0xFF0E6B6B), Color(0xFF6B4A00)),
+        sections = listOf(Color(0xFF33FFFF), Color(0xFFFF7A45), Color(0xFFB6FF33), Color(0xFFFFD580), Color(0xFFCCFFDD), Color(0xFF00C2A8), Color(0xFF66B3FF)),
         monoUi = true, scanlines = 0.10f,
     )
     val Grayscale = Palette(
@@ -95,6 +102,7 @@ object Themes {
         key = Color(0xFFFFFFFF), tempo = Color(0xFFC8C8C8), good = Color(0xFFE0E0E0), warn = Color(0xFFFFFFFF),
         encBlue = Color(0xFFFFFFFF), encGreen = Color(0xFFBDBDBD), encWhite = Color(0xFF8C8C8C), encOrange = Color(0xFFDDDDDD),
         aurora = listOf(Color(0xFF5A5A5A), Color(0xFF3C3C3C), Color(0xFF7A7A7A), Color(0xFF2A2A2A)),
+        sections = listOf(Color(0xFFF2F2F2), Color(0xFFCDCDCD), Color(0xFFB4B4B4), Color(0xFF9B9B9B), Color(0xFFE6E6E6), Color(0xFF828282), Color(0xFFDADADA)),
     )
     /** The brand look: deep purple with neon green (and one hot orange), like the app icon. */
     val Genesis = Palette(
@@ -106,6 +114,7 @@ object Themes {
         key = Color(0xFF9DFF3C), tempo = Color(0xFF3CFFC2), good = Color(0xFF9DFF3C), warn = Color(0xFFFF7A1A),
         encBlue = Color(0xFF8C6BFF), encGreen = Color(0xFF9DFF3C), encWhite = Color(0xFFF1EAFF), encOrange = Color(0xFFFF7A1A),
         aurora = listOf(Color(0xFF7C3AED), Color(0xFF9DFF3C), Color(0xFF3CFFC2), Color(0xFFB07CFF)),
+        sections = listOf(Color(0xFF3CFFC2), Color(0xFFFF7A1A), Color(0xFFB07CFF), Color(0xFFFF3C6E), Color(0xFFF1EAFF), Color(0xFF6E8BFF), Color(0xFFE04BFF)),
     )
     val all = listOf(Genesis, Studio, Cyberpunk, Pastel, Terminal, Grayscale)
     /** New installs start on the brand theme; a theme you picked is remembered. */

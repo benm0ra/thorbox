@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
-import com.thorbox.app.input.navModal
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -63,8 +62,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
     val big = remember(Tb.palette) { TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 30.sp) }
     val small = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontFamily = Tb.Mono, fontSize = 10.sp) }
 
-    Column(modifier.navModal { if (!mic.recording.value && !mic.saving.value) state.showMic.value = false }.width(580.dp).background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(18.dp))
-        .border(1.dp, Tb.Line, RoundedCornerShape(18.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+    Column(modifier.sheet { if (!mic.recording.value && !mic.saving.value) state.showMic.value = false }.width(580.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("FIELD RECORDER", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp)

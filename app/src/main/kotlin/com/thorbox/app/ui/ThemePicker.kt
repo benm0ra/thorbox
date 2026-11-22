@@ -42,8 +42,8 @@ fun ThemeGrid(state: AppState, modifier: Modifier = Modifier) {
                 Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(p.void)
                     .border(if (on) 3.dp else 1.dp, if (on) p.text else p.line, RoundedCornerShape(12.dp))
                     .navClickable(label = p.label) { state.setTheme(p) }.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(p.label, color = p.text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp,
-                        fontFamily = if (p.monoUi) FontFamily.Monospace else null)
+                    FitText(p.label, androidx.compose.ui.text.TextStyle(color = p.text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp,
+                        fontFamily = if (p.monoUi) FontFamily.Monospace else null), minSize = 7f)
                     Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp)).background(p.panel).padding(6.dp)) {
                         Text("120.0", color = p.key, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 15.sp)
                     }

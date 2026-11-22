@@ -240,7 +240,11 @@ private fun DrawScope.loudness(d: AnalyzerData, tm: TextMeasurer, st: AnalyzerSt
     val s = d.loud[1]; val m = d.loud[0]; val i = d.loud[2]
     val peak = max(d.loud[3], d.loud[4])
     // big short-term number
-    drawTextSafe(tm, lufsText(s), Offset(pad, 22.dp.toPx()), st.big)
+    // the big number steps down a size rather than running under RESET (top-right) on a narrow panel
+    var big = st.big
+    val room = size.width - pad - 76.dp.toPx()
+    while (tm.measure(lufsText(s), big).size.width > room && big.fontSize.value > 16f) big = big.copy(fontSize = (big.fontSize.value - 2f).sp)
+    drawTextSafe(tm, lufsText(s), Offset(pad, 22.dp.toPx()), big)
     drawTextSafe(tm, "SHORT-TERM", Offset(pad, 64.dp.toPx()), st.label)
     // bar: −40 … 0 LUFS with a −14 (streaming) mark
     val by = 80.dp.toPx(); val bh = 8.dp.toPx(); val bw = size.width - 2 * pad
@@ -259,10 +263,13 @@ private fun DrawScope.loudness(d: AnalyzerData, tm: TextMeasurer, st: AnalyzerSt
     )
     val lineH = 16.dp.toPx()
     var y = (size.height - pad - rows.size * lineH).coerceAtLeast(by + bh + 22.dp.toPx())
-    for ((lab, v) in rows) {
-        drawTextSafe(tm, lab, Offset(pad, y + 2.dp.toPx()), st.label)
-        val vs = if (lab.startsWith("PEAK") && peak > -1f) st.value.copy(color = Tb.Warn) else st.value
+    for ((lab0, v) in rows) {
+        val vs = if (lab0.startsWith("PEAK") && peak > -1f) st.value.copy(color = Tb.Warn) else st.value
         val w = tm.measure(v, vs).size.width
+        // short labels when the long ones would run into the value
+        val lab = if (tm.measure(lab0, st.label).size.width + w + 8.dp.toPx() > size.width - 2 * pad)
+            lab0.replace("MOMENTARY", "MOM").replace("INTEGRATED", "INT").replace("PEAK dBFS", "PEAK") else lab0
+        drawTextSafe(tm, lab, Offset(pad, y + 2.dp.toPx()), st.label)
         drawTextSafe(tm, v, Offset(size.width - pad - w, y), vs)
         y += lineH
     }

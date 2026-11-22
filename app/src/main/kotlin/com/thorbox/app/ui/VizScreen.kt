@@ -82,12 +82,13 @@ fun VizScreen(state: AppState) {
         val s by state.sample.collectAsState()
         Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).height(34.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (LocalWide.current) SectionTag(state, Section.VISUAL)
             Text(String.format(Locale.US, "%.1f BPM", g.groove.value.bpm), color = Tb.Tempo, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
             Text(state.lockKey().label().uppercase(), color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
             s?.let { Text(it.name.substringBeforeLast('.'), color = Tb.Muted, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false)) }
             Box(Modifier.weight(1f))
             VizMode.entries.forEach { m ->
-                HwButton(m.label, Modifier.fillMaxHeight(), active = m == mode, accent = Tb.Tempo, minHeight = 30.dp, fontSize = 10, hPad = 8.dp) { state.vizMode.value = m }
+                HwButton(m.label, Modifier.fillMaxHeight(), active = m == mode, accent = Section.VISUAL.color, minHeight = 30.dp, fontSize = 10, hPad = 8.dp) { state.vizMode.value = m }
             }
         }
     }

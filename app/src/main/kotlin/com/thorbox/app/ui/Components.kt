@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,8 +42,8 @@ fun HwButton(
     modifier: Modifier = Modifier,
     active: Boolean = false,
     enabled: Boolean = true,
-    accent: Color = Tb.Pads[0],
-    minHeight: Dp = 44.dp,
+    accent: Color = Tb.Key,
+    minHeight: Dp = Heights.touch,
     fontSize: Int = 14,
     hPad: Dp = 12.dp,
     onClick: () -> Unit,
@@ -51,18 +52,16 @@ fun HwButton(
         modifier
             .heightIn(min = minHeight)
             .widthIn(min = 44.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(Radius.control))
             .background(if (active) accent else Tb.Raised)
             // NAV cursor: reachable with the D-pad on either screen; A presses it (and landing explains it).
-            .navClickable(enabled = enabled, label = text) { Info.show(text); onClick() }
+            .navClickable(enabled = enabled, label = text, corner = Radius.control.value) { Info.show(text); onClick() }
             .padding(horizontal = hPad),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text,
-            color = when { !enabled -> Tb.Dim; active -> Tb.Black; else -> Tb.Text },
-            fontWeight = FontWeight.Black, fontSize = fontSize.sp, maxLines = 1,
-        )
+        // shrinks to fit rather than being cut off ("DRUMS" not "DRU") on narrow screens
+        FitText(text, TextStyle(color = when { !enabled -> Tb.Dim; active -> Tb.Black; else -> Tb.Text },
+            fontWeight = FontWeight.Black, fontSize = fontSize.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
     }
 }
 
