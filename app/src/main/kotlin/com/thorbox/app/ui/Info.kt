@@ -285,10 +285,9 @@ fun BoxScope.NavBadge(state: com.thorbox.app.AppState, thisScreen: Int) {
     nav.tick.intValue; nav.current.intValue; nav.grabbed.intValue; nav.entered.intValue      // re-read on every move
     val here = nav.screen.intValue == thisScreen
     if (!here) {
-        Text(if (thisScreen == 0) "NAV ▼ bottom screen · L1 here" else "NAV ▲ top screen · R1 here",
-            color = Tb.Muted, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 10.sp,
-            modifier = Modifier.align(if (thisScreen == 0) Alignment.BottomEnd else Alignment.TopEnd).padding(6.dp)
-                .clip(RoundedCornerShape(8.dp)).background(Tb.Bg.copy(alpha = 0.9f)).padding(horizontal = 8.dp, vertical = 3.dp))
+        // a short bright bar on the edge facing the other screen: "the cursor went that way" (covers nothing)
+        Box(Modifier.align(if (thisScreen == 0) Alignment.BottomCenter else Alignment.TopCenter).padding(vertical = 2.dp)
+            .fillMaxWidth(0.25f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Tb.Text.copy(alpha = 0.8f)))
         return
     }
     // A toast (undo, track, tempo …) wins for a moment; then the cursor's status.

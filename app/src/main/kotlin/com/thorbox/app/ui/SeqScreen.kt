@@ -107,7 +107,11 @@ fun SeqScreen(state: AppState) {
             }
             Box(Modifier.width(2.dp))
             val steps = Steps.count(g.clips.value[track].lengthTicks)
-            listOf(8, 16, 32).forEach { n -> HwButton("$n", Modifier.fillMaxHeight(), active = steps == n, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) { g.setLength(track, n) } }
+            if (LocalWide.current)
+                listOf(8, 16, 32).forEach { n -> HwButton("$n", Modifier.fillMaxHeight(), active = steps == n, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) { g.setLength(track, n) } }
+            else HwButton("$steps STEPS", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 12, hPad = 6.dp) {
+                g.setLength(track, when (steps) { 8 -> 16; 16 -> 32; else -> 8 })
+            }
             Box(Modifier.weight(1f))
             ScaleChips(state)
         }

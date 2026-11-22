@@ -6,7 +6,6 @@ import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.ui.Modifier
-import com.thorbox.app.input.drawNavRing
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
@@ -45,6 +44,7 @@ private class RingNode(private val src: InteractionSource) : Modifier.Node(), Dr
     override fun ContentDrawScope.draw() {
         drawContent()
         if (pressed > 0) drawRect(Tb.Text.copy(alpha = 0.10f))
-        if (focused) drawNavRing(8f)     // the same cursor as NAV, everywhere
+        // Android's own focus (it wanders onto a button after a hardware key) is not drawn: the NAV
+        // cursor is the only cursor, so there are never two.
     }
 }

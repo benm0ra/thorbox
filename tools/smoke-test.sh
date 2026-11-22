@@ -140,11 +140,11 @@ shots() {
   adb shell am start -n $PKG/$ACT --es view SYNTH --es deck PADS --ez nav true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/nav-1.png"
   for k in DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN; do key $k; done; adb exec-out screencap -p > "$d/nav-2-moved.png"
   key BUTTON_A; key DPAD_RIGHT; key DPAD_UP; adb exec-out screencap -p > "$d/nav-3-grab.png"
-  key BUTTON_B; key BUTTON_R1; adb exec-out screencap -p > "$d/nav-4-bottom.png"
+  key BUTTON_R1; adb exec-out screencap -p > "$d/nav-4-bottom.png"
   for k in DPAD_DOWN DPAD_DOWN DPAD_DOWN; do key $k; done; key BUTTON_A; key DPAD_RIGHT; adb exec-out screencap -p > "$d/nav-5-grid.png"
   key BUTTON_B; key BUTTON_B; key BUTTON_B
-  adb shell am start -n $PKG/$ACT --ez nav false --ez controlmap true >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/controlmap.png"
-  adb shell am start -n $PKG/$ACT --ez controlmap false --es deck FX >/dev/null; sleep 1
+  adb shell am start -n $PKG/$ACT --ez nav false --ez controlmap true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/controlmap.png"
+  adb shell am start -n $PKG/$ACT --ez controlmap false --es view DRUM --es deck FX >/dev/null; sleep 1.5
   key DPAD_RIGHT; key DPAD_DOWN; adb exec-out screencap -p > "$d/fx-buttons.png"
   adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS >/dev/null; sleep 2; adb exec-out screencap -p > "$d/sampler-after.png"
   adb shell am force-stop $PKG

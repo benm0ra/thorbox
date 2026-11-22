@@ -101,7 +101,7 @@ private fun MatchBar(state: AppState) {
             val on = sm.stretch.value != com.thorbox.app.sampler.StretchMode.OFF
             HwButton("STRETCH " + (if (sm.rendering.value) "…" else sm.stretchLabel()), Modifier.weight(1.2f).fillMaxHeight(),
                 active = on, enabled = s != null, accent = Tb.Tempo, fontSize = 12) { choosing = true }
-            HwButton("USE SAMPLE KEY+BPM", Modifier.fillMaxHeight(), enabled = s != null, fontSize = 11) { state.setProjectFromSample() }
+            HwButton("USE SAMPLE KEY+BPM", Modifier.weight(1.4f).fillMaxHeight(), enabled = s != null, fontSize = 11) { state.setProjectFromSample() }
         } else StretchChooser(state) { choosing = false }
     }
 }
@@ -281,17 +281,17 @@ private fun ChopControls(state: AppState) {
     }
     @Composable fun RowScopeTools(scope: androidx.compose.foundation.layout.RowScope) = with(scope) {
         // WARP: pitch this chop without it speeding up (MPC-style); off = turntable pitch (faster + higher).
-        HwButton(if (pad.warp) "WARP ON" else "WARP", Modifier.width(96.dp).fillMaxHeight(), active = pad.warp, accent = Tb.Tempo, fontSize = 12) {
+        // narrow: the three share the row (no fixed widths, no PLAY label) so nothing runs off the edge
+        HwButton(if (pad.warp) "WARP ON" else "WARP", (if (narrow) Modifier.weight(1f) else Modifier.width(96.dp)).fillMaxHeight(), active = pad.warp, accent = Tb.Tempo, fontSize = 12) {
             state.sampler.toggleWarp(state.sampler.selected.intValue)
         }
         // NORMALIZE: every chop to the same loudness (tap again to undo). The pad's gain shows beside it.
-        HwButton("NORMALIZE", Modifier.width(118.dp).fillMaxHeight(), active = sm.normalized.value, accent = Tb.Good, fontSize = 12) {
+        HwButton("NORMALIZE", (if (narrow) Modifier.weight(1.2f) else Modifier.width(118.dp)).fillMaxHeight(), active = sm.normalized.value, accent = Tb.Good, fontSize = 12) {
             state.lastInput.value = sm.toggleNormalize()
         }
         if (pad.gainDb != 0f) Text(String.format(Locale.US, "%+.1f dB", pad.gainDb), color = Tb.Good, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        Box(Modifier.weight(1f))
-        Text("PLAY", style = Tb.Label, color = Tb.Muted)
-        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, Modifier.width(120.dp).fillMaxHeight(),
+        if (!narrow) { Box(Modifier.weight(1f)); Text("PLAY", style = Tb.Label, color = Tb.Muted) }
+        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, (if (narrow) Modifier.weight(1.2f) else Modifier.width(120.dp)).fillMaxHeight(),
             active = true, accent = padColor, fontSize = 12) { state.cyclePlayMode() }
     }
     if (narrow) androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

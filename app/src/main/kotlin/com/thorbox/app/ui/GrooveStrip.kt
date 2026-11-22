@@ -52,10 +52,11 @@ fun GrooveStrip(state: AppState, track: Int, modifier: Modifier = Modifier, heig
         } else {
         if (showLabel) Text("GROOVE", color = Tb.Muted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp,
             modifier = Modifier.padding(horizontal = 4.dp))
-        HwButton("‹", Modifier.width(30.dp).fillMaxHeight(), minHeight = 28.dp, fontSize = 13, hPad = 0.dp) { pick(feel.template.next(-1)) }
+        val wide = LocalWide.current           // narrow: tap the name for the list (‹ › make way for the values)
+        if (wide) HwButton("‹", Modifier.width(30.dp).fillMaxHeight(), minHeight = 28.dp, fontSize = 13, hPad = 0.dp) { pick(feel.template.next(-1)) }
         HwButton(feel.template.label, Modifier.weight(1.3f).fillMaxHeight(), active = feel.template != GrooveTemplate.STRAIGHT,
             accent = Tb.Key, minHeight = 28.dp, fontSize = 11, hPad = 4.dp) { choosing = true }
-        HwButton("›", Modifier.width(30.dp).fillMaxHeight(), minHeight = 28.dp, fontSize = 13, hPad = 0.dp) { pick(feel.template.next(+1)) }
+        if (wide) HwButton("›", Modifier.width(30.dp).fillMaxHeight(), minHeight = 28.dp, fontSize = 13, hPad = 0.dp) { pick(feel.template.next(+1)) }
         DragValue("FEEL", "${(feel.amount * 100).roundToInt()}%", Tb.Key, Modifier.weight(1f).fillMaxHeight(), pxPerUnit = 300f, compact = true,
             onDelta = { g.setFeel(track, feel.copy(amount = feel.amount + it)) }, onReset = { g.setFeel(track, feel.copy(amount = 1f)) })
         DragValue("SWING", "${(g.groove.value.swing * 100).roundToInt()}%", Tb.Tempo, Modifier.weight(1.05f).fillMaxHeight(), pxPerUnit = 600f, compact = true,

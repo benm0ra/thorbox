@@ -55,7 +55,7 @@ fun HwButton(
             .clip(RoundedCornerShape(Radius.control))
             .background(if (active) accent else Tb.Raised)
             // NAV cursor: reachable with the D-pad on either screen; A presses it (and landing explains it).
-            .navClickable(enabled = enabled, label = text, corner = Radius.control.value) { Info.show(text); onClick() }
+            .navClickable(enabled = enabled, label = GLYPH_NAMES[text] ?: text, corner = Radius.control.value) { Info.show(text); onClick() }
             .padding(horizontal = hPad),
         contentAlignment = Alignment.Center,
     ) {
@@ -64,6 +64,12 @@ fun HwButton(
             fontWeight = FontWeight.Black, fontSize = fontSize.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
     }
 }
+
+/** What a symbol-only button is called (for the NAV status line). */
+private val GLYPH_NAMES = mapOf(
+    "✕" to "CLOSE", "‹" to "PREVIOUS", "›" to "NEXT", "↶" to "UNDO", "■" to "STOP", "▶" to "PLAY", "●" to "REC",
+    "−" to "DOWN", "+" to "UP", "×2" to "DOUBLE", "÷2" to "HALVE", "½×" to "HALF-TIME",
+)
 
 /** Segmented control. Every option is visible and one tap away. */
 @Composable
@@ -105,7 +111,7 @@ fun DragValue(
     if (compact) {
         Row(
             modifier
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(Radius.control))
                 .background(Tb.Raised)
                 .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
                 .navAdjustable(label, onReset = { reset?.invoke() }, corner = 6f) { d -> delta(d * navScale) }
@@ -113,8 +119,8 @@ fun DragValue(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Text(label, style = Tb.Label, color = accent, maxLines = 1)
-            Text(value, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+            FitText(label, Tb.Label.copy(color = accent), minSize = 7f)
+            FitText(value, Type.value, minSize = 8f)
         }
         return
     }
@@ -128,8 +134,8 @@ fun DragValue(
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(label, style = Tb.Label, color = accent, maxLines = 1)
-        Text(value, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1)
+        FitText(label, Tb.Label.copy(color = accent), minSize = 7f)
+        FitText(value, Type.valueLg, minSize = 9f)
     }
 }
 
