@@ -35,10 +35,18 @@ class InputRouter(private val state: AppState) {
 
     fun setNav(on: Boolean) {
         if (!on) Nav.reset()
+        val was = Nav.on.value
         Nav.on.value = on
-        if (on && Nav.cur() == null) land()
+        if (on && Nav.cur() == null) {
+            land()
+            // at launch nothing is laid out yet: land on the top screen once it is
+            if (Nav.cur() == null) handler.postDelayed({ if (Nav.on.value && Nav.cur() == null) Nav.land(0) }, 700)
+        }
         state.lastInput.value = if (on) "NAV ON" else "NAV OFF"
+        if (was != on) com.thorbox.app.ui.Info.toast(if (on) "NAV" else "PLAY",
+            if (on) "the buttons move the cursor · SELECT + A to play" else "the buttons play the instrument · SELECT + A for the cursor")
     }
+    private val handler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     /** Make sure something on the current screen has the cursor. */
     private fun land() { Nav.land(Nav.screen.intValue) }
     private fun navKey(e: KeyEvent, first: Boolean, up: Boolean): Boolean {

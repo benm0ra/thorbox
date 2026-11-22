@@ -54,6 +54,9 @@ class MainActivity : ComponentActivity() {
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
+        // The physical controls drive the screens from the start (the NAV cursor lands on the top screen);
+        // SELECT + A switches to PLAY, where they play the instrument. ⚙ → CONTROLS → START IN NAV.
+        if (savedInstanceState == null && state.navDefault.value) state.input.setNav(true)
         applyLaunchExtras(intent)
         // Only after setContent: before it the window has no DecorView, and asking for its insets
         // controller crashes (NPE inside PhoneWindow) on Android 13.

@@ -135,6 +135,9 @@ private fun ControlsPage(state: AppState) {
         SettingRow("NAV CURSOR", "SELECT + A. D-pad moves a cursor over every control on both screens · A press (hold = hold) · A on a knob grabs it, on a pad grid enters it · B back") {
             OnOff(state.input.navMode.value) { state.input.setNav(!state.input.navMode.value) }
         }
+        SettingRow("START IN NAV", "On: the buttons drive the screens when the app opens. Off: they start in PLAY (the instrument)") {
+            OnOff(state.navDefault.value) { state.setNavDefault(!state.navDefault.value) }
+        }
         SettingRow("TILT", "Lean the Thor to steer the effect you hold; shake to roll the dice") {
             OnOff(state.tilt.enabled.value) { state.tilt.setEnabled(!state.tilt.enabled.value) }
         }

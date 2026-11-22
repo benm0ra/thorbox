@@ -129,6 +129,9 @@ class AppState(private val app: Application) {
     /** Animate at the display's full rate (e.g. 120 Hz). Off (default): animations step at ≤ 60 fps, half the drawing work. */
     val fullRateAnim = mutableStateOf(uiPrefs.getBoolean("fullRateAnim", false))
     fun setFullRateAnim(on: Boolean) { fullRateAnim.value = on; uiPrefs.edit().putBoolean("fullRateAnim", on).apply() }
+    /** The buttons start as the NAV cursor (D-pad walks the screens like a console menu); off = they start in PLAY. */
+    val navDefault = mutableStateOf(uiPrefs.getBoolean("navDefault", true))
+    fun setNavDefault(on: Boolean) { navDefault.value = on; uiPrefs.edit().putBoolean("navDefault", on).apply() }
     private var avgFrameDt = 1f / 60f
     private var skipNextPublish = false
     init { com.thorbox.app.ui.Info.enabled.value = uiPrefs.getBoolean("hints", true) }

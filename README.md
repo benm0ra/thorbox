@@ -81,8 +81,11 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 
 ## Controls
 
-Everything can be driven from the Thor's buttons. **Hold SELECT** to see this map on screen (it's
-built from the same table the buttons use, so it's always current).
+Everything can be driven from the Thor's buttons. The app opens in **NAV**: the D-pad walks the
+controls on both screens like a console menu (see below). **SELECT + A** switches to **PLAY**, where
+the buttons play the instrument, and back. **Hold SELECT** to see the map on screen (it's built from
+the same table the buttons use, so it's always current). ⚙ → CONTROLS → START IN NAV picks which
+mode the app opens in.
 
 **SELECT is Shift.** It works in every view.
 
@@ -92,7 +95,7 @@ built from the same table the buttons use, so it's always current).
 | **D-pad ↑/↓** | bottom deck: PADS · KEYS · DRUMS · STEP · FX |
 | **L1 / R1** | previous / next track (opens it in its editor; on STEPS / MIXER it just retargets) |
 | **L2 / R2** | tempo −1 / +1 BPM (hold to keep going) |
-| **A** | **NAV cursor** on/off (see below) |
+| **A** | **NAV** cursor ↔ **PLAY** (see below) |
 | **B** | **UNDO**: the last change anywhere (pattern edit, synth sound, drum kit) |
 | **X** | tap tempo |
 | **Y** | metronome |

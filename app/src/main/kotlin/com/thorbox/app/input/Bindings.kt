@@ -42,7 +42,7 @@ object Bindings {
         "▲ ▼" to "bottom deck",
         "L1 R1" to "previous / next track",
         "L2 R2" to "tempo −1 / +1",
-        "A" to "NAV cursor (touch-free)",
+        "A" to "NAV cursor ↔ PLAY",
         "B" to "undo",
         "X" to "tap tempo",
         "Y" to "metronome",
