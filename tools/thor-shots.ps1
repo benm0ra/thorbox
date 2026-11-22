@@ -5,12 +5,15 @@
 # demo break, fills every track with a pattern, presses play, then walks through every view, deck,
 # settings page and a few themes, saving BOTH screens each time to the thor-shots folder next to this
 # script. At the end it closes the app; the next launch reopens your project as usual.
+# It first installs the newest dev build (same as thor-dev.bat) so the shots show the current app,
+# and writes the installed version to thor-shots\version.txt. Old shots are cleared first.
 # Needs a debug / dev build (release builds ignore the tour's launch extras).
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $out = Join-Path $here 'thor-shots'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
+Get-ChildItem -Path $out -Filter *.png -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 $pkg = 'com.clamshellbeats.app'
 $act = "$pkg/com.thorbox.app.MainActivity"
 
@@ -22,6 +25,36 @@ if (-not $adb) { Write-Host 'adb not found (install scrcpy with: winget install 
 
 Write-Host 'Waiting for the Thor...'
 & $adb wait-for-device
+
+# ---- newest dev build first, so the tour never photographs an old app ----
+$marker = Join-Path $here '.thor-dev-last-install'
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $base = 'https://github.com/benm0ra/thorbox/releases/download/dev'
+    $buildDir = Join-Path $here 'thor-builds'
+    New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+    $infoFile = Join-Path $buildDir 'build.txt'
+    Invoke-WebRequest -UseBasicParsing -Uri "$base/build.txt" -OutFile $infoFile -TimeoutSec 20
+    $sha = (@(Get-Content $infoFile | Where-Object { $_.Trim() }))[0].Trim()
+    $stamp = "dev|$sha"
+    $last = if (Test-Path $marker) { (Get-Content $marker -Raw).Trim() } else { '' }
+    if ($last -ne $stamp) {
+        $apk = Join-Path $buildDir "ClamshellBeats-dev-$($sha.Substring(0, 7)).apk"
+        if (-not (Test-Path $apk)) {
+            Write-Host "Downloading dev build $($sha.Substring(0, 7)) ..."
+            Invoke-WebRequest -UseBasicParsing -Uri "$base/ClamshellBeats-dev-debug.apk" -OutFile "$apk.part" -TimeoutSec 300
+            Move-Item -Force "$apk.part" $apk
+        }
+        Write-Host "Installing dev build $($sha.Substring(0, 7)) ..."
+        $r = & $adb install -r -d $apk 2>&1 | ForEach-Object { "$_" }
+        $r | ForEach-Object { Write-Host "  $_" }
+        if ($r -match 'Success') { Set-Content -Path $marker -Value $stamp }
+        else { Write-Host 'Install failed: run thor-dev.bat once (it can handle a differently signed copy), then this again.' }
+    } else { Write-Host "Newest dev build $($sha.Substring(0, 7)) is already installed." }
+} catch { Write-Host "Couldn't check GitHub for a newer build ($($_.Exception.Message)); using what's installed." }
+$ver = (& $adb shell dumpsys package $pkg | Select-String 'versionName=' | Select-Object -First 1).ToString().Trim()
+Set-Content -Path (Join-Path $out 'version.txt') -Value $ver
+Write-Host "App on the Thor: $ver"
 
 # Physical display ids (screencap -d wants these, not the logical 0/1).
 $ids = @(& $adb shell dumpsys SurfaceFlinger --display-id | ForEach-Object { if ($_ -match '^Display (\d+)') { $Matches[1] } })
@@ -62,6 +95,20 @@ Go @('--ei', 'settings', '-1', '--ez', 'mic', 'true');  Shot 'recorder' 2
 Go @('--ez', 'mic', 'false')
 foreach ($th in 'cyberpunk', 'pastel', 'terminal') { Go @('--es', 'theme', $th, '--es', 'view', 'DRUM'); Shot "theme-$th" 3 }
 Go @('--es', 'theme', 'genesis')
+
+# ---- the buttons: NAV cursor, a grabbed knob, a pad grid, the cheat sheet, the FX deck ----
+function Key([string]$k) { & $adb shell input keyevent "KEYCODE_$k"; Start-Sleep -Milliseconds 400 }
+Go @('--es', 'view', 'SYNTH', '--es', 'deck', 'KEYS', '--ez', 'nav', 'true'); Start-Sleep -Seconds 2
+Key 'DPAD_RIGHT'; Key 'DPAD_DOWN'; Key 'DPAD_DOWN'; Shot 'nav-cursor' 1
+Key 'BUTTON_A'; Key 'DPAD_RIGHT'; Shot 'nav-grab' 1
+Key 'BUTTON_B'
+Go @('--es', 'view', 'SAMPLER', '--es', 'deck', 'PADS', '--ez', 'nav', 'true'); Start-Sleep -Seconds 2
+Key 'BUTTON_R1'; Shot 'nav-bottom' 1                     # the cursor jumps to the bottom screen (deck tabs)
+Key 'DPAD_DOWN'; Key 'BUTTON_A'; Key 'DPAD_RIGHT'; Shot 'nav-pad-grid' 1   # into the pads, one to the right
+Key 'BUTTON_B'; Key 'BUTTON_B'; Key 'BUTTON_B'
+Go @('--ez', 'nav', 'false', '--ez', 'controlmap', 'true'); Shot 'cheat-sheet' 3
+Go @('--ez', 'controlmap', 'false', '--es', 'view', 'DRUM', '--es', 'deck', 'FX'); Start-Sleep -Seconds 1
+Key 'DPAD_RIGHT'; Key 'DPAD_DOWN'; Shot 'fx-by-buttons' 1
 
 Write-Host 'Done. Closing the app (your project reopens next launch).'
 & $adb shell am force-stop $pkg
