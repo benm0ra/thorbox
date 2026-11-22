@@ -131,7 +131,13 @@ object Nav {
             android.os.Handler(android.os.Looper.getMainLooper()).post { if (on.value && current.intValue == 0) land(screen.intValue, lastCenter) }
         }
     }
-    internal fun addModal(m: NavModal) { modals[m.id] = m }
+    internal fun addModal(m: NavModal) {
+        modals[m.id] = m
+        // a sheet opened: once it's laid out, move the cursor into it (the control behind can't be used now)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (on.value && modals.containsKey(m.id) && cur() == null) land(m.screen, m.bounds.center)
+        }, 120)
+    }
     internal fun removeModal(m: NavModal) {
         modals.remove(m.id)
         android.os.Handler(android.os.Looper.getMainLooper()).post { if (on.value && cur() == null) land(screen.intValue, lastCenter) }
@@ -381,7 +387,7 @@ fun Modifier.navTarget(
         .onGloballyPositioned { t.bounds = it.boundsInWindow() }
         .drawWithContent {
             drawContent()
-            if (Nav.on.value && Nav.current.intValue == t.id)
+            if (Nav.on.value && Nav.current.intValue == t.id && Nav.cur() === t)   // not behind an open sheet
                 drawNavRing(t.corner, grabbed = Nav.grabbed.intValue == t.id, entered = Nav.entered.intValue == t.id)
         }
 }
