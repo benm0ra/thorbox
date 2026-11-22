@@ -81,41 +81,51 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 
 ## Controls
 
-Everything can be driven from the Thor's buttons. **Hold SELECT** to see this map on screen.
+Everything can be driven from the Thor's buttons. **Hold SELECT** to see this map on screen (it's
+built from the same table the buttons use, so it's always current).
 
-**Navigation: SELECT is Shift.** It works in every view.
+**SELECT is Shift.** It works in every view.
 
 | SELECT + | |
 |---|---|
-| **A** | **NAV cursor** on/off (also in **⚙ → CONTROLS**), to reach *every* control on both screens without touching: D-pad or left stick move the ring to the nearest control in that direction, and off the facing edges it hops between the two screens · A presses · the right stick (or A held + D-pad) turns the focused knob, slider or fader · L1/R1 jump to the top/bottom screen · L2/R2 previous/next top view · X/Y previous/next bottom deck · START play · B closes an open sheet, then leaves NAV. |
 | **D-pad ←/→** | top-screen view: SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL |
 | **D-pad ↑/↓** | bottom deck: PADS · KEYS · DRUMS · STEP · FX |
-| **L1 / R1** | tempo −1 / +1 BPM (hold to keep going) |
+| **L1 / R1** | previous / next track (opens it in its editor; on STEPS / MIXER it just retargets) |
+| **L2 / R2** | tempo −1 / +1 BPM (hold to keep going) |
+| **A** | **NAV cursor** on/off (see below) |
+| **B** | **UNDO**: the last change anywhere (pattern edit, synth sound, drum kit) |
 | **X** | tap tempo |
 | **Y** | metronome |
-| **B** | diagnostics (live sensors, SAVE LOG to Downloads; also in **⚙ → SYSTEM**) |
-| **L3 / R3** | cycle theme / glass look |
-| *(tap SELECT alone)* | record |
+| **START** | play from bar 1 |
+| **L3 / R3** | cycle theme / diagnostics |
+| *(tap SELECT alone)* | REC (a hold that shows the map doesn't count) |
 
-**B** is Back: it leaves the visualizer and closes the step editor. It never quits the app.
+**Playing.** The face buttons drive the instrument on top (SAMPLE, SYNTH, DRUMS) or the editor
+(STEPS, MIXER). On VISUAL, or with the FX deck open, they drive the deck under your thumbs.
 
-| | Sampler view | Synth view |
-|---|---|---|
-| **D-pad** | move the pad cursor on the 4×4 grid | ←/→ page · ↑/↓ keyboard octave |
-| **A / R1** | hold = play the selected pad | hold = play root note / chord |
-| **L-stick flick** | ←/→ pitch ±1 st · ↑/↓ ±12 st | (sticks are the encoders) |
-| **Sticks** | n/a | the four encoders: L-stick X = blue, Y = green; R-stick X = white, Y = orange |
-| **X** | cycle play mode | chord mode |
-| **Y** | reset pitch | reset page |
-| **START** | play/stop | same |
-| **L1 (hold)** | note repeat | note repeat |
-| **L2 / R2** | analog filter / looper punch-in | same |
+| | Buttons |
+|---|---|
+| **SAMPLE** | D-pad pad cursor (4×4) · A / R1 hold = play · L-stick flick ←/→ ±1 st, ↑/↓ ±12 st · X play mode · Y reset pitch |
+| **SYNTH** | sticks = the four encoders · D-pad ←/→ page, ↑/↓ octave · A / R1 hold = root (or chord) · X chord mode · Y reset page · L3 next preset · R3 DICE |
+| **DRUMS** | D-pad ←/→ step, ↑/↓ sound · A toggle step · R1 hold = play the sound · sticks = encoders · X dice beat · Y undo · L3 next kit · R3 dice kit |
+| **STEPS** | D-pad ←/→ step, ↑/↓ edit the lane · A toggle step · X dice · Y undo |
+| **MIXER** | D-pad ←/→ channel, ↑/↓ ±1 dB · A mute · Y solo · X open the track · L-stick volume · R-stick pan |
+| **FX deck** | D-pad pick an effect · A / R1 hold = punch in · sticks sweep its X/Y while held (or steer every latched effect) · X latch · Y ALL DRY |
+| **always** | START play/stop · B back · L1 hold = note repeat · L2 / R2 analog = filter / stutter punch-in |
 
-**DRM view (drum synth):** D-pad ←/→ step · ↑/↓ sound · A toggle step · R1 hold = play the sound · sticks = the 4 encoders · X dice beat · Y undo · L3 next kit · R3 dice kit.
-**Synth presets:** L3 = next preset · R3 = DICE a new sound.
+**NAV (SELECT + A): touch-free access to every control on both screens.** A status line on the
+screen with the cursor says what it's on and what the buttons do right now.
 
-**SEQ view:** D-pad moves the step cursor and edits the current lane · A toggles a step · X dice · Y undo.
-**MIXER:** D-pad selects a strip and nudges it ±1 dB · A mute · Y solo · X opens that track · L-stick Y volume · R-stick X pan. **+ TRACK** adds a sampler, synth or drum track (up to 8). **⋯** on a strip opens PUMP (sidechain), clear and remove.
+| NAV | |
+|---|---|
+| **D-pad / L-stick** | move to the nearest control that way (off the facing edges it hops between the screens) |
+| **A** | press · hold for pads, keys and momentary buttons · held 0.5 s = the long-press action |
+| **A on a knob / slider / fader** | grab it: ◀▶ fine, ▲▼ coarse, X back to default, A or B let go (the R-stick turns it too) |
+| **A on a grid** | enter it (pads, drum pads, keys, FX tiles, step grids): the D-pad walks the cells, A plays / toggles, X latches an FX, B steps out |
+| **L1 / R1** | top / bottom screen |
+| **L2 / R2** | previous / next top view |
+| **X / Y** | previous / next bottom deck |
+| **B** | let go / step out → close the top sheet → leave NAV |
 
 Switching the bottom deck tab (PADS ↔ KEYS) switches the top view (SMP ↔ SYN) too. The rail on the top screen does the reverse.
 
