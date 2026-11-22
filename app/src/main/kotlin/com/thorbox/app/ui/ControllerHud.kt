@@ -52,7 +52,7 @@ fun BoxScope.ControllerHud(state: AppState) {
                 .background(Tb.Bg.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
                 .border(1.dp, Tb.Line, RoundedCornerShape(18.dp))
                 .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 HudTitle("SELECT +", Tb.Key)
@@ -79,10 +79,12 @@ private fun HudTitle(t: String, c: Color) =
 @Composable
 private fun HudRow(key: String, what: String, dim: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(124.dp)) {
+        Box(Modifier.width(108.dp)) {
             Text(key, color = if (dim) Tb.Muted else Tb.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.background(Tb.Raised, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
         }
-        Text(what, color = if (dim) Tb.Muted else Tb.Text.copy(alpha = 0.88f), fontSize = 12.sp)
+        // one line per binding, so the keys and what they do always line up
+        Text(what, color = if (dim) Tb.Muted else Tb.Text.copy(alpha = 0.88f), fontSize = 12.sp, maxLines = 1, softWrap = false,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }

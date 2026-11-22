@@ -132,7 +132,7 @@ private fun DefaultsPage(state: AppState) {
 @Composable
 private fun ControlsPage(state: AppState) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SettingRow("NAV CURSOR", "D-pad / L-stick move a ring over every control on both screens · A press · R-stick turns · B done") {
+        SettingRow("NAV CURSOR", "SELECT + A. D-pad moves a cursor over every control on both screens · A press (hold = hold) · A on a knob grabs it, on a pad grid enters it · B back") {
             OnOff(state.input.navMode.value) { state.input.setNav(!state.input.navMode.value) }
         }
         SettingRow("TILT", "Lean the Thor to steer the effect you hold; shake to roll the dice") {
