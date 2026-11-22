@@ -14,30 +14,11 @@ import kotlin.math.sign
  * Presentation, fallback second Activity) forwards input here: Android sends key events only to
  * the focused display, which is whichever screen you touched last.
  *
- * NAVIGATION (works everywhere). SELECT is SHIFT: hold it to see this map on screen.
- *   SHIFT + D-pad ←/→  top screen view (SMP · SYN · SEQ · MIX · VIZ)
- *   SHIFT + D-pad ↑/↓  bottom deck (PADS · KEYS · STEP · FX)
- *   SHIFT + A          NAV cursor on/off, for touch-free access to everything:
- *                        D-pad / left stick move the ring · A press · right stick (or hold A + D-pad) turns knobs,
- *                        sliders and faders · L1 / R1 top / bottom screen · L2 / R2 previous / next top view ·
- *                        X / Y previous / next bottom deck · START play · B leave NAV
- *   SHIFT + L1 / R1    tempo −1 / +1 BPM        SHIFT + X  tap tempo
- *   SHIFT + Y metronome · SHIFT + B diagnostics · SHIFT + L3 theme · SHIFT + R3 glass look
- *   SELECT tapped on its own = record.  B = back (leave the visualizer, close the step editor).
- *
- * PLAYING (depends on the top view):
- *   SAMPLER  D-pad moves the pad cursor on the 4×4 grid · A / R1 hold = play it
- *            L-stick flick ←/→ ±1 semitone, ↑/↓ ±12 · X cycle play mode · Y reset pitch
- *   SYNTH    the sticks are the four encoders (L-stick X = blue, Y = green; R-stick X = white, Y = orange)
- *            D-pad ←/→ page · ↑/↓ keyboard octave · A / R1 hold = play root (or root chord)
- *            X chord mode · Y reset page
- *            L3 next preset · R3 DICE a new sound
- *   DRUM     D-pad ←/→ step · ↑/↓ sound · A toggle step · R1 hold = play sound · sticks = encoders
- *            X dice beat · Y undo · L3 next kit · R3 dice kit
- *   SEQ      D-pad ←/→ step cursor · ↑/↓ edit the current lane · A toggle step · X dice · Y undo
- *   MIX      D-pad ←/→ select strip · ↑/↓ ±1 dB · A mute · Y solo · L-stick Y volume · R-stick X pan
- *   always   START play/stop · L1 hold = note repeat (with A/R1, pads or keys)
- *            L2 analog = filter-sweep punch-in (deeper the harder you press) · R2 = stutter punch-in
+ * The map itself (what the SELECT-hold cheat sheet shows) lives in [Bindings]; keep the two in step.
+ *   SELECT = SHIFT. Tapped on its own (released within [TAP_MS]) = REC. Held = the cheat sheet.
+ *   NAV (SHIFT + A): a cursor over every control on both screens, see [Nav].
+ *   Playing: the face buttons drive [playContext] (the instrument on top, or the deck under your thumbs).
+ *   L2 / R2 analog = filter / stutter punch-in, except in NAV and with SELECT held (those use them as buttons).
  *
  * Some handhelds report the D-pad as a hat axis instead of keys; that's turned into D-pad keys here.
  */
@@ -124,6 +105,7 @@ class InputRouter(private val state: AppState) {
     /** SELECT is held (the on-screen control map shows after a short hold). */
     val shiftHeld = androidx.compose.runtime.mutableStateOf(false)
     private var shiftUsed = false             // a combo fired, so releasing SELECT doesn't toggle record
+    private var shiftDownAt = 0L
 
     private fun <T> cycle(values: List<T>, current: T, d: Int): T =
         values[(values.indexOf(current).coerceAtLeast(0) + d + values.size) % values.size]
@@ -140,15 +122,23 @@ class InputRouter(private val state: AppState) {
                 val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
                 state.selectDeck(cycle(decks, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1))
             }
-            KeyEvent.KEYCODE_BUTTON_L1 -> if (down) g.nudgeBpm(-1f)
-            KeyEvent.KEYCODE_BUTTON_R1 -> if (down) g.nudgeBpm(+1f)
+            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) state.stepTrack(if (e.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> if (down) {
+                g.nudgeBpm(if (e.keyCode == KeyEvent.KEYCODE_BUTTON_R2) 1f else -1f)
+                com.thorbox.app.ui.Info.toast("TEMPO", String.format(java.util.Locale.US, "%.1f BPM", g.groove.value.bpm))
+            }
             KeyEvent.KEYCODE_BUTTON_A -> if (first) setNav(!navMode.value)
+            KeyEvent.KEYCODE_BUTTON_B -> if (first) state.undoLast()
             KeyEvent.KEYCODE_BUTTON_X -> if (first) g.tapTempo(android.os.SystemClock.uptimeMillis())
             KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.toggleMetronome()
-            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) state.cycleGlass()
-            KeyEvent.KEYCODE_BUTTON_B -> if (first) state.showDiagnostics.value = !state.showDiagnostics.value
-            KeyEvent.KEYCODE_BUTTON_START -> if (first) g.togglePlay()
+            KeyEvent.KEYCODE_BUTTON_START -> if (first) {
+                // PLAY START: from bar 1 whether or not it's running (play always starts at the top)
+                if (g.playing.value) g.togglePlay()
+                g.togglePlay()
+                com.thorbox.app.ui.Info.toast("PLAY", "from bar 1")
+            }
             KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) state.cycleTheme()
+            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) state.showDiagnostics.value = !state.showDiagnostics.value
             else -> return false
         }
         if (down) shiftUsed = true
@@ -186,13 +176,17 @@ class InputRouter(private val state: AppState) {
         if (first) {
             state.lastInput.value = KeyEvent.keyCodeToString(e.keyCode).removePrefix("KEYCODE_")
         }
-        val synth = state.topView.value == TopView.SYNTH
+        val synth = playContext(state) == PlayCtx.SYNTH
         val g = state.groove
 
         // SELECT = SHIFT (tap alone = record, on release)
         if (e.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) {
-            if (first) { shiftHeld.value = true; shiftUsed = false }
-            else if (up) { shiftHeld.value = false; if (!shiftUsed) g.toggleRecord() }
+            if (first) { shiftHeld.value = true; shiftUsed = false; shiftDownAt = e.eventTime }
+            else if (up) {
+                shiftHeld.value = false
+                // only a real tap records: holding to read the cheat sheet and letting go must not
+                if (!shiftUsed && e.eventTime - shiftDownAt < TAP_MS) g.toggleRecord()
+            }
             return true
         }
         // Only key-downs go through SHIFT, so a key that was already held (a pad, L1 repeat) still
@@ -207,7 +201,10 @@ class InputRouter(private val state: AppState) {
             KeyEvent.KEYCODE_BUTTON_L1 -> { if (first) g.setRepeatHeld(true) else if (up) g.setRepeatHeld(false); return true }
         }
 
-        if (state.topView.value == TopView.DRUM) {
+        val ctx = playContext(state)
+        if (ctx == PlayCtx.FX) return fxKey(e, first, up)
+
+        if (ctx == PlayCtx.DRUM) {
             val dc = state.drums
             val track = state.drums.track
             val steps = com.thorbox.app.groove.Steps.count(g.clips.value[track].lengthTicks)
@@ -229,7 +226,7 @@ class InputRouter(private val state: AppState) {
             return true
         }
 
-        if (state.topView.value == TopView.SEQ) {
+        if (ctx == PlayCtx.SEQ) {
             val tr = g.seqTrack.intValue
             val steps = com.thorbox.app.groove.Steps.count(g.clips.value[tr].lengthTicks)
             when (e.keyCode) {
@@ -254,7 +251,7 @@ class InputRouter(private val state: AppState) {
             return true
         }
 
-        if (state.topView.value == TopView.MIX) {
+        if (ctx == PlayCtx.MIX) {
             val sel = g.mixSelected.intValue          // 0 sampler, 1 synth, 2 drums, 3 = master
             val master = com.thorbox.app.ui.MASTER_STRIP
             when (e.keyCode) {
@@ -271,7 +268,7 @@ class InputRouter(private val state: AppState) {
                 KeyEvent.KEYCODE_BUTTON_A -> if (first && sel < master) g.setChannel(sel) { it.copy(mute = !it.mute) }
                 KeyEvent.KEYCODE_BUTTON_X -> if (first && sel < master) state.selectTrack(sel)            // open the selected track
                 KeyEvent.KEYCODE_BUTTON_Y -> if (first && sel < master) g.setChannel(sel) { it.copy(solo = !it.solo) }
-                KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
                 KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit
                 else -> return false
             }
@@ -313,12 +310,15 @@ class InputRouter(private val state: AppState) {
         val l2 = maxOf(e.getAxisValue(MotionEvent.AXIS_LTRIGGER), e.getAxisValue(MotionEvent.AXIS_BRAKE))
         val r2 = maxOf(e.getAxisValue(MotionEvent.AXIS_RTRIGGER), e.getAxisValue(MotionEvent.AXIS_GAS))
         if (abs(l2 - lastL2) > 0.02f || abs(r2 - lastR2) > 0.02f) {
-            analogPunch(com.thorbox.engine.NativeEngine.Fx.FILTER, lastL2, l2) { p -> 0.5f - 0.5f * p }   // deeper low-pass
-            analogPunch(com.thorbox.engine.NativeEngine.Fx.LOOPER, lastR2, r2) { p -> 0.15f + 0.85f * p } // shorter slices
+            // In NAV and with SELECT held the triggers are buttons (view / tempo): no new punch-ins then,
+            // but one already engaged still follows the trigger and releases with it.
+            val engage = !navMode.value && !shiftHeld.value
+            analogPunch(com.thorbox.engine.NativeEngine.Fx.FILTER, lastL2, l2, engage) { p -> 0.5f - 0.5f * p }   // deeper low-pass
+            analogPunch(com.thorbox.engine.NativeEngine.Fx.LOOPER, lastR2, r2, engage) { p -> 0.15f + 0.85f * p } // shorter slices
             lastL2 = l2; lastR2 = r2
             state.lastInput.value = "L2 %.2f  R2 %.2f".format(l2, r2)
         }
-        if (state.topView.value == TopView.SAMPLER) flicks()
+        if (!navMode.value && playContext(state) == PlayCtx.SAMPLER) flicks()
         return true
     }
 
@@ -351,12 +351,13 @@ class InputRouter(private val state: AppState) {
     }
 
     /** Analog trigger → punch-in: engages past 8% travel, the pressure sets X, and release snaps back. */
-    private inline fun analogPunch(id: Int, before: Float, now: Float, x: (Float) -> Float) {
+    private val punching = BooleanArray(com.thorbox.engine.NativeEngine.Fx.COUNT)
+    private inline fun analogPunch(id: Int, before: Float, now: Float, engage: Boolean, x: (Float) -> Float) {
         val g = state.groove
         when {
-            before < ENGAGE && now >= ENGAGE -> g.fxDown(id, x(now), 0.5f)
-            before >= ENGAGE && now >= ENGAGE -> g.fxMove(id, x(now), 0.5f)
-            before >= ENGAGE && now < ENGAGE -> g.fxUp(id)
+            before < ENGAGE && now >= ENGAGE -> if (engage) { punching[id] = true; g.fxDown(id, x(now), 0.5f) }
+            before >= ENGAGE && now >= ENGAGE -> if (punching[id]) g.fxMove(id, x(now), 0.5f)
+            before >= ENGAGE && now < ENGAGE -> if (punching[id]) { punching[id] = false; g.fxUp(id) }
         }
     }
 
@@ -365,6 +366,7 @@ class InputRouter(private val state: AppState) {
     fun applySticks(dt: Float) {
         if (dt <= 0f) return
         if (navMode.value) { navSticks(dt); return }
+        if (playContext(state) == PlayCtx.FX) { fxSticks(dt); return }
         if (state.topView.value == TopView.MIX) {
             val g = state.groove; val sel = g.mixSelected.intValue
             val vol = -axes[1] * abs(axes[1]) * dt * 30f            // dB per second at full tilt
@@ -400,5 +402,62 @@ class InputRouter(private val state: AppState) {
         return if (a < DEADZONE) 0f else sign(v) * (a - DEADZONE) / (1f - DEADZONE)
     }
 
-    companion object { private const val DEADZONE = 0.15f; private const val ENGAGE = 0.08f }
+    // ================= FX deck from the buttons =================
+    // D-pad picks a tile on the 3 × 4 grid, A / R1 held = punch it in, X = latch, Y = ALL DRY.
+    // Sticks: with a punch held they sweep its X/Y; otherwise they steer every latched effect at once.
+    private val fxXY = FloatArray(com.thorbox.engine.NativeEngine.Fx.COUNT * 2) { 0.5f }
+    private var fxHeld = -1
+    private var fxHeldBy = 0
+    private val latchXY = floatArrayOf(0.5f, 0.5f)
+
+    private fun fxKey(e: KeyEvent, first: Boolean, up: Boolean): Boolean {
+        val g = state.groove
+        val grid = com.thorbox.app.ui.FX_GRID
+        val cols = 3; val rows = grid.size / cols
+        val k = state.fxCursor.intValue.coerceIn(0, grid.size - 1)
+        val id = grid[k]
+        fun moveTo(n: Int) {
+            state.fxCursor.intValue = n; state.fxCursorShown.value = true
+            com.thorbox.app.groove.FX_INFO[grid[n]]?.let { com.thorbox.app.ui.Info.toast(it.name, "↔ ${it.xLabel}  ↕ ${it.yLabel}") }
+        }
+        when (e.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> if (e.action == KeyEvent.ACTION_DOWN) moveTo(k / cols * cols + (k % cols + cols - 1) % cols)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> if (e.action == KeyEvent.ACTION_DOWN) moveTo(k / cols * cols + (k % cols + 1) % cols)
+            KeyEvent.KEYCODE_DPAD_UP -> if (e.action == KeyEvent.ACTION_DOWN) moveTo(((k / cols + rows - 1) % rows) * cols + k % cols)
+            KeyEvent.KEYCODE_DPAD_DOWN -> if (e.action == KeyEvent.ACTION_DOWN) moveTo(((k / cols + 1) % rows) * cols + k % cols)
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_R1 -> when {
+                first && fxHeld < 0 -> { fxHeld = id; fxHeldBy = e.keyCode; state.fxCursorShown.value = true; g.fxDown(id, fxXY[2 * id], fxXY[2 * id + 1]) }
+                up && fxHeld >= 0 && e.keyCode == fxHeldBy -> { g.fxUp(fxHeld); fxHeld = -1 }
+            }
+            KeyEvent.KEYCODE_BUTTON_X -> if (first) { g.toggleLatch(id, fxXY[2 * id], fxXY[2 * id + 1]); state.fxCursorShown.value = true }
+            KeyEvent.KEYCODE_BUTTON_Y -> if (first) { if (fxHeld >= 0) fxHeld = -1; g.stopAll() }
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit
+            else -> return false
+        }
+        return true
+    }
+
+    private fun fxSticks(dt: Float) {
+        val g = state.groove
+        val dx = (axes[0] + axes[2]).coerceIn(-1f, 1f)
+        val dy = -(axes[1] + axes[3]).coerceIn(-1f, 1f)
+        if (dx == 0f && dy == 0f) return
+        val rate = dt * 0.9f                                  // full tilt crosses the pad in ~1.1 s
+        val h = fxHeld
+        if (h >= 0) {
+            fxXY[2 * h] = (fxXY[2 * h] + dx * abs(dx) * rate).coerceIn(0f, 1f)
+            fxXY[2 * h + 1] = (fxXY[2 * h + 1] + dy * abs(dy) * rate).coerceIn(0f, 1f)
+            g.fxMove(h, fxXY[2 * h], fxXY[2 * h + 1])
+        } else if (g.fxLatched.intValue != 0) {
+            latchXY[0] = (latchXY[0] + dx * abs(dx) * rate).coerceIn(0f, 1f)
+            latchXY[1] = (latchXY[1] + dy * abs(dy) * rate).coerceIn(0f, 1f)
+            g.fxMoveLatched(latchXY[0], latchXY[1])
+        }
+    }
+
+    companion object {
+        private const val DEADZONE = 0.15f; private const val ENGAGE = 0.08f
+        /** SELECT released sooner than this (and with no combo) is a tap = REC. Matches the cheat sheet's delay. */
+        const val TAP_MS = 280L
+    }
 }

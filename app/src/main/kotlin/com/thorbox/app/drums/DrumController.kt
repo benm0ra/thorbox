@@ -123,7 +123,7 @@ class DrumController(private val app: AppState, val track: Int = 2) {
     private fun setKit(k0: DrumKit, undoable: Boolean = true) {
         val k = k0.full()                                       // always 16 pads (older 8-pad kits grow)
         if (k == kit.value) return
-        if (undoable) { undo.addLast(kit.value); while (undo.size > 32) undo.removeFirst(); canUndo.value = true }
+        if (undoable) { undo.addLast(kit.value); while (undo.size > 32) undo.removeFirst(); canUndo.value = true; app.undoLog.note(com.thorbox.app.UndoLog.KIT, track) }
         kit.value = k
         push()
     }

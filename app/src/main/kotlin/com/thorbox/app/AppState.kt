@@ -264,8 +264,42 @@ class AppState(private val app: Application) {
     val displays = MutableStateFlow<List<DisplayProbe>>(emptyList())
     val secondScreenMode = MutableStateFlow("—")
     val lastInput = MutableStateFlow("—")
-    /** Developer diagnostics footer (displays, audio path, input). Off by default; long-press the level meter. */
+    /** Developer diagnostics footer (displays, audio path, input). Off by default; long-press the level meter or SELECT + R3. */
     val showDiagnostics = mutableStateOf(false)
+
+    /** One UNDO for everything (SELECT + B): see [UndoLog]. */
+    val undoLog = UndoLog()
+    fun undoLast() {
+        val kind = undoLog.undoLast(
+            canUndo = { k, t -> when (k) {
+                UndoLog.PATTERN -> groove.hasUndo(t)
+                UndoLog.PATCH -> t == synthTrack.intValue && canUndoPatch.value
+                UndoLog.KIT -> drumMachines[t]?.canUndo?.value == true
+                else -> false } },
+            undo = { k, t -> when (k) {
+                UndoLog.PATTERN -> groove.undo(t)
+                UndoLog.PATCH -> undoPatch()
+                UndoLog.KIT -> drumMachines[t]?.undoKit() } })
+        com.thorbox.app.ui.Info.toast("UNDO", if (kind < 0) "nothing left to undo" else "took back the last ${UndoLog.label(kind)} change")
+    }
+
+    /** SELECT + L1 / R1: previous / next track (skips empty slots) and opens it in its editor. */
+    fun stepTrack(d: Int) {
+        val order = tracks.value.indices.filter { trackKind(it) != com.thorbox.model.TrackKind.EMPTY }
+        if (order.isEmpty()) return
+        val cur = order.indexOf(groove.seqTrack.intValue).coerceAtLeast(0)
+        val t = order[(cur + d + order.size) % order.size]
+        val view = topView.value
+        selectTrack(t)
+        if (view == TopView.SEQ || view == TopView.MIX) topView.value = view          // stay on the steps / mixer, just retarget them
+        if (view == TopView.MIX) groove.mixSelected.intValue = t
+        com.thorbox.app.ui.Info.toast("TRACK ${t + 1}", tracks.value[t].name)
+    }
+
+    /** FX deck cursor for the buttons (index into the 3 × 4 tile grid, top-left first). */
+    val fxCursor = mutableIntStateOf(0)
+    /** The cursor is drawn once the buttons have used it; a touch on the deck hides it again. */
+    val fxCursorShown = mutableStateOf(false)
     /** MainActivity owns the folder-picker launcher (a Presentation has no ActivityResultRegistry). */
     val folderPickRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -642,7 +676,7 @@ class AppState(private val app: Application) {
 
     private fun applyPatch(p: SynthPatch, undoable: Boolean = true) {
         if (p == _patch.value) return
-        if (undoable) { patchUndo.addLast(_patch.value); while (patchUndo.size > 32) patchUndo.removeFirst(); canUndoPatch.value = true }
+        if (undoable) { patchUndo.addLast(_patch.value); while (patchUndo.size > 32) patchUndo.removeFirst(); canUndoPatch.value = true; undoLog.note(UndoLog.PATCH, synthTrack.intValue) }
         _patch.value = p
         pushPatch(p)
     }

@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import com.thorbox.app.AppState
+import com.thorbox.app.UndoLog
 import com.thorbox.engine.NativeEngine
 import com.thorbox.model.Clip
 import com.thorbox.model.ClipId
@@ -27,6 +28,8 @@ data class ScaleSetting(val root: PitchClass = PitchClass.C, val mode: ScaleMode
  * to the engine. Main-thread only. Every edit pushes a fresh immutable pattern snapshot.
  */
 class GrooveController(private val app: AppState) {
+    /** True when [track]'s pattern has something to undo. */
+    fun hasUndo(track: Int) = undo.getOrNull(track)?.isNotEmpty() == true
     // ---- transport / groove ----
     val groove = mutableStateOf(Groove())
     val playing = mutableStateOf(false)
@@ -203,7 +206,7 @@ class GrooveController(private val app: AppState) {
         val old = list[track]
         val new = f(old)
         if (new == old) return
-        if (saveUndo) { undo[track].addLast(old); while (undo[track].size > 16) undo[track].removeFirst(); canUndo.value = true }
+        if (saveUndo) { undo[track].addLast(old); while (undo[track].size > 16) undo[track].removeFirst(); canUndo.value = true; app.undoLog.note(UndoLog.PATTERN, track) }
         list[track] = new
         clips.value = list
         pushClip(track)

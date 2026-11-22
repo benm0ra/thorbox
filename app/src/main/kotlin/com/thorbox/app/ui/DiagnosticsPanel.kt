@@ -35,7 +35,7 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
- * Diagnostics (SELECT + B, or long-press the level meter): engine + input + motion sensors, live,
+ * Diagnostics (SELECT + R3, or long-press the level meter): engine + input + motion sensors, live,
  * and SHARE LOG, which shares this app's own recent log as text (no adb needed; Android only lets
  * an app read its own log lines, nothing else on the device).
  */

@@ -53,6 +53,9 @@ object Info {
     private const val PER_SESSION = 2
     private val seen = HashMap<String, Int>()
 
+    /** Feedback for something a button just did (undo, track switch, tempo): always shows, never rationed. */
+    fun toast(t: String, text: String) { title.value = t; body.value = text; stamp.intValue++ }
+
     /** Called by HwButton / Encoder / DragValue with their visible label. Unknown labels are ignored. */
     fun show(label: String) {
         if (!enabled.value) return

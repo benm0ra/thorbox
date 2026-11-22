@@ -53,13 +53,13 @@ import kotlin.math.sin
  * Layout: one row per job, each with one accent colour, like the function groups on a pocket
  * synth's panel. TONE (shape the sound) · TIME (cut it up) · SPACE (put it in a room) · MEDIA (play it off something).
  */
-private val ROWS = listOf(
+internal val FX_ROWS = listOf(
     "TONE" to listOf(Fx.FILTER, Fx.ISOLATOR, Fx.LOFI),
     "TIME" to listOf(Fx.LOOPER, Fx.SCATTER, Fx.SLICER),
     "SPACE" to listOf(Fx.ECHO, Fx.REVERB, Fx.RESONATOR),
     "MEDIA" to listOf(Fx.VINYL, Fx.CASSETTE, Fx.TAPE_STOP),
 )
-private val GRID = ROWS.flatMap { it.second }
+internal val FX_GRID = FX_ROWS.flatMap { it.second }
 private fun rowAccent(row: Int): Color = when (row) { 0 -> Tb.EncOrange; 1 -> Tb.EncBlue; 2 -> Tb.EncGreen; else -> Tb.Key }
 
 /**
@@ -87,7 +87,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     val readStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }
     val axisStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontFamily = Tb.Mono) }
     val tel = state.telemetry
-    val cols = 3; val rows = ROWS.size
+    val cols = 3; val rows = FX_ROWS.size
     val xy = remember { FloatArray(Fx.COUNT * 2) { 0.5f } }       // last XY per effect (glyph + readout)
     val since = remember { FloatArray(Fx.COUNT) { -10f } }        // clock time each effect engaged
     val wasOn = remember { BooleanArray(Fx.COUNT) }
@@ -129,7 +129,8 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                     val i = ev.actionIndex
                     when (ev.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                            val id = GRID[cell(ev.getX(i), ev.getY(i))]
+                            state.fxCursorShown.value = false
+                            val id = FX_GRID[cell(ev.getX(i), ev.getY(i))]
                             val (x, y) = local(ev.getX(i), ev.getY(i))
                             if (latchMode.value) { xy[2 * id] = x; xy[2 * id + 1] = y; g.toggleLatch(id, x, y) } else {
                                 fingers[ev.getPointerId(i)] = id
@@ -156,8 +157,8 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
             val gap = 3.dp.toPx(); val rad = CornerRadius(8.dp.toPx())
             val pad = 9.dp.toPx(); val hair = 1.dp.toPx()
             val beat = ((g.transport[0] / com.thorbox.model.PPQN) % 1.0).toFloat()
-            for (k in GRID.indices) {
-                val id = GRID[k]
+            for (k in FX_GRID.indices) {
+                val id = FX_GRID[k]
                 val row = k / cols
                 val accent = rowAccent(row)
                 val o = Offset((k % cols) * cw + gap, row * ch + gap)
@@ -231,6 +232,10 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                     drawTextSafe(tm, b, Offset(o.x + s.width - pad - w, fy), axisStyle)
                 }
 
+                // the buttons' cursor (D-pad picks a tile): a bright outline just inside the edge
+                if (state.fxCursorShown.value && k == state.fxCursor.intValue)
+                    drawRoundRect(Tb.Text, o + Offset(3f, 3f), Size(s.width - 6f, s.height - 6f), CornerRadius(6.dp.toPx()), style = Stroke(2.5f * hair))
+
                 // latched: corner brackets
                 if (latched and (1 shl id) != 0) {
                     val L = 10.dp.toPx(); val sw = 2.5f * hair; val c = Tb.Text
@@ -295,7 +300,7 @@ private fun LatchedXY(state: AppState, modifier: Modifier) {
         val ch = 34.dp.toPx()
         val ids = (0 until Fx.COUNT).filter { latched and (1 shl it) != 0 }
         for (id in ids) {
-            val row = ROWS.indexOfFirst { id in it.second }
+            val row = FX_ROWS.indexOfFirst { id in it.second }
             val acc = rowAccent(row)
             val name = FX_INFO[id]?.name ?: "?"
             val (rx, ry) = fxReadout(id, g.fxEffX(id), g.fxEffY(id))
@@ -316,7 +321,7 @@ private fun LatchedXY(state: AppState, modifier: Modifier) {
         var yy = top + step / 2
         while (yy < top + fh) { var xx = pad + step / 2; while (xx < pad + fw) { drawCircle(Tb.Muted.copy(alpha = 0.3f), hair, Offset(xx, yy)); xx += step }; yy += step }
         for (id in ids) {
-            val acc = rowAccent(ROWS.indexOfFirst { id in it.second })
+            val acc = rowAccent(FX_ROWS.indexOfFirst { id in it.second })
             val px = pad + g.fxEffX(id) * fw; val py = top + (1f - g.fxEffY(id)) * fh
             drawCircle(acc, 6.dp.toPx(), Offset(px, py), style = Stroke(2f * hair))
         }
