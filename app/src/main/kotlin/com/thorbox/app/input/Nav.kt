@@ -84,6 +84,10 @@ class NavGrid(
     val verb: String = "play",
     /** Lets the grid know it's the one entered ([Nav.enteredTag]), to draw its cell cursor. */
     val tag: String = "",
+    /** What X does, for the status line. */
+    val altVerb: String = "latch",
+    /** ▲▼ on a one-row grid (lanes): edit the cell's value instead of moving (+1 up, −1 down). */
+    val vertical: ((cell: Int, dir: Int) -> Unit)? = null,
 )
 
 /** A sheet / dialog: while one is open on a screen, the cursor stays inside it, and B closes it. */
@@ -161,7 +165,7 @@ object Nav {
         val g = t.grid
         return when {
             g != null && entered.intValue == t.id ->
-                "$name · ${g.describe(g.get())}" to "D-pad move · A ${g.verb}${if (g.alt != null) " · X latch" else ""} · B out"
+                "$name · ${g.describe(g.get())}" to "${if (g.vertical != null) "◀▶ step · ▲▼ value" else "D-pad move"} · A ${g.verb}${if (g.alt != null) " · X ${g.altVerb}" else ""} · B out"
             g != null -> name to "A enter · then the D-pad picks"
             grabbed.intValue == t.id -> "$name ◆" to "◀▶ fine · ▲▼ coarse${if (t.reset != null) " · X reset" else ""} · A/B let go"
             t.adjust != null && t.action == null -> name to "A grab · R-stick turn"
@@ -287,6 +291,8 @@ object Nav {
         val g = t?.grid
         if (t != null && g != null && entered.intValue == t.id) {
             val c = g.get(); val col = c % g.cols; val row = c / g.cols
+            val v = g.vertical
+            if (v != null && (dir == NavDir.UP || dir == NavDir.DOWN)) { v(c, if (dir == NavDir.UP) 1 else -1); tick.intValue++; return true }
             val n = when (dir) {
                 NavDir.LEFT -> if (col > 0) c - 1 else c
                 NavDir.RIGHT -> if (col < g.cols - 1) c + 1 else c

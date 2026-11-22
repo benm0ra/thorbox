@@ -183,7 +183,7 @@ private fun SaveSheet(groups: List<PresetGroup>, initialName: String, initialGro
             cursorBrush = SolidColor(Tb.Key),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onSave(name, group) }),
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Tb.Void).padding(12.dp),
+            modifier = Modifier.fillMaxWidth().navTextField("NAME (A: keyboard)").clip(RoundedCornerShape(8.dp)).background(Tb.Void).padding(12.dp),
         )
         if (groups.size > 1) {
             Text("CATEGORY", color = Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
@@ -191,6 +191,8 @@ private fun SaveSheet(groups: List<PresetGroup>, initialName: String, initialGro
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HwButton("CANCEL", Modifier.weight(1f), minHeight = 48.dp, onClick = onCancel)
+            // no keyboard needed: roll a name with the buttons
+            HwButton("DICE NAME", Modifier.weight(1f), minHeight = 48.dp) { name = com.thorbox.model.PatchDice.name(kotlin.random.Random(System.nanoTime())).uppercase().take(24) }
             HwButton("SAVE", Modifier.weight(2f), active = true, accent = Tb.Good, minHeight = 48.dp) { onSave(name, group) }
         }
     }

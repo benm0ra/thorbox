@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
 import com.thorbox.app.TopView
 import com.thorbox.app.input.navModal
+import com.thorbox.app.input.navTarget
+import androidx.compose.ui.focus.focusRequester
 import com.thorbox.model.Deck
 import com.thorbox.model.TrackKind
 
@@ -45,6 +47,15 @@ import com.thorbox.model.TrackKind
  */
 val LocalWide = androidx.compose.runtime.compositionLocalOf { true }
 val WIDE = 520.dp
+
+/**
+ * A text field the NAV cursor can reach: A focuses it, which brings up the on-screen keyboard
+ * (the keyboard itself is driven with the D-pad like any Android keyboard).
+ */
+fun Modifier.navTextField(label: String): Modifier = androidx.compose.ui.composed {
+    val fr = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    focusRequester(fr).navTarget(label, action = { runCatching { fr.requestFocus() } })
+}
 
 /** Spacing steps. */
 object Space { val xs = 4.dp; val s = 6.dp; val m = 8.dp; val l = 12.dp; val xl = 16.dp }

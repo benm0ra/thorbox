@@ -80,7 +80,11 @@ fun ProjectsPage(state: AppState) {
                     textStyle = TextStyle(color = Tb.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold), cursorBrush = SolidColor(Tb.Key),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { commit() }),
-                    modifier = Modifier.weight(1f).border(1.dp, Tb.Line, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 8.dp))
+                    modifier = Modifier.weight(1f).navTextField("NAME (A: keyboard)").border(1.dp, Tb.Line, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 8.dp))
+                // no keyboard needed: roll a name with the buttons
+                HwButton("DICE", Modifier.width(64.dp), minHeight = 38.dp, fontSize = 12) {
+                    nameText = com.thorbox.model.PatchDice.name(kotlin.random.Random(System.nanoTime())).split(' ').joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }
+                }
                 HwButton("OK", Modifier.width(64.dp), minHeight = 38.dp, fontSize = 12, active = true, accent = Tb.Good) { commit() }
                 HwButton("✕", Modifier.width(48.dp), minHeight = 38.dp, fontSize = 13) { naming = null }
             }

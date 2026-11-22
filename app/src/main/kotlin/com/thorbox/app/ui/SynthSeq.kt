@@ -89,6 +89,24 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
     val tel = state.telemetry
     val nameCol = with(androidx.compose.ui.platform.LocalDensity.current) { 34.dp.toPx() }   // note-name column
     val rowOf = remember(rows.contentHashCode()) { HashMap<Int, Int>(rows.size * 2).apply { rows.forEachIndexed { i, n -> put(n, i) } } }
+    // NAV: A enters the roll, the D-pad walks steps (◀▶) and notes (▲▼), A adds / removes a note, X makes it a step longer
+    val navCell = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val rollGrid = com.thorbox.app.input.NavGrid(16, rows.size,
+        get = { navCell.intValue.coerceIn(0, rows.size * 16 - 1) }, set = { navCell.intValue = it },
+        down = { c ->
+            val step = first + c % 16; val note = rows[(c / 16).coerceIn(0, rows.size - 1)]
+            if (c % 16 < visible) {
+                val adding = clip.notes.none { it.note == note && it.tick == step * STEP_TICKS }
+                g.gridToggle(step, note); if (adding) previewNote(g.synthT, note)
+            }
+        },
+        alt = { c ->
+            val t = (first + c % 16) * STEP_TICKS; val note = rows[(c / 16).coerceIn(0, rows.size - 1)]
+            clip.notes.firstOrNull { it.note == note && t >= it.tick && t < it.tick + maxOf(it.lengthTicks, STEP_TICKS / 2) }
+                ?.let { g.gridResize(it.tick, it.note, it.lengthTicks + STEP_TICKS) }
+        },
+        describe = { c -> "${noteName(rows[(c / 16).coerceIn(0, rows.size - 1)])} · step ${first + c % 16 + 1}" },
+        verb = "note on/off", altVerb = "longer", tag = "pianoroll")
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth().height(36.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -103,6 +121,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
         Canvas(
             Modifier.weight(1f).fillMaxWidth().bezel()
                 .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+                .navTarget("PIANO ROLL", grid = rollGrid, corner = 14f)
                 .pointerInteropFilter { ev ->
                     val cw = (dims[0] - nameCol) / 16f
                     val rh = dims[1].coerceAtLeast(1) / rows.size.toFloat()
@@ -165,6 +184,10 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 drawRoundRect(Tb.EncOrange.copy(alpha = a), Offset(x0, r * rh + 1.5f), Size(maxOf(4f, x1 - x0), rh - 3f), CornerRadius(4.dp.toPx()))
                 if (e.ratchet > 1 || e.condEvery > 1 || e.locks.isNotEmpty())
                     drawCircle(Tb.Text, 2.5f.dp.toPx(), Offset(x0 + 6.dp.toPx(), r * rh + rh / 2))     // has step components
+            }
+            if (com.thorbox.app.input.Nav.enteredTag() == "pianoroll") {      // NAV cell cursor
+                val c = navCell.intValue
+                drawRect(Tb.Text, Offset(nameCol + (c % 16) * cw, (c / 16) * rh), Size(cw, rh), style = Stroke(2.dp.toPx()))
             }
             // playhead
             val pos = g.stepPosition(1)

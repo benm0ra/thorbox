@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -183,10 +184,24 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
 
     fun stepAt(x: Float) = (x / dims[0].coerceAtLeast(1) * steps).toInt().coerceIn(0, steps - 1)
     fun valueAt(y: Float) = (1f - y / dims[1].coerceAtLeast(1)).coerceIn(0f, 1f)
+    // NAV: A enters the steps, ◀▶ walk them, A toggles, ▲▼ edit the lane (same steps as the play-mode D-pad)
+    val laneGrid = com.thorbox.app.input.NavGrid(steps, 1,
+        get = { g.cursor.intValue.coerceIn(0, steps - 1) }, set = { g.cursor.intValue = it },
+        down = { s -> g.stepTap(track, s) },
+        vertical = { s, d ->
+            val c = g.clips.value[track]
+            val ev = Steps.byStep(c.notes, c.lengthTicks).getOrNull(s)
+            if (ev != null) {
+                val stepSize = if (lane == Lane.NOTE) 1f / 14f else 1f / 16f
+                g.stepEdit(track, s, lane, (g.laneValue(track, ev, lane) + d * stepSize).coerceIn(0f, 1f))
+            }
+        },
+        describe = { s -> "step ${s + 1} · ${lane.name}" }, verb = "toggle")
 
     Canvas(
         modifier.bezel()
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+            .navTarget("STEPS", grid = laneGrid, corner = 14f)
             .pointerInteropFilter { ev ->
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { gesture[0] = ev.x; gesture[1] = ev.y; gesture[2] = 0f }

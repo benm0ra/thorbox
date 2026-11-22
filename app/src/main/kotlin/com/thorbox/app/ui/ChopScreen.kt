@@ -316,7 +316,8 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
     val fingers = remember { HashMap<Int, Int>() }
     val tel = state.telemetry
     val tm = rememberTextMeasurer(cacheSize = 64)
-    val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 16.sp, fontWeight = FontWeight.Black) }
+    // same type and placement as the drum pads: label top-left (13 sp black), small detail along the bottom
+    val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 13.sp, fontWeight = FontWeight.Black) }
     val hint = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
 
     fun cellAt(x: Float, y: Float): Pair<Int, Float> {
@@ -362,9 +363,9 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
             val c = Tb.Pads[k % Tb.Pads.size]
             val on = active and (1 shl k) != 0
             val empty = k >= count
-            drawRoundRect(if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.72f), o, s, r)
+            drawRoundRect(if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.62f), o, s, r)
             if (k == sel) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
-            drawTextSafe(tm, "${k + 1}", o + Offset(8.dp.toPx(), 6.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
+            drawTextSafe(tm, "${k + 1}", o + Offset(9.dp.toPx(), 7.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
             val p = sm.pads.value[k].pitch
             if (p != 0) drawTextSafe(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
         }
