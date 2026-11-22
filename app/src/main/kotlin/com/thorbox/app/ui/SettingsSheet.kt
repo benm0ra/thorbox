@@ -42,7 +42,7 @@ private val defaultsRev = androidx.compose.runtime.mutableIntStateOf(0)
 @Composable
 fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
     val tab = state.settingsTab.intValue
-    Column(modifier.navModal().fillMaxSize().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(14.dp))
+    Column(modifier.navModal { state.showSettings.value = false }.fillMaxSize().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(14.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("SETTINGS", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp,

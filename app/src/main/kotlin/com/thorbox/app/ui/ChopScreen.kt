@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
+import com.thorbox.app.input.NavGrid
+import com.thorbox.app.input.navModal
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -114,7 +117,7 @@ private fun StretchChooser(state: AppState, close: () -> Unit) {
     val cur = sm.stretch.value
     val hasBpm = state.sample.collectAsState().value?.bpm != null
     fun pick(m: StretchMode, bars: Int = sm.fitBars.intValue) { sm.setStretch(m, bars); close() }
-    Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.navModal(close).fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("STRETCH", style = Tb.Label, color = Tb.Tempo, modifier = Modifier.padding(horizontal = 4.dp))
         HwButton("OFF", Modifier.fillMaxHeight(), active = cur == StretchMode.OFF, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(StretchMode.OFF) }
         HwButton("SYNC", Modifier.fillMaxHeight(), active = cur == StretchMode.SYNC, enabled = hasBpm, accent = Tb.Tempo, fontSize = 11, hPad = 8.dp) { pick(StretchMode.SYNC) }
@@ -322,8 +325,16 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
         return ((3 - rowTop) * 4 + col) to (0.35f + 0.65f * (1f - inCell))
     }
 
+    // NAV: A enters the pads, the D-pad picks one (MPC layout), A plays it for as long as it's held.
+    val navGrid = NavGrid(4, 4,
+        get = { val p = sm.selected.intValue; (3 - p / 4) * 4 + p % 4 },
+        set = { c -> sm.selected.intValue = (3 - c / 4) * 4 + c % 4 },
+        down = { c -> state.padDown((3 - c / 4) * 4 + c % 4, 0.85f) },
+        up = { c -> state.padUp((3 - c / 4) * 4 + c % 4) },
+        describe = { c -> "PAD ${(3 - c / 4) * 4 + c % 4 + 1}" })
     Canvas(
         modifier.onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+            .navTarget("PADS", grid = navGrid, corner = 10f)
             .pointerInteropFilter { ev ->
                 val i = ev.actionIndex
                 when (ev.actionMasked) {

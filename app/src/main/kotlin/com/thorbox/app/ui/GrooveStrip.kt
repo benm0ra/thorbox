@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navModal
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -38,7 +39,8 @@ fun GrooveStrip(state: AppState, track: Int, modifier: Modifier = Modifier, heig
         g.setFeel(track, feel.copy(template = t))
         Info.title.value = t.label; Info.body.value = t.blurb; Info.stamp.intValue++
     }
-    Row(modifier.fillMaxWidth().height(height).glass(state, 10.dp).padding(3.dp),
+    Row(modifier.then(if (choosing) Modifier.navModal { choosing = false } else Modifier)
+        .fillMaxWidth().height(height).glass(state, 10.dp).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         if (choosing) {
             GrooveTemplate.entries.forEach { t ->

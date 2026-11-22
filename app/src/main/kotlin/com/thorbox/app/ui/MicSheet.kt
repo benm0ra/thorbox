@@ -63,7 +63,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
     val big = remember(Tb.palette) { TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 30.sp) }
     val small = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontFamily = Tb.Mono, fontSize = 10.sp) }
 
-    Column(modifier.navModal().width(580.dp).background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(18.dp))
+    Column(modifier.navModal { if (!mic.recording.value && !mic.saving.value) state.showMic.value = false }.width(580.dp).background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(18.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(18.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -72,7 +72,7 @@ fun MicSheet(state: AppState, modifier: Modifier = Modifier) {
                 modifier = Modifier.border(1.dp, Tb.Line, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 1.dp))
             Box(Modifier.weight(1f))
             // GAIN: lifts a quiet mic (applied to the take, soft-limited so it can't wrap)
-            DragValue("GAIN", "+${mic.gainDb.floatValue.roundToInt()} dB", Tb.Key, Modifier.width(120.dp).height(34.dp), pxPerUnit = 8f, compact = true,
+            DragValue("GAIN", "+${mic.gainDb.floatValue.roundToInt()} dB", Tb.Key, Modifier.width(120.dp).height(34.dp), pxPerUnit = 8f, compact = true, navFine = 1f,
                 onDelta = { mic.gainDb.floatValue = (mic.gainDb.floatValue + it).coerceIn(0f, 24f) }, onReset = { mic.gainDb.floatValue = 0f })
             HwButton("✕", Modifier.width(44.dp), minHeight = 34.dp, fontSize = 14, enabled = !rec && !saving) { state.showMic.value = false }
         }

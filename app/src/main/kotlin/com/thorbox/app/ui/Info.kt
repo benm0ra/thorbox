@@ -245,7 +245,7 @@ object Glossary {
 @Composable
 fun BoxScope.InfoLine() {
     val stamp = Info.stamp.intValue
-    val show = Info.body.value != null && Info.enabled.value
+    val show = Info.body.value != null && Info.enabled.value && !com.thorbox.app.input.Nav.on.value
     LaunchedEffect(stamp) { if (Info.body.value != null) { delay(3200); Info.body.value = null } }
     AnimatedVisibility(show, Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp).fillMaxWidth(0.86f),
         enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
@@ -271,17 +271,43 @@ fun InfoToggle(onTour: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** Shown while the NAV cursor is on: what the buttons do right now, and which screen they drive. */
+/**
+ * NAV status: while the cursor is on, the screen that has it shows what's under it and what the
+ * buttons do to it right now ("SWING · A grab · R-stick turn"). It sits at the edge *away* from the
+ * cursor so it never covers the control you're on; the other screen shows a small marker pointing
+ * at where the cursor went. Replaces the hint line while NAV is on (hints are rationed, this isn't).
+ */
 @Composable
 fun BoxScope.NavBadge(state: com.thorbox.app.AppState, thisScreen: Int) {
     val inp = state.input
     if (!inp.navMode.value) return
-    val here = inp.navScreen.intValue == thisScreen
-    Row(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).clip(RoundedCornerShape(14.dp))
-        .background(if (here) Tb.Key else Tb.Raised).padding(horizontal = 12.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(if (here) "NAV  ·  move: D-pad / L-stick  ·  A press  ·  R-stick turn  ·  ${if (thisScreen == 0) "R1 bottom" else "L1 top"}  ·  L2/R2 view  ·  B done"
-             else "NAV is on the ${if (thisScreen == 0) "bottom" else "top"} screen  (${if (thisScreen == 0) "L1" else "R1"} to come here)",
-            color = if (here) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 0.5.sp)
+    val nav = com.thorbox.app.input.Nav
+    nav.tick.intValue; nav.current.intValue; nav.grabbed.intValue; nav.entered.intValue      // re-read on every move
+    val here = nav.screen.intValue == thisScreen
+    if (!here) {
+        Text(if (thisScreen == 0) "NAV ▼ bottom screen · L1 here" else "NAV ▲ top screen · R1 here",
+            color = Tb.Muted, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 10.sp,
+            modifier = Modifier.align(if (thisScreen == 0) Alignment.BottomEnd else Alignment.TopEnd).padding(6.dp)
+                .clip(RoundedCornerShape(8.dp)).background(Tb.Bg.copy(alpha = 0.9f)).padding(horizontal = 8.dp, vertical = 3.dp))
+        return
+    }
+    // A toast (undo, track, tempo …) wins for a moment; then the cursor's status.
+    val stamp = Info.stamp.intValue
+    val fresh = androidx.compose.runtime.remember { mutableStateOf(false) }
+    LaunchedEffect(stamp) { if (Info.body.value != null) { fresh.value = true; delay(2200); fresh.value = false } }
+    val st = nav.status()
+    val (title, body) = if (fresh.value && Info.body.value != null) Info.title.value to (Info.body.value ?: "")
+        else st ?: ("NAV" to "D-pad to a control")
+    val cur = nav.cur()
+    val sz = nav.screenSize[thisScreen]
+    val atBottom = cur == null || sz.height <= 0f || cur.bounds.center.y < sz.height * 0.55f
+    Row(Modifier.align(if (atBottom) Alignment.BottomCenter else Alignment.TopCenter).padding(vertical = 6.dp).fillMaxWidth(0.9f)
+        .clip(RoundedCornerShape(10.dp)).background(Tb.Bg.copy(alpha = 0.95f)).border(1.dp, Tb.Text.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+        .padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("NAV", color = Tb.Bg, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = 1.sp,
+            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Tb.Text).padding(horizontal = 5.dp, vertical = 1.dp))
+        Text(title, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 0.5.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp, end = 10.dp).weight(1f, fill = false))
+        Text(body, color = Tb.Muted, fontFamily = Tb.Mono, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

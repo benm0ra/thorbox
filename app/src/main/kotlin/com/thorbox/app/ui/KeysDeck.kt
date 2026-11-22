@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
 import android.view.MotionEvent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -124,7 +125,11 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
                             val isTonic = lock && ((root - key.root.ordinal) % 12 + 12) % 12 == 0
                             val base = if (isTonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised
                             Box(
-                                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(10.dp))
+                                Modifier.weight(1f).fillMaxHeight()
+                                    .navTarget("${NOTE_NAMES[root % 12]}${root / 12 - 1}", corner = 10f,
+                                        action = { state.keyDown(state.notesForKey(cell), 0.85f) },
+                                        release = { state.keyUp(state.notesForKey(cell)) })
+                                    .clip(RoundedCornerShape(10.dp))
                                     .drawBehind {
                                         tel.frame.longValue                // light from engine state, draw-only
                                         val on = notes.any { tel.isNoteOn(it) }

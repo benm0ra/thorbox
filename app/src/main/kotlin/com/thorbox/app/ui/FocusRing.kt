@@ -6,11 +6,8 @@ import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import com.thorbox.app.input.drawNavRing
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.invalidateDraw
@@ -48,10 +45,6 @@ private class RingNode(private val src: InteractionSource) : Modifier.Node(), Dr
     override fun ContentDrawScope.draw() {
         drawContent()
         if (pressed > 0) drawRect(Tb.Text.copy(alpha = 0.10f))
-        if (focused) {
-            val w = 3f * density
-            drawRoundRect(Tb.Key, Offset(w / 2, w / 2), Size(size.width - w, size.height - w), CornerRadius(8f * density), style = Stroke(w))
-            drawRoundRect(Tb.Text.copy(alpha = 0.10f), cornerRadius = CornerRadius(8f * density))
-        }
+        if (focused) drawNavRing(8f)     // the same cursor as NAV, everywhere
     }
 }

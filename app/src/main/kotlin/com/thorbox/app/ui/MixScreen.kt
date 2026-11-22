@@ -89,7 +89,7 @@ fun MixScreen(state: AppState) {
         Column(Modifier.width(56.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (tracks.any { it.kind == com.thorbox.model.TrackKind.EMPTY }) {
             Box(Modifier.width(56.dp).weight(1f).clip(RoundedCornerShape(14.dp)).border(2.dp, Tb.Line, RoundedCornerShape(14.dp))
-                .navClickable { Info.show("ADD TRACK"); adding = true }, contentAlignment = Alignment.Center) {
+                .navClickable(label = "ADD TRACK") { Info.show("ADD TRACK"); adding = true }, contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+", color = Tb.Text, fontSize = 34.sp, fontWeight = FontWeight.Black)
                     Text("TRACK", color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
@@ -118,7 +118,7 @@ fun AddTrackSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modi
         Triple(com.thorbox.model.TrackKind.SYNTH, "SYNTH", "Basslines, 808s, leads, keys"),
         Triple(com.thorbox.model.TrackKind.DRUMS, "DRUMS", "A drum machine with its own kit"),
     )
-    Column(modifier.navModal().fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
+    Column(modifier.navModal(onDone).fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("ADD A TRACK", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp)
@@ -131,7 +131,7 @@ fun AddTrackSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modi
             kinds.forEach { (k, title, sub) ->
                 val c = kindColor(k)
                 Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(c)
-                    .navClickable { state.addTrack(k); onDone() }.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                    .navClickable(label = "ADD $title") { state.addTrack(k); onDone() }.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     KindIcon(k, Modifier.size(44.dp))
                     Column {
                         Text(title, color = Tb.Black, fontWeight = FontWeight.Black, fontSize = 18.sp, letterSpacing = 1.sp)
@@ -174,7 +174,7 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
     val g = state.groove
     val ch = g.channels.value[t]
     val tracks = state.tracks.value
-    Column(modifier.navModal().fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
+    Column(modifier.navModal(onDone).fillMaxWidth().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(12.dp).clip(androidx.compose.foundation.shape.CircleShape).background(kindColor(tracks[t].kind)))
@@ -224,9 +224,9 @@ private fun Strip(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(name, color = color, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp, maxLines = 1,
-                modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.navClickable { Info.show("OPEN TRACK"); onName() } else Modifier))
+                modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.navClickable(label = "OPEN $name") { Info.show("OPEN TRACK"); onName() } else Modifier))
             if (onMenu != null) Text(" ⋯", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 14.sp,
-                modifier = Modifier.navClickable { Info.show("TRACK MENU"); onMenu() })
+                modifier = Modifier.navClickable(label = "$name MENU") { Info.show("TRACK MENU"); onMenu() })
         }
         if (pump > 0f && scIdx >= 0) {
             // PUMP chip: live ducking bar (how far the sidechain is pulling this track down right now)
@@ -243,7 +243,7 @@ private fun Strip(
         val dbNow = db
         Canvas(
             Modifier.weight(1f).fillMaxWidth()
-                .navAdjustable("$name VOLUME") { d -> onDb(faderToDb((dbToFader(db) + d).coerceIn(0f, 1f))) }
+                .navAdjustable("$name VOLUME", onReset = { onDb(0f) }) { d -> onDb(faderToDb((dbToFader(db) + d).coerceIn(0f, 1f))) }
                 .pointerInput(Unit) {
                     detectDragGestures { change, _ ->
                         change.consume()
@@ -276,6 +276,7 @@ private fun Strip(
         if (pan != null) {
             Canvas(
                 Modifier.fillMaxWidth().height(28.dp)
+                    .navAdjustable("$name PAN", onReset = { onPan(0f) }) { d -> onPan((pan + d * 2f).coerceIn(-1f, 1f)) }
                     .pointerInput(Unit) {
                         detectDragGestures { change, _ -> change.consume(); onPan(((change.position.x / size.width) * 2f - 1f).coerceIn(-1f, 1f)) }
                     }

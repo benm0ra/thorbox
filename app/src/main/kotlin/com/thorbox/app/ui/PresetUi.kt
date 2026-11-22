@@ -87,7 +87,7 @@ fun PresetBar(
         }
         HwButton("›", Modifier.fillMaxHeight().width(32.dp), minHeight = 32.dp, fontSize = 20, hPad = 2.dp, onClick = onNext)
         Box(Modifier.fillMaxHeight().width(44.dp).clip(RoundedCornerShape(6.dp)).background(Tb.Key)
-            .navClickable { rolls++; onDice() }, contentAlignment = Alignment.Center) {
+            .navClickable(label = "DICE") { rolls++; onDice() }, contentAlignment = Alignment.Center) {
             Die(Modifier.size(20.dp).rotate(spin))
         }
         HwButton(mutateLabel, Modifier.fillMaxHeight(), accent = Tb.EncGreen, minHeight = 32.dp, fontSize = 11, hPad = 8.dp) { rolls++; onMutate() }
@@ -123,7 +123,9 @@ fun PresetBrowser(
     modifier: Modifier = Modifier, showGroupsInSave: Boolean = true,
 ) {
     var confirmDelete by remember { mutableStateOf<String?>(null) }
-    Column(modifier.navModal().fillMaxSize().background(Tb.Bg.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
+    // B: cancel a delete question, then the save form, then close the browser
+    Column(modifier.navModal { if (confirmDelete != null) confirmDelete = null else if (saving) onCancelSave() else onClose() }
+        .fillMaxSize().background(Tb.Bg.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(14.dp)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -145,7 +147,7 @@ fun PresetBrowser(
                     val asking = confirmDelete == item.name
                     Box(Modifier.height(52.dp).clip(RoundedCornerShape(8.dp))
                         .background(if (asking) Tb.Warn else if (on) Tb.Text else Tb.Panel)
-                        .navClickable(
+                        .navClickable(label = item.name + if (item.user) "  (hold A: delete)" else "",
                             onClick = { if (asking) { onDelete(item); confirmDelete = null } else { confirmDelete = null; onPick(item) } },
                             onLongClick = { if (item.user) confirmDelete = item.name })
                         .padding(horizontal = 10.dp, vertical = 6.dp)) {
@@ -166,7 +168,7 @@ fun PresetBrowser(
 @Composable
 private fun Chip(label: String, color: Color, on: Boolean, onClick: () -> Unit) {
     Box(Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(if (on) color else Tb.Raised)
-        .navClickable(onClick = onClick).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+        .navClickable(label = label, corner = 15f, onClick = onClick).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
         Text(label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
     }
 }

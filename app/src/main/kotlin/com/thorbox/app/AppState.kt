@@ -297,7 +297,7 @@ class AppState(private val app: Application) {
     }
 
     /** FX deck cursor for the buttons (index into the 3 × 4 tile grid, top-left first). */
-    val fxCursor = mutableIntStateOf(0)
+    val fxCursor = androidx.compose.runtime.mutableIntStateOf(0)
     /** The cursor is drawn once the buttons have used it; a touch on the deck hides it again. */
     val fxCursorShown = mutableStateOf(false)
     /** MainActivity owns the folder-picker launcher (a Presentation has no ActivityResultRegistry). */

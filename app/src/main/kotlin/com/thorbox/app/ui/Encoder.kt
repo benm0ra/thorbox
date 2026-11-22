@@ -53,7 +53,7 @@ fun Encoder(
     val reset by rememberUpdatedState(onReset)
 
     // NAV cursor: focus the knob, then the right stick (or A + D-pad) turns it.
-    Column(modifier.navAdjustable(label) { d -> start(); delta(d); end() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier.navAdjustable(label, onReset = { reset() }, corner = com.thorbox.app.input.NavTarget.ROUND) { d -> start(); delta(d); end() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Canvas(
             // The dial takes whatever height the label + value leave, square and centred, so it can never
             // push them off the bottom of a short row (the 1080p top screen clipped them before).

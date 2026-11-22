@@ -52,7 +52,7 @@ private val CARDS = listOf(
 @Composable
 fun Welcome(state: AppState, modifier: Modifier = Modifier) {
     val i = remember { mutableIntStateOf(0) }
-    Column(modifier.navModal().width(520.dp).background(Tb.Bg.copy(alpha = 0.98f), RoundedCornerShape(20.dp))
+    Column(modifier.navModal { state.finishWelcome() }.width(520.dp).background(Tb.Bg.copy(alpha = 0.98f), RoundedCornerShape(20.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(20.dp)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("CLAMSHELL BEATS", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 3.sp)

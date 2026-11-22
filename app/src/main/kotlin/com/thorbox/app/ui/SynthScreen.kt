@@ -74,7 +74,7 @@ fun SynthScreen(state: AppState) {
                 val on = p == page
                 Box(Modifier.fillMaxHeight().clip(RoundedCornerShape(5.dp))
                     .background(if (on) Tb.Text else Tb.Panel)
-                    .navClickable { state.synthPage.value = p }
+                    .navClickable(label = p.label) { state.synthPage.value = p }
                     .padding(horizontal = 9.dp), contentAlignment = Alignment.Center) {
                     Text(p.label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                 }

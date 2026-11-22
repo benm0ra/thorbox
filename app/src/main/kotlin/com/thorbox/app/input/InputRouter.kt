@@ -32,35 +32,35 @@ class InputRouter(private val state: AppState) {
     val navMode get() = Nav.on
     /** 0 = top screen, 1 = bottom screen. */
     val navScreen get() = Nav.screen
-    private var aHeld = false
 
     fun setNav(on: Boolean) {
+        if (!on) Nav.reset()
         Nav.on.value = on
         if (on && Nav.cur() == null) land()
         state.lastInput.value = if (on) "NAV ON" else "NAV OFF"
     }
     /** Make sure something on the current screen has the cursor. */
     private fun land() { Nav.land(Nav.screen.intValue) }
-    private fun navMove(dir: NavDir) { if (!Nav.move(dir) && Nav.cur() == null) land() }
     private fun navKey(e: KeyEvent, first: Boolean, up: Boolean): Boolean {
         val down = e.action == KeyEvent.ACTION_DOWN
         when (e.keyCode) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (down) {
-                if (aHeld && Nav.canAdjust()) {
-                    // Hold A on a knob/slider: the D-pad turns it (up/right = more), in fine steps.
-                    Nav.adjust(if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP || e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 0.02f else -0.02f)
-                } else navMove(when (e.keyCode) {
+                val dir = when (e.keyCode) {
                     KeyEvent.KEYCODE_DPAD_UP -> NavDir.UP; KeyEvent.KEYCODE_DPAD_DOWN -> NavDir.DOWN
                     KeyEvent.KEYCODE_DPAD_LEFT -> NavDir.LEFT; else -> NavDir.RIGHT
-                })
+                }
+                // grabbed knob: auto-repeat turns it; grid / cursor: one step per press (repeats too, past the first)
+                if (!Nav.dpad(dir) && Nav.cur() == null) land()
             }
-            KeyEvent.KEYCODE_BUTTON_A -> { if (first) { aHeld = true; Nav.press() } else if (up) aHeld = false }
-            // B closes an open sheet first; with nothing open it leaves NAV.
+            // A: press / hold / grab a knob / enter a grid (see Nav.aDown)
+            KeyEvent.KEYCODE_BUTTON_A -> if (first) Nav.aDown() else if (up) Nav.aUp()
+            // B: let go of a knob / leave a grid → close the top sheet → leave NAV.
             KeyEvent.KEYCODE_BUTTON_B -> if (first) {
-                if (state.showSettings.value || state.showControllerMap.value || state.showMic.value) back() else setNav(false)
+                if (!Nav.back() && !Nav.closeTop() && !backOverlay()) setNav(false)
             }
             // L1 / R1: jump to the top / bottom screen.
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
+                Nav.back(); Nav.back()
                 val target = if (e.keyCode == KeyEvent.KEYCODE_BUTTON_L1) 0 else 1
                 Nav.land(target, if (target == 0) androidx.compose.ui.geometry.Offset(0f, Nav.screenSize[0].height) else androidx.compose.ui.geometry.Offset.Zero)
             }
@@ -69,16 +69,19 @@ class InputRouter(private val state: AppState) {
                 state.selectTop(cycle(TopView.entries, state.topView.value, if (e.keyCode == KeyEvent.KEYCODE_BUTTON_R2) 1 else -1))
                 if (navScreen.intValue == 0) land()
             }
-            // X / Y: previous / next bottom deck.
-            KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y -> if (first) {
-                val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
-                state.selectDeck(cycle(decks, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_BUTTON_Y) 1 else -1))
-                if (navScreen.intValue == 1) land()
-            }
+            // X: reset the grabbed knob / the grid's second action (latch); otherwise X / Y = previous / next deck.
+            KeyEvent.KEYCODE_BUTTON_X -> if (first && !Nav.x()) switchDeck(-1)
+            KeyEvent.KEYCODE_BUTTON_Y -> if (first) switchDeck(+1)
             KeyEvent.KEYCODE_BUTTON_START -> if (first) state.groove.togglePlay()
             else -> Unit
         }
         return true
+    }
+
+    private fun switchDeck(d: Int) {
+        Nav.back(); Nav.back()
+        state.selectDeck(cycle(DECKS, state.deck.value, d))
+        if (navScreen.intValue == 1) land()
     }
 
     // Left stick in NAV: moves the cursor like the D-pad, with auto-repeat. Right stick: turns the focused control.
@@ -93,12 +96,12 @@ class InputRouter(private val state: AppState) {
         }
         val now = android.os.SystemClock.uptimeMillis()
         if (dir != 0 && (dir != stickDir || now >= stickNext)) {
-            navMove(when (dir) { 1 -> NavDir.UP; 2 -> NavDir.DOWN; 3 -> NavDir.LEFT; else -> NavDir.RIGHT })
+            if (!Nav.dpad(when (dir) { 1 -> NavDir.UP; 2 -> NavDir.DOWN; 3 -> NavDir.LEFT; else -> NavDir.RIGHT }) && Nav.cur() == null) land()
             stickNext = now + if (dir != stickDir) 280L else 120L
         }
         stickDir = dir
         if (!Nav.canAdjust()) return
-        val d = (axes[2] - axes[3])                       // right stick: right / up = more
+        val d = (axes[2] - axes[3])                       // right stick: right / up = more (also while grabbed)
         if (d != 0f) Nav.adjust(d * abs(d) * dt * 0.8f)
     }
 
@@ -118,10 +121,8 @@ class InputRouter(private val state: AppState) {
                 val v = cycle(TopView.entries, state.topView.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1)
                 state.selectTop(v)
             }
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (first) {
-                val decks = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
-                state.selectDeck(cycle(decks, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1))
-            }
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (first)
+                state.selectDeck(cycle(DECKS, state.deck.value, if (e.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1))
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) state.stepTrack(if (e.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
             KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> if (down) {
                 g.nudgeBpm(if (e.keyCode == KeyEvent.KEYCODE_BUTTON_R2) 1f else -1f)
@@ -145,15 +146,15 @@ class InputRouter(private val state: AppState) {
         return true
     }
 
-    /** B: step back out of whatever is layered on top. Never quits the app mid-set. */
-    private fun back() {
-        when {
-            state.showControllerMap.value -> state.showControllerMap.value = false
-            state.showSettings.value -> state.showSettings.value = false
-            state.showMic.value && !state.mic.recording.value && !state.mic.saving.value -> state.showMic.value = false
-            state.groove.heldStep.intValue >= 0 -> state.groove.heldStep.intValue = -1
-            state.topView.value == TopView.VIZ -> state.exitViz()
-        }
+    /** B: step back out of whatever is layered on top (a sheet first, then the visualizer). Never quits the app mid-set. */
+    private fun back() { if (!Nav.closeTop()) backOverlay() }
+
+    /** Layers that aren't sheets: the pinned control map, the visualizer. */
+    private fun backOverlay(): Boolean = when {
+        state.showControllerMap.value -> { state.showControllerMap.value = false; true }
+        state.groove.heldStep.intValue >= 0 -> { state.groove.heldStep.intValue = -1; true }
+        state.topView.value == TopView.VIZ && !navMode.value -> { state.exitViz(); true }
+        else -> false
     }
 
     /** Sampler pad cursor on the MPC-style grid (pad 1 bottom-left, index = row * 4 + column). */
@@ -457,6 +458,7 @@ class InputRouter(private val state: AppState) {
 
     companion object {
         private const val DEADZONE = 0.15f; private const val ENGAGE = 0.08f
+        private val DECKS = listOf(com.thorbox.model.Deck.PADS, com.thorbox.model.Deck.KEYS, com.thorbox.model.Deck.DRUMS, com.thorbox.model.Deck.STEP, com.thorbox.model.Deck.FX)
         /** SELECT released sooner than this (and with no combo) is a tap = REC. Matches the cheat sheet's delay. */
         const val TAP_MS = 280L
     }

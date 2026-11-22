@@ -2,6 +2,7 @@
 package com.thorbox.app.ui
 
 import com.thorbox.app.input.navModal
+import com.thorbox.app.input.navTarget
 
 import android.os.Handler
 import android.os.Looper
@@ -199,6 +200,26 @@ fun StepDeck(state: AppState, modifier: Modifier) {
     val byStep = remember(clip) { Steps.byStep(clip.notes, clip.lengthTicks) }      // once per edit, not per frame
     val keyNotes = remember(state.keyOctave.intValue, state.keyLock.value, state.chordMode.value, state.lockKey()) { IntArray(16) { state.notesForKey(it)[0] } }
     val stepFingers = remember { HashMap<Int, Pair<Int, Long>>() }
+    // NAV grids: the keys (2 × 8, low row at the bottom) and the steps (2 × 8 for this bar)
+    val keyCur = remember { androidx.compose.runtime.mutableIntStateOf(8) }
+    val navHeld = remember { IntArray(16) }
+    val stepDownAt = remember { LongArray(1) }
+    fun keyOf(c: Int) = (1 - c / 8) * 8 + c % 8
+    val keysGrid = com.thorbox.app.input.NavGrid(8, 2,
+        get = { keyCur.intValue }, set = { keyCur.intValue = it },
+        down = { c ->
+            val notes = state.notesForKey(keyOf(c))
+            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(g.synthT, notes[0]) }
+            else { notes.copyInto(navHeld, 0, 0, minOf(notes.size, 15)); navHeld[15] = notes.size; state.keyDown(notes, 0.85f) }
+        },
+        up = { _ -> if (navHeld[15] > 0) { state.keyUp(navHeld.copyOf(navHeld[15])); navHeld[15] = 0 } },
+        describe = { c -> noteName(keyNotes[keyOf(c)]) }, tag = "stepkeys")
+    val stepsGrid = com.thorbox.app.input.NavGrid(8, 2,
+        get = { (g.cursor.intValue - page * 16).coerceIn(0, 15) },
+        set = { c -> g.cursor.intValue = page * 16 + c },
+        down = { c -> val st = page * 16 + c; if (st < steps) { stepDownAt[0] = android.os.SystemClock.uptimeMillis(); g.holdStep(st) } },
+        up = { c -> val st = page * 16 + c; if (st < steps) g.releaseStep(st, tapped = android.os.SystemClock.uptimeMillis() - stepDownAt[0] < 350) },
+        describe = { c -> "step ${page * 16 + c + 1}" }, verb = "toggle · hold edit", tag = "stepdeck")
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -219,6 +240,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
         Canvas(
             Modifier.weight(1f).fillMaxWidth()
                 .onSizeChanged { keyDims[0] = it.width; keyDims[1] = it.height }
+                .navTarget("KEYS", grid = keysGrid, corner = 8f)
                 .pointerInteropFilter { ev ->
                     fun keyAt(x: Float, y: Float): Int {
                         val c = (x / keyDims[0].coerceAtLeast(1) * 8).toInt().coerceIn(0, 7)
@@ -248,11 +270,16 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 drawRoundRect(if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r)
                 drawTextSafe(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
             }
+            if (com.thorbox.app.input.Nav.enteredTag() == "stepkeys") {      // NAV cell cursor
+                val c = keyCur.intValue
+                drawRoundRect(Tb.Text, Offset((c % 8) * cw + gap, (c / 8) * ch + gap), Size(cw - 2 * gap, ch - 2 * gap), r, style = Stroke(2.5f.dp.toPx()))
+            }
         }
         // ---- steps: 2 × 8 for the current bar ----
         Canvas(
             Modifier.height(96.dp).fillMaxWidth()
                 .onSizeChanged { stepDims[0] = it.width; stepDims[1] = it.height }
+                .navTarget("STEPS", grid = stepsGrid, corner = 6f)
                 .pointerInteropFilter { ev ->
                     fun stepAt(x: Float, y: Float): Int {
                         val c = (x / stepDims[0].coerceAtLeast(1) * 8).toInt().coerceIn(0, 7)
@@ -287,6 +314,10 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val e = byStep.getOrNull(s)
                 if (e != null && (e.ratchet > 1 || e.condEvery > 1 || e.locks.isNotEmpty())) drawCircle(Tb.Black, 3.dp.toPx(), o + Offset(sz.width - 7.dp.toPx(), 7.dp.toPx()))
             }
+            if (com.thorbox.app.input.Nav.enteredTag() == "stepdeck") {      // NAV cell cursor
+                val k = (g.cursor.intValue - page * 16).coerceIn(0, 15)
+                drawRoundRect(Tb.Text, Offset((k % 8) * cw + 1f, (k / 8) * ch + 1f), Size(cw - 2f, ch - 2f), r, style = Stroke(2.dp.toPx()))
+            }
         }
     }
 }
@@ -303,7 +334,7 @@ fun StepDetail(state: AppState, modifier: Modifier = Modifier) {
     if (step < 0) return
     val evs = g.stepEvents(step)
     val e = evs.firstOrNull()
-    Column(modifier.navModal().glass(state, 16.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.navModal { state.groove.heldStep.intValue = -1 }.glass(state, 16.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("STEP ${step + 1}", color = Tb.EncGreen, fontWeight = FontWeight.Black, fontSize = 18.sp, letterSpacing = 1.sp)
             Text(if (evs.isEmpty()) "empty: play keys to write notes" else evs.joinToString(" + ") { noteName(it.note) },

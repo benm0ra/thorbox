@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
+import com.thorbox.app.input.NavGrid
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
@@ -47,8 +49,20 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
         return ((3 - row) * 4 + col) to (0.4f + 0.6f * (1f - inCell))
     }
 
+    // NAV: A enters the pads, the D-pad picks one (pad 1 bottom-left), A plays it.
+    fun slotOf(c: Int) = (3 - c / 4) * 4 + c % 4
+    val navGrid = NavGrid(4, 4,
+        get = { val p = dc.selected.intValue; (3 - p / 4) * 4 + p % 4 },
+        set = { c -> dc.selected.intValue = slotOf(c) },
+        down = { c ->
+            val lm = state.levelMode.value
+            if (lm != com.thorbox.app.levels.LevelMode.OFF) dc.hitLevel(state.levelSrc.intValue, slotOf(c), lm, 0.85f) else dc.hit(slotOf(c), 0.85f)
+        },
+        up = { c -> if (state.levelMode.value == com.thorbox.app.levels.LevelMode.OFF) dc.release(slotOf(c)) },
+        describe = { c -> dc.kit.value.voices.getOrNull(slotOf(c))?.name ?: "PAD ${slotOf(c) + 1}" })
     Canvas(
         modifier.onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+            .navTarget("DRUM PADS", grid = navGrid, corner = 10f)
             .pointerInteropFilter { ev ->
                 val i = ev.actionIndex
                 when (ev.actionMasked) {

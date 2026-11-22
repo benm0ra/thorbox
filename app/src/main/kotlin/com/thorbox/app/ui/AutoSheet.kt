@@ -43,7 +43,7 @@ fun AutoSheet(state: AppState, onDone: () -> Unit, modifier: Modifier = Modifier
     val lanes = g.auto.lanes.value
     val tracks = state.tracks.value
     fun knobName(page: Int, i: Int) = SynthPage.entries.getOrNull(page)?.let { SynthParams.pages.getValue(it).getOrNull(i)?.label } ?: "?"
-    Column(modifier.navModal().fillMaxSize().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
+    Column(modifier.navModal(onDone).fillMaxSize().background(Tb.Bg.copy(alpha = 0.97f), RoundedCornerShape(16.dp))
         .border(1.dp, Tb.Line, RoundedCornerShape(16.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("AUTOMATION", color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp)

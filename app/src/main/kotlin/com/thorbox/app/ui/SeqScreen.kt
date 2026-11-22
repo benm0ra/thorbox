@@ -68,7 +68,7 @@ fun SeqScreen(state: AppState) {
             HwButton(if (g.playing.value) "■" else "▶", Modifier.width(56.dp).fillMaxHeight(), active = g.playing.value, accent = Tb.Good, fontSize = 18) { g.togglePlay() }
             HwButton("●", Modifier.width(48.dp).fillMaxHeight(), active = g.recording.value, accent = Tb.Warn, fontSize = 18) { g.toggleRecord() }
             HwButton("CLK", Modifier.fillMaxHeight(), active = groove.metronome, accent = Tb.EncWhite, fontSize = 12) { g.toggleMetronome() }
-            DragValue("BPM", String.format(Locale.US, "%.1f", groove.bpm), Tb.Tempo, Modifier.weight(1f).fillMaxHeight(), pxPerUnit = 4f,
+            DragValue("BPM", String.format(Locale.US, "%.1f", groove.bpm), Tb.Tempo, Modifier.weight(1f).fillMaxHeight(), pxPerUnit = 4f, navFine = 1f,
                 onDelta = { g.nudgeBpm(it) }, onReset = { g.setGroove(groove.copy(bpm = 90f)) })
             HwButton("TAP", Modifier.fillMaxHeight(), fontSize = 12) { g.tapTempo(android.os.SystemClock.uptimeMillis()) }
             DragValue("SWING", "${(groove.swing * 100).roundToInt()}%", Tb.Key, Modifier.weight(1f).fillMaxHeight(), pxPerUnit = 900f,

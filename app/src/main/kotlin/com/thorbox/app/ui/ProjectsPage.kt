@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navModal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -68,7 +69,7 @@ fun ProjectsPage(state: AppState) {
 
         // ---- name entry (save as / rename) ----
         naming?.let { target ->
-            Row(Modifier.fillMaxWidth().height(52.dp).background(Tb.Raised, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp),
+            Row(Modifier.navModal { naming = null }.fillMaxWidth().height(52.dp).background(Tb.Raised, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (target == "saveAs") "NAME" else "RENAME", style = Tb.Label, color = Tb.Key)
                 val commit = {
@@ -94,7 +95,8 @@ fun ProjectsPage(state: AppState) {
         } else LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(items, key = { it.id }) { m ->
                 val current = m.id == pm.currentId.value
-                Row(Modifier.fillMaxWidth().height(52.dp).background(if (current) Tb.Raised else Tb.Panel, RoundedCornerShape(10.dp))
+                Row(Modifier.then(if (confirmDelete == m.id) Modifier.navModal { confirmDelete = null } else Modifier)
+                    .fillMaxWidth().height(52.dp).background(if (current) Tb.Raised else Tb.Panel, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text(m.name + if (current) "  ·  OPEN NOW" else "", color = if (current) Tb.Key else Tb.Text, fontWeight = FontWeight.Black,

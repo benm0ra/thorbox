@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
+import com.thorbox.app.input.NavGrid
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -189,12 +191,20 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
                 val on = dc.selected.intValue == s
                 Box(Modifier.weight(1f).fillMaxWidth().padding(end = 3.dp).clip(RoundedCornerShape(4.dp))
                     .background(if (on) drumColor(s) else drumColor(s).copy(alpha = 0.28f))
-                    .navClickable { dc.hit(s, 0.85f); dc.release(s) }, contentAlignment = Alignment.Center) {
+                    .navClickable(label = dc.kit.value.voices[s].name) { dc.selected.intValue = s; dc.hit(s, 0.85f); dc.release(s) }, contentAlignment = Alignment.Center) {
                     Text(dc.kit.value.voices[s].name.take(4), color = if (on) Tb.Black else Tb.Text, fontSize = 8.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
         }
+        // NAV: A enters the grid (16 steps × all 16 sounds; the bank follows the row), A toggles a step.
+        val navGrid = NavGrid(16, com.thorbox.model.DRUM_SLOTS,
+            get = { dc.selected.intValue * 16 + g.cursor.intValue % 16 },
+            set = { c -> dc.selected.intValue = c / 16; g.cursor.intValue = (g.cursor.intValue / 16) * 16 + c % 16 },
+            down = { c -> val step = (g.cursor.intValue / 16) * 16 + c % 16; if (step < steps) g.drumToggle(step, c / 16) },
+            describe = { c -> "${dc.kit.value.voices.getOrNull(c / 16)?.name ?: ""} · step ${(g.cursor.intValue / 16) * 16 + c % 16 + 1}" },
+            verb = "toggle", tag = "drumgrid")
         Canvas(Modifier.weight(1f).fillMaxHeight()
+            .navTarget("STEPS", grid = navGrid, corner = 4f)
             .pointerInput(clip.lengthTicks, bankStart) {
                 detectTapGestures { p ->
                     val cw = size.width / 16f; val rh = size.height / 8f
@@ -233,7 +243,8 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
             }
             // gamepad cursor
             val cc = g.cursor.intValue - pageStart
-            if (cc in 0 until 16 && state.topView.value == com.thorbox.app.TopView.DRUM)
+            com.thorbox.app.input.Nav.entered.intValue
+            if (cc in 0 until 16 && (state.topView.value == com.thorbox.app.TopView.DRUM || com.thorbox.app.input.Nav.enteredTag() == "drumgrid"))
                 drawRoundRect(Tb.Text, Offset(cc * cw + 1f, (dc.selected.intValue - bankStart) * rh + 1f), Size(cw - 2f, rh - 2f), r, style = Stroke(2.dp.toPx()))
         }
     }

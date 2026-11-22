@@ -96,16 +96,20 @@ fun DragValue(
     onReset: (() -> Unit)? = null,
     /** One line ("FEEL 100%") for short strips where the two-line version would be clipped. */
     compact: Boolean = false,
+    /** NAV: how much one fine D-pad step changes the value (default: about 1/100 of a full drag). */
+    navFine: Float? = null,
 ) {
     val delta by androidx.compose.runtime.rememberUpdatedState(onDelta)
     val reset by androidx.compose.runtime.rememberUpdatedState(onReset)
+    val sweepPx = with(androidx.compose.ui.platform.LocalDensity.current) { 160.dp.toPx() }
+    val navScale = navFine?.let { it / com.thorbox.app.input.Nav.FINE } ?: (sweepPx / pxPerUnit)
     if (compact) {
         Row(
             modifier
                 .clip(RoundedCornerShape(6.dp))
                 .background(Tb.Raised)
                 .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
-                .navAdjustable(label) { d -> delta(d) }
+                .navAdjustable(label, onReset = { reset?.invoke() }, corner = 6f) { d -> delta(d * navScale) }
                 .padding(horizontal = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -121,7 +125,7 @@ fun DragValue(
             .clip(RoundedCornerShape(6.dp))
             .background(Tb.Raised)
             .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
-            .navAdjustable(label) { d -> delta(d) }
+            .navAdjustable(label, onReset = { reset?.invoke() }, corner = 6f) { d -> delta(d * navScale) }
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.Center,
     ) {

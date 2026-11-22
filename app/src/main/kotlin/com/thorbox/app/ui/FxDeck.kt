@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
+import com.thorbox.app.input.NavGrid
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -121,10 +123,20 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f).padding(start = 6.dp, top = 12.dp))
             HwButton("ALL DRY", Modifier.fillMaxHeight(), accent = Tb.Warn, minHeight = 40.dp, fontSize = 12) { g.stopAll() }
         }
+        // NAV: A enters the tiles, the D-pad picks one, A held = punch in, X = latch.
+        val navGrid = NavGrid(cols, rows,
+            get = { state.fxCursor.intValue },
+            set = { c -> state.fxCursor.intValue = c; state.fxCursorShown.value = true },
+            down = { c -> val id = FX_GRID[c]; state.fxCursorShown.value = true; g.fxDown(id, g.fxX[id], g.fxY[id]) },
+            up = { c -> g.fxUp(FX_GRID[c]) },
+            alt = { c -> val id = FX_GRID[c]; g.toggleLatch(id) },
+            describe = { c -> FX_INFO[FX_GRID[c]]?.name ?: "" },
+            verb = "punch in")
         if (xyMode.value) LatchedXY(state, Modifier.weight(1f).fillMaxWidth())
         else Canvas(
             Modifier.weight(1f).fillMaxWidth()
                 .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+                .navTarget("FX PADS", grid = navGrid, corner = 8f)
                 .pointerInteropFilter { ev ->
                     val i = ev.actionIndex
                     when (ev.actionMasked) {

@@ -137,7 +137,7 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
                     Column(
                         Modifier.fillMaxWidth().height(52.dp)
                             .background(if (isCurrent) Tb.Raised.copy(alpha = 0.85f) else Color.Transparent)
-                            .navClickable { state.load(item) }       // one tap: load + analyse onto the pad
+                            .navClickable(label = item.name) { state.load(item) }       // one tap: load + analyse onto the pad
                             .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.Center,
                     ) {
