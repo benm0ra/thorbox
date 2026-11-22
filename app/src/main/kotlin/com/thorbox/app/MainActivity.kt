@@ -77,6 +77,8 @@ class MainActivity : ComponentActivity() {
         i?.getStringExtra("view")?.let { v -> TopView.entries.firstOrNull { it.name == v }?.let(state::selectTop) }
         i?.getStringExtra("deck")?.let { d -> com.thorbox.model.Deck.entries.firstOrNull { it.name == d }?.let(state::selectDeck) }
         i?.getStringExtra("add")?.let { k -> com.thorbox.model.TrackKind.entries.firstOrNull { it.name == k }?.let(state::addTrack) }
+        // CI: load a file from the app's own external folder through the real load path (decoder → analysis → chop)
+        i?.getStringExtra("loadfile")?.let { p -> val f = java.io.File(p); state.load(android.net.Uri.fromFile(f), f.name) }
         if (i?.hasExtra("fx") == true) i.getIntExtra("fx", -1).let { id -> if (id >= 0) state.groove.fxDown(id, 0.6f, 0.6f) else for (k in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.fxUp(k) }
         if (i?.hasExtra("nav") == true) state.input.setNav(i.getBooleanExtra("nav", false))
         if (i?.hasExtra("settings") == true) i.getIntExtra("settings", -1).let { t -> state.showSettings.value = t >= 0; if (t >= 0) state.settingsTab.intValue = t }

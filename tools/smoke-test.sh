@@ -40,6 +40,7 @@ run_case() {
 tour() {
   local name=$1
   adb logcat -c
+  adb shell am start -n $PKG/$ACT --ez nav false >/dev/null; sleep 1   # the tour presses the PLAY-mode buttons
   for v in SYNTH DRUM SEQ MIX VIZ SAMPLER; do
     adb shell am start -n $PKG/$ACT --es view $v --ez play true >/dev/null; sleep 2
     for k in BUTTON_A DPAD_RIGHT DPAD_DOWN BUTTON_A BUTTON_X BUTTON_THUMBR BUTTON_Y BUTTON_B; do adb shell input keyevent KEYCODE_$k; done
@@ -65,6 +66,21 @@ tour() {
   if ! adb shell pidof $PKG >/dev/null; then echo "::error::[$name] app died loading the demo break"; adb logcat -d -b crash | tail -60; fail=1
   elif ! adb logcat -d | grep -q "loaded Demo break"; then echo "::error::[$name] demo break never finished loading"; adb logcat -d | grep -i thorbox | tail -30; fail=1
   else echo "::notice::[$name] sampler: demo break loaded and chopped"; fi
+  # Every file type the sampler takes, through the real load path: WAV (8/16/24-bit, float), AIFF,
+  # AIFF-C, and the platform-decoded ones (MP3 / FLAC / OGG / M4A) when ffmpeg is on the runner.
+  gen=$(mktemp -d); python3 "$(dirname "$0")/make-test-audio.py" "$gen"
+  if command -v ffmpeg >/dev/null; then
+    for x in mp3 flac ogg m4a; do ffmpeg -loglevel error -f lavfi -i "sine=frequency=220:duration=2" -ac 2 "$gen/tone.$x" || true; done
+  else echo "::warning::[$name] no ffmpeg on the runner: MP3/FLAC/OGG/M4A loads not tested"; fi
+  dev=/sdcard/Android/data/$PKG/files/cifiles; adb shell mkdir -p $dev
+  for f in "$gen"/*; do
+    b=$(basename "$f"); adb push "$f" "$dev/$b" >/dev/null
+    adb logcat -c
+    adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS --es loadfile "$dev/$b" >/dev/null; sleep 4
+    if adb logcat -d | grep -q "loaded $b"; then echo "::notice::[$name] sampler loaded $b"
+    else echo "::error::[$name] sampler could not load $b"; adb logcat -d | grep -E "Thorbox|NuMediaExtractor|NdkJavaVM" | tail -15; fail=1; fi
+  done
+  adb exec-out screencap -p > "$OUT/$name-sampler-loaded-file.png" || true
   for t in 0 1 2 3 4; do                                 # SETTINGS pages, then the meters strip + recorder sheet
     adb shell am start -n $PKG/$ACT --ei settings $t >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-settings-$t.png" || true
