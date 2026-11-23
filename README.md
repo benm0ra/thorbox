@@ -12,6 +12,11 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 
 ## New in this round
 
+- **Sampler: 1 AT A TIME** (the default). Playing a pad silences the pad before it, so chops never pile up; turn it off in PAD EDIT → MUTE to layer them. Mute groups and targets still work either way.
+- **Sampler: transpose ALL.** The PITCH − / + buttons switch between the selected pad and **ALL** pads (a track transpose on top of each pad's pitch, saved with the project).
+- **Bottom screen:** a status line where the empty NAV band was (track, sample · pad · mode · 1 AT A TIME, key, kit, bar.beat with beat lights), and pads that show their slice's waveform, play mode, mute group, pitch and length.
+- **Light themes:** the synth cat's "closed filter" shading no longer spills over the waveform in Pastel and Vintage, and the NAV cursor no longer hides small labels.
+
 - **Sampler**
   - **Faster loading:** MP3/FLAC/OGG/M4A decode as fast as the phone's decoder allows (the old loop capped it at ~10–15× realtime), and key/tempo detection on long songs listens to excerpts (a 4-minute song ~2.5× faster, 10 minutes ~7×). Long files load their first 10 minutes; WAV/AIFF are read directly; a **loading card** shows each step with an estimate and **CANCEL**.
   - **A waveform that tells you things:** each slice in its pad's colour, RMS body inside a peak outline, clip marks, a time ruler, a beat/bar grid from the detected BPM, length · rate · channels · peak, the selected slice's start → end, and the playhead's time.

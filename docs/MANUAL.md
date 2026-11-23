@@ -8,7 +8,7 @@ This manual covers the alpha builds. It is written to be read on a phone or prin
 
 The **top screen** (the wide 6" panel) shows what you're working on: the sampler, the synth, the drums, the steps, the mixer or the visuals. Pick one from the **rail** on its left: SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL.
 
-The **bottom screen** (the near-square panel) is the **Touch Deck** under your thumbs: PADS · KEYS · DRUMS · STEP · FX. Switching the deck to PADS or KEYS also switches the top screen to the sampler or synth, and the rail does the same the other way.
+The **bottom screen** (the near-square panel) is the **Touch Deck** under your thumbs: PADS · KEYS · DRUMS · STEP · FX. Switching the deck to PADS or KEYS also switches the top screen to the sampler or synth, and the rail does the same the other way. Along its bottom edge a **status line** names the track the deck plays (in its colour) and what's selected on it: the sample, pad and play mode on PADS, the key and octave on KEYS, the kit on DRUMS. On the right are the bar and beat, with four beat lights. While the NAV cursor is on the bottom screen, its own status line takes that spot.
 
 Under the rail: **▶ / ■** starts and stops the music, **⚙** opens Settings, **?** opens help, and the bar at the bottom is the master level.
 
@@ -53,11 +53,15 @@ Tap a slice to hear it and select its pad. Drag a marker to move it.
 
 ### Chopping
 
+**Pitch:** the **PAD n | ALL** switch picks what **PITCH − / +** moves: the selected pad, or every pad on the track at once (**ALL**, a transpose on top of each pad's own pitch). While a transpose is set, the switch reads "ALL +2". It works turntable-style (higher = faster) except on WARP pads, which keep their length. **Y** on the controller resets whichever one is selected.
+
 Loading a sample chops it at its transients onto **16 pads** (pad 1 bottom-left, like an MPC). Re-chop with **AUTO** (DETECT sets how sensitive), **÷4 / ÷8 / ÷16** equal slices, or **TAP-CHOP** (the sample plays; tap pads where you want the cuts). **NORMALIZE** brings every chop to the same loudness (tap again to undo).
 
 ### Playing the pads
 
-Pads fire on touch-down, and how hard you hit is where you hit: the top of a pad is loud, the bottom soft. **▶** (hold) previews the whole sample. **■ STOP** lights up whenever anything on the sampler is sounding and cuts it all, one-shots and loops included (R3 on the controller in PLAY mode).
+Pads fire on touch-down, and how hard you hit is where you hit: the top of a pad is loud, the bottom soft. Each pad shows its number, its slice's waveform, how it plays (→ one shot, ▮ note on, ↻ loop), its mute group (G1…G16) if it has one, its pitch and the slice's length.
+
+**One at a time (the default):** playing a pad silences whatever the track's other pads were playing, like a classic chopped-loop sampler, so chops never pile up. To let pads layer, turn **1 AT A TIME** off in **PAD EDIT → MUTE**. It's a track setting, saved with the project. Mute groups and mute targets still apply when it's off. **▶** (hold) previews the whole sample. **■ STOP** lights up whenever anything on the sampler is sounding and cuts it all, one-shots and loops included (R3 on the controller in PLAY mode).
 
 **Note repeat:** tap **RPT** on the deck to latch it on (tap again: off), or hold it; then hold a pad to retrigger it on the grid you pick (1/8 … 1/32T, swing-aware). On the controller, hold **L1** while you play.
 
@@ -89,7 +93,7 @@ The **STEPS** view on the top screen and the **STEP** deck on the bottom edit th
 | F1 PARAMS | tune, fine, level, pan, reverse, warp | the slice as it plays, the pan marker |
 | F2 AMP | attack, decay (HOLD or a fade after the hit), release, velocity → level | the envelope |
 | F3 FILTER | low-pass cutoff (OFF = untouched), resonance | the response curve |
-| F4 MUTE | mute group, mute target 1 and 2 | the 16 pads: tap one to make it a target |
+| F4 MUTE | 1 AT A TIME (the whole track), mute group, mute target 1 and 2 | the 16 pads: tap one to make it a target (all hatched while 1 AT A TIME is on) |
 | F5 PLAY | one shot · note on · loop, voice overlap mono · poly | how a second hit behaves |
 
 A **mute group** makes pads cut each other off, like an open and a closed hi-hat: put both in group 1 and the closed hat chokes the open one. A **mute target** is a pad this one cuts when it plays. **ONE SHOT** plays the whole slice however short the tap; **NOTE ON** plays while held and fades over the release; **LOOP** loops while held. **MONO** pads cut their last hit when retriggered; **POLY** hits overlap. **WARP** keeps a pitched pad's length and timing instead of speeding it up like a turntable. Everything is saved with the project.
@@ -167,7 +171,7 @@ The whole session saves itself every few seconds and when the app goes to the ba
 
 | View | Buttons |
 |---|---|
-| SAMPLE | D-pad picks a pad · A / R1 hold plays it · left stick ◀ ▶ ±1 st, ▲ ▼ ±12 st · X play mode · Y reset pitch · L3 PAD EDIT · R3 stop the sound |
+| SAMPLE | D-pad picks a pad · A / R1 hold plays it · left stick ◀ ▶ ±1 st, ▲ ▼ ±12 st (the pad, or ALL pads when ALL is on) · X play mode · Y reset pitch · L3 PAD EDIT · R3 stop the sound |
 | SYNTH | sticks = the four encoders · ◀ ▶ page, ▲ ▼ octave · A / R1 hold = root (or chord) · X chord mode · Y reset page · L3 next preset · R3 DICE |
 | DRUMS | ◀ ▶ step, ▲ ▼ sound · A toggle step · R1 hold plays the sound · sticks = encoders · X dice beat · Y undo · L3 next kit · R3 dice kit |
 | STEPS | ◀ ▶ step, ▲ ▼ lane · A toggle · X dice · Y undo |
