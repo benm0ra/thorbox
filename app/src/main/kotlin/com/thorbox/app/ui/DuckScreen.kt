@@ -305,6 +305,7 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
                 rs.hitAt = now
                 rs.slice.kick(if (rs.flip) 140f else -140f); rs.flip = !rs.flip
                 rs.cups.kick(-60f); rs.ears.kick(80f); rs.cone.kick(30f)
+                rs.peak = 0f; rs.popped = false
                 if (gr > 14f || rs.lastGr > 14f) { rs.pigeonAt = now; rs.pigeon.kick(-70f) }
             }
             rs.lastTrig = g.duckTriggers
@@ -318,8 +319,12 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
 
         // ---- the springs ----
         val target = (gr / 24f).coerceIn(0f, 1.1f) + 0.12f * brace
-        val sq = rs.body.step(target, dt)                                     // overshoots below 0 = a stretch on the way up
-        val nodCurve = if (playing) decay((beat * 60f / bpm), 9f) * (1f - (gr / 24f).coerceIn(0f, 1f)) else 0f
+        // the boing: when he's nearly back up, he pops past standing (tuned offline: ~0.18 of a stretch,
+        // ~380 ms after a heavy kick; a release envelope alone eases out too smoothly to overshoot)
+        rs.peak = maxOf(rs.peak, target)
+        if (!rs.popped && rs.peak > 0.15f && target < 0.35f * rs.peak) { rs.pop.kick(-18f * rs.peak); rs.popped = true }
+        val sq = rs.body.step(target, dt) + rs.pop.step(0f, dt)                // below 0 = taller than standing
+        val nodCurve = if (playing) decay((beat * 60f / bpm), 9f) * (1f - 0.6f * (gr / 24f).coerceIn(0f, 1f)) else 0f
         val nod = rs.head.step(nodCurve, dt)
         val ear = rs.ears.step(sq * 14f, dt)                                  // droop (deg), lagging the body
         val tailSway = rs.tail.step(nod * 8f + sq * 10f, dt)
@@ -382,7 +387,8 @@ private fun nextKeyIn(state: AppState, d: DuckSettings, beatPos: Double, bpm: Fl
 
 private class RatState {
     var lastT = 0f; var hitAt = -10f; var lastTrig = 0; var lastGr = 0f; var flip = false
-    var pigeonAt = -10f; var sniffAt = 3f
+    var pigeonAt = -10f; var sniffAt = 3f; var peak = 0f; var popped = true
+    val pop = Spring(3.5f, 0.35f)        // the end-of-bounce pop (kicked once per kick, as he comes free)
     val body = Spring(6.5f, 0.34f)       // squash (+) / stretch (−): overshoots on the way back up
     val head = Spring(7f, 0.45f)         // the nod
     val ears = Spring(4.5f, 0.25f)       // ear droop, lagging

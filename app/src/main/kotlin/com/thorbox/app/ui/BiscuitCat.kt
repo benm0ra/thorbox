@@ -106,7 +106,7 @@ private class CatState {
     // head following a beat late, ears and tail lagging, a squash on landing, the shades peek
     val lean = Spring(4.5f, 0.45f)        // body tilt (deg): the chest dips into each press
     val head = Spring(5f, 0.38f)          // head drop, lagging the chest
-    val ears = Spring(4f, 0.25f)          // ear flop (deg) from the head's motion
+    val ears = Spring(4f, 0.35f)          // ear flop (deg) from the head's motion (±5°: tuned offline)
     val tailS = Spring(1.8f, 0.3f)        // tail sway, lagging the body
     val land = Spring(9f, 0.3f)           // landing squash after a hop
     var wasUp = false
@@ -247,7 +247,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                 val breath = if (!playing && amp < 0.02f) sin(now * 1.7f) * 0.7f else 0f
                 cs.lean0 = cs.lean.step((dl * 0.6f + dr * 0.4f) * 2.6f * depth + breath, dt)
                 cs.head0 = cs.head.step(cs.lean0 * 1.3f, dt)
-                cs.ear0 = cs.ears.step(cs.head.v * -0.35f, dt)
+                cs.ear0 = cs.ears.step(cs.head.v * -0.12f, dt)
                 cs.tail0 = cs.tailS.step(cs.lean0 * 5f + bob(beat, playing) * 3f, dt)
                 val up = hop < -0.5f
                 if (cs.wasUp && !up) cs.land.kick(5f)                           // she lands: a little squash

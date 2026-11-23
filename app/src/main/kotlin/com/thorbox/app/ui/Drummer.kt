@@ -105,10 +105,10 @@ private class DrummerState {
     var lastT = 0f
     val bodyS = Spring(4.5f, 0.42f)       // the whole dog drops on the kick and bounces back
     val headS = Spring(5.5f, 0.4f)        // the nod: a real backbeat nod lands on the snare
-    val jowlS = Spring(3.2f, 0.22f)       // jowls lag the head and wobble
-    val earS = Spring(3.8f, 0.25f)        // ears flop a beat late
+    val jowlS = Spring(2.6f, 0.2f)        // jowls lag the head and wobble
+    val earS = Spring(3.2f, 0.22f)        // ears flop a beat late
     val capS = Spring(6f, 0.35f)          // the cap lifts off a hair on a hard drop
-    val chainS = Spring(1.6f, 0.15f)      // the chain is a pendulum
+    val chainS = Spring(1.3f, 0.15f)      // the chain is a pendulum
     val leanS = Spring(2.8f, 0.55f)       // leans into the side of the kit he's playing
     var chainFlip = false
 }
@@ -257,11 +257,12 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             st.lastActivity = t
             val vel = drums.hitVel[s].coerceIn(0.3f, 1f)
             when (p) {
-                Piece.KICK -> { st.bodyS.kick(26f * vel); st.chainS.kick(if (st.chainFlip) 40f else -40f); st.chainFlip = !st.chainFlip }
-                Piece.SNARE, Piece.CLAP, Piece.RIM -> st.headS.kick(70f * vel)
-                Piece.CYMBAL -> { st.headS.kick(-55f * vel); st.bodyS.kick(-14f * vel) }        // a crash: head back, chest up
-                Piece.HIHAT, Piece.RIDE -> st.headS.kick(10f * vel)
-                Piece.RACK_TOM, Piece.FLOOR_TOM -> { st.headS.kick(30f * vel); st.bodyS.kick(8f * vel) }
+                // (impulses tuned offline at 90 BPM boom bap: snare nod ≈ 5 units, kick drop ≈ 2, jowls trail ≈ 4)
+                Piece.KICK -> { st.bodyS.kick(110f * vel); st.chainS.kick(if (st.chainFlip) 40f else -40f); st.chainFlip = !st.chainFlip }
+                Piece.SNARE, Piece.CLAP, Piece.RIM -> st.headS.kick(260f * vel)
+                Piece.CYMBAL -> { st.headS.kick(-200f * vel); st.bodyS.kick(-55f * vel) }      // a crash: head back, chest up
+                Piece.HIHAT, Piece.RIDE -> st.headS.kick(30f * vel)
+                Piece.RACK_TOM, Piece.FLOOR_TOM -> { st.headS.kick(110f * vel); st.bodyS.kick(30f * vel) }
                 else -> Unit
             }
             when (p) {
@@ -313,8 +314,8 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             val headNod = st.headS.step(0f, fdt)
             val nod = base + headNod
             val headTotal = bodyDrop + nod
-            val jowlLag = (st.jowlS.step(headTotal, fdt) - headTotal).coerceIn(-5f, 5f)
-            val earLag = (st.earS.step(headTotal, fdt) - headTotal).coerceIn(-6f, 6f)
+            val jowlLag = (st.jowlS.step(headTotal, fdt) - headTotal).coerceIn(-6f, 6f)
+            val earLag = (st.earS.step(headTotal, fdt) - headTotal).coerceIn(-7f, 7f)
             val capLag = (headTotal - st.capS.step(headTotal, fdt)).coerceIn(0f, 5f)
             // lean toward whichever paw is working (hats + crash one way, snare + toms the other)
             val leanTarget = 4f * (envFor(now - st.right.at, 0.5f) - envFor(now - st.left.at, 0.5f)) +
