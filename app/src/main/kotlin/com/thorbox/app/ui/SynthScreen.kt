@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -137,14 +138,14 @@ fun SynthScreen(state: AppState) {
                 // (Big Dawg | step grid), so every instrument page reads the same way.
                 if (side) Row(Modifier.fillMaxSize()) {
                     BiscuitCat(state, family, synthCategoryColor(family), patch,
-                        catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxHeight())
+                        catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxHeight().clipToBounds())
                     Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(Tb.Line))
-                    vizHalf(Modifier.weight(1f).fillMaxHeight())
+                    vizHalf(Modifier.weight(1f).fillMaxHeight().clipToBounds())
                 } else Column(Modifier.fillMaxSize()) {
                     BiscuitCat(state, family, synthCategoryColor(family), patch,
-                        catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxWidth())
+                        catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxWidth().clipToBounds())
                     Box(Modifier.height(1.dp).fillMaxWidth().padding(horizontal = 12.dp).background(Tb.Line))
-                    vizHalf(Modifier.weight(1f).fillMaxWidth())
+                    vizHalf(Modifier.weight(1f).fillMaxWidth().clipToBounds())
                 }
             }
         }

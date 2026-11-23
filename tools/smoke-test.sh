@@ -136,6 +136,16 @@ shots() {
   for p in WARM_PAD 808_CLASSIC ACID_LINE SQUARE_LEAD E-PIANO TRAP_BELL ROBOT; do
     adb shell am start -n $PKG/$ACT --es view SYNTH --es synth $p --ez play true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/cat-$p.png"
   done
+  # the Thor's top screen on its own (the deck lives on the other panel there), in every theme:
+  # the synth hero (cat | waveform), the drum screen and the mixer
+  for th in genesis studio bodega cyberpunk vintage pastel terminal grayscale; do
+    adb shell am start -n $PKG/$ACT --ez toponly true --es theme $th --es view SYNTH --es synth WARM_PAD --ez play true >/dev/null; sleep 2.5
+    adb exec-out screencap -p > "$d/top-synth-$th.png"
+  done
+  adb shell am start -n $PKG/$ACT --es theme pastel --es view SYNTH --es synth E-PIANO >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-synth-pastel-keys.png"
+  adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-drums-pastel.png"
+  adb shell am start -n $PKG/$ACT --es view MIX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-mix-pastel.png"
+  adb shell am start -n $PKG/$ACT --ez toponly false --es theme genesis >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --ez play false --es synth INIT >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"
   adb shell am start -n $PKG/$ACT --ei fx 0 >/dev/null; sleep 0.3

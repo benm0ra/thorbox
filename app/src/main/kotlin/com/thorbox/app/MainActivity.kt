@@ -22,6 +22,7 @@ import com.thorbox.app.ui.ThorboxTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val topOnly = androidx.compose.runtime.mutableStateOf(false)
     private lateinit var screens: DualScreenController
     private val state get() = appState
     private val askMic = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok -> state.onMicPermission(ok) }
@@ -50,7 +51,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             ThorboxTheme {
                 val second by screens.secondShowing.collectAsState()
-                if (second) RoleContent(screens.activityRole(), state)
+                // debug `--ez toponly true`: draw just the top screen, as the Thor's wide panel does
+                if (topOnly.value) RoleContent(ScreenRole.SESSION, state)
+                else if (second) RoleContent(screens.activityRole(), state)
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
@@ -105,6 +108,7 @@ class MainActivity : ComponentActivity() {
         if (i?.hasExtra("controlmap") == true) state.showControllerMap.value = i.getBooleanExtra("controlmap", false)
         if (i?.hasExtra("padedit") == true) i.getIntExtra("padedit", -1).let { pg -> state.showPadEdit.value = pg >= 0; if (pg >= 0) state.padEditPage.intValue = pg.coerceIn(0, 4) }
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
+        if (i?.hasExtra("toponly") == true) topOnly.value = i.getBooleanExtra("toponly", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
         if (i?.hasExtra("play") == true && !i.getBooleanExtra("play", true) && state.groove.playing.value) state.groove.togglePlay()
