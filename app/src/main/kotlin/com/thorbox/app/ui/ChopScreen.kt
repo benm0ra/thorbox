@@ -329,7 +329,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                             val t = tm.measure(fmtTime(ph * secs, 0.1), infoStyle)
                             val lx = (x + 4.dp.toPx()).coerceAtMost(w - t.size.width - 4f)
                             drawRoundRect(Tb.Text, Offset(lx - 3f, 19.dp.toPx()), Size(t.size.width + 6f, t.size.height + 2f), chipR)
-                            drawText(t, color = Tb.Black, topLeft = Offset(lx, 20.dp.toPx()))
+                            drawText(t, color = Tb.OnText, topLeft = Offset(lx, 20.dp.toPx()))
                         }
                     }
                 }

@@ -150,9 +150,9 @@ fun PresetBrowser(
                             onLongClick = { if (item.user) confirmDelete = item.name })
                         .padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Box(Modifier.align(Alignment.TopStart).size(7.dp).clip(CircleShape).background(g?.color ?: Tb.Muted))
-                        if (item.user) Text("YOURS", color = if (on) Tb.Black else Tb.Muted, fontSize = 8.sp, fontWeight = FontWeight.Black,
+                        if (item.user) Text("YOURS", color = if (on) Tb.OnText else Tb.Muted, fontSize = 8.sp, fontWeight = FontWeight.Black,
                             letterSpacing = 1.sp, modifier = Modifier.align(Alignment.TopEnd))
-                        Text(if (asking) "TAP TO DELETE" else item.name, color = if (on || asking) Tb.Black else Tb.Text, fontFamily = Tb.Mono,
+                        Text(if (asking) "TAP TO DELETE" else item.name, color = if (asking) Tb.on(Tb.Warn) else if (on) Tb.OnText else Tb.Text, fontFamily = Tb.Mono,
                             fontWeight = FontWeight.Black, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.align(Alignment.BottomStart))
                     }
@@ -167,7 +167,7 @@ fun PresetBrowser(
 private fun Chip(label: String, color: Color, on: Boolean, onClick: () -> Unit) {
     Box(Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(if (on) color else Tb.Raised)
         .navClickable(label = label, corner = 15f, onClick = onClick).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-        Text(label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+        Text(label, color = if (on) Tb.on(color) else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
     }
 }
 

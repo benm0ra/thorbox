@@ -77,7 +77,7 @@ fun DrumScreen(state: AppState) {
                     contentAlignment = Alignment.Center) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (dusty) Box(Modifier.size(6.dp).clip(CircleShape).background(Tb.Key))
-                        Text(l, color = if (page == i) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
+                        Text(l, color = if (page == i) Tb.OnText else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                     }
                 }
             }
@@ -195,7 +195,7 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
                     .background(if (on) drumColor(s) else drumColor(s).copy(alpha = 0.28f))
                     .navClickable(label = dc.kit.value.voices[s].name) { dc.selected.intValue = s; dc.hit(s, 0.85f); dc.release(s) }, contentAlignment = Alignment.Center) {
                     // the whole name, shrunk to fit and centred (it used to be cut to 4 letters and sat low in the chip)
-                    FitText(dc.kit.value.voices[s].name, androidx.compose.ui.text.TextStyle(color = if (on) Tb.Black else Tb.Text, fontSize = 9.sp,
+                    FitText(dc.kit.value.voices[s].name, androidx.compose.ui.text.TextStyle(color = if (on) Tb.on(drumColor(s)) else Tb.Text, fontSize = 9.sp,
                         fontWeight = FontWeight.Black, lineHeight = 9.sp), modifier = Modifier.padding(horizontal = 3.dp), minSize = 6f)
                 }
             }

@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -157,6 +158,22 @@ object Tb {
 
     val Void get() = palette.void
     val Black get() = palette.ink
+
+    /**
+     * The colour to write ON a filled [bg]: the theme's dark ink or its light tone, whichever stands out
+     * more. Dark themes: ink on bright accents, text on dark fills. Light themes (Pastel, Vintage): their
+     * "text" and "white" accents are dark, so writing ink on them was dark-on-dark (selected tabs and
+     * active buttons went blank); this picks the light tone there.
+     */
+    fun on(bg: Color): Color {
+        val dark = palette.ink
+        val light = if (palette.light) Color(0xFFFBF8F1) else palette.text
+        val lb = bg.luminance()
+        fun cr(c: Color): Float { val l = c.luminance(); return (maxOf(l, lb) + 0.05f) / (minOf(l, lb) + 0.05f) }
+        return if (cr(dark) >= cr(light)) dark else light
+    }
+    /** Ink for a Tb.Text-filled background (selected tabs, the playhead's time). */
+    val OnText get() = on(palette.text)
     val Bg get() = palette.bg
     val Panel get() = palette.panel
     val Raised get() = palette.raised

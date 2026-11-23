@@ -60,7 +60,7 @@ fun HwButton(
         contentAlignment = Alignment.Center,
     ) {
         // shrinks to fit rather than being cut off ("DRUMS" not "DRU") on narrow screens
-        FitText(text, TextStyle(color = when { !enabled -> Tb.Dim; active -> Tb.Black; else -> Tb.Text },
+        FitText(text, TextStyle(color = when { !enabled -> Tb.Dim; active -> Tb.on(accent); else -> Tb.Text },
             fontWeight = FontWeight.Black, fontSize = fontSize.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
     }
 }
@@ -166,7 +166,7 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (held) Tb.Black else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+        Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
     }
 }
 
@@ -179,7 +179,7 @@ fun GearButton(active: Boolean, modifier: Modifier = Modifier, onClick: () -> Un
             .navClickable(label = "SETTINGS") { Info.show("SETTINGS"); onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        val ink = if (active) Tb.Black else Tb.Text
+        val ink = if (active) Tb.on(Tb.Key) else Tb.Text
         androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
             val c = center; val r = size.minDimension / 2f
             val teeth = 8

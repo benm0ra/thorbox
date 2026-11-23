@@ -80,7 +80,7 @@ fun SynthScreen(state: AppState) {
                     .background(if (on) Tb.Text else Tb.Panel)
                     .navClickable(label = p.label) { state.synthPage.value = p }
                     .padding(horizontal = 9.dp), contentAlignment = Alignment.Center) {
-                    Text(p.label, color = if (on) Tb.Black else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
+                    Text(p.label, color = if (on) Tb.OnText else Tb.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                 }
             }
             Box(Modifier.weight(1f))
