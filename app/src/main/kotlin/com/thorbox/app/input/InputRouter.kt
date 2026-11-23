@@ -190,6 +190,11 @@ class InputRouter(private val state: AppState) {
     }
 
     fun onKey(e: KeyEvent): Boolean {
+        // EXPORT running: nothing may play into the bounce. B / BACK cancels it; every other key is swallowed.
+        if (state.exporter.active.value) {
+            if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount == 0 && (e.keyCode == KeyEvent.KEYCODE_BUTTON_B || e.keyCode == KeyEvent.KEYCODE_BACK)) state.exporter.cancel()
+            return true
+        }
         val down = e.action == KeyEvent.ACTION_DOWN
         val first = down && e.repeatCount == 0
         val up = e.action == KeyEvent.ACTION_UP
@@ -373,6 +378,7 @@ class InputRouter(private val state: AppState) {
 
     fun onGenericMotion(e: MotionEvent): Boolean {
         if (e.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK) return false
+        if (state.exporter.active.value) return true
         hat(e)
         axes[0] = deadzone(e.getAxisValue(MotionEvent.AXIS_X))
         axes[1] = deadzone(e.getAxisValue(MotionEvent.AXIS_Y))

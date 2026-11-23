@@ -123,6 +123,15 @@ class MainActivity : ComponentActivity() {
         }
         if (i?.hasExtra("keylock") == true) state.setLockAll(i.getBooleanExtra("keylock", false))
         if (i?.hasExtra("keysheet") == true) state.showKeySheet.value = i.getBooleanExtra("keysheet", false)
+        if (i?.hasExtra("exportsheet") == true) state.exporter.showSheet.value = i.getBooleanExtra("exportsheet", false)
+        // `--es exportnow pattern|song[-flac][-stems][-fx][-midi]`: start an export right away (CI checks the files)
+        i?.getStringExtra("exportnow")?.let { k ->
+            val o = com.thorbox.app.export.Exporter.Options(
+                what = if (k.contains("song")) com.thorbox.app.export.Exporter.What.SONG else com.thorbox.app.export.Exporter.What.PATTERN, loops = 2,
+                format = if (k.contains("flac")) com.thorbox.app.export.Exporter.Format.FLAC else com.thorbox.app.export.Exporter.Format.WAV,
+                stems = k.contains("stems"), fxOnStems = k.contains("fx"), midi = k.contains("midi"))
+            state.exporter.start(o)?.let { android.util.Log.w("Thorbox", "export: not started: $it") }
+        }
         if (i?.hasExtra("toponly") == true) topOnly.value = i.getBooleanExtra("toponly", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()

@@ -97,6 +97,8 @@ Go @('--ez', 'mic', 'false')
 Go @('--es', 'view', 'SONG', '--ez', 'songdemo', 'true'); Go @('--ez', 'play', 'true'); Shot 'song' 2
 Go @('--ez', 'play', 'false', '--ez', 'keylock', 'true', '--ez', 'keysheet', 'true'); Shot 'keylock' 2
 Go @('--ez', 'keylock', 'false', '--ez', 'keysheet', 'false')
+Go @('--es', 'view', 'SONG', '--ez', 'exportsheet', 'true'); Shot 'export' 2
+Go @('--ez', 'exportsheet', 'false')
 # DUCK: keyed off the kick, the sampler + synth dipping, playing (a few frames: the rat pumps)
 Go @('--es', 'view', 'DUCK', '--ez', 'duckdemo', 'true', '--ez', 'play', 'true'); Shot 'duck-1' 2
 Shot 'duck-2' 0

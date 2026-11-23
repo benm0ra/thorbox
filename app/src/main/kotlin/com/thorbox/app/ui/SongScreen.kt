@@ -40,7 +40,7 @@ import kotlin.math.sin
 /**
  * SONG: build a track out of patterns, MPC-style.
  *
- *   header   SONG · PATTERN | SONG mode · LOOP · the project KEY (KEY LOCK) · where it is now
+ *   header   SONG · PATTERN | SONG mode · LOOP · the project KEY (KEY LOCK) · EXPORT · where it is now
  *   left     16 pattern pads: tap one to launch it (playing: it waits for the end of this pattern and
  *            changes exactly on the beat; tap it again to cancel). Lit = playing, pulsing = up next,
  *            dots = which tracks have notes. COPY, CLEAR, and + SONG under them.
@@ -69,6 +69,12 @@ fun SongScreen(state: AppState) {
             HwButton(if (g.songLoop.value) "LOOP ↻" else "LOOP OFF", Modifier.fillMaxHeight(), active = g.songLoop.value, accent = Tb.EncWhite,
                 minHeight = 30.dp, fontSize = 11, hPad = 8.dp) { g.songLoop.value = !g.songLoop.value }
             KeyChip(state, Modifier.fillMaxHeight())
+            HwButton("EXPORT", Modifier.fillMaxHeight(), accent = Tb.Good, minHeight = 30.dp, fontSize = 11, hPad = 8.dp) {
+                state.exporter.result.value = null
+                state.exporter.options.value = state.exporter.options.value.copy(
+                    what = if (songMode && steps.isNotEmpty()) com.thorbox.app.export.Exporter.What.SONG else com.thorbox.app.export.Exporter.What.PATTERN)
+                state.exporter.showSheet.value = true
+            }
             Box(Modifier.weight(1f))
             val where = when {
                 songMode && g.songPos.intValue >= 0 -> "STEP ${g.songPos.intValue + 1}/${steps.size} · ${g.patternName(cur)}"

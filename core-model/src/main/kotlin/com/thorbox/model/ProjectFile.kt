@@ -45,7 +45,8 @@ data class ProjectFile(
 )
 
 /** One pattern (an MPC-style "sequence"): a pattern for every track, and a name. */
-@Serializable data class PatternSlot(val name: String = "", val clips: List<Clip> = emptyList())
+/** One of the 16 patterns: its notes and (since EXPORT) its own automation lanes. */
+@Serializable data class PatternSlot(val name: String = "", val clips: List<Clip> = emptyList(), val automation: Map<String, List<AutoPointDto>> = emptyMap())
 /** One step of the song: play [pattern] (0…15) [repeats] times. */
 @Serializable data class SongStep(val pattern: Int, val repeats: Int = 1)
 

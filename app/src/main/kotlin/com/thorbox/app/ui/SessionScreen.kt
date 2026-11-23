@@ -93,6 +93,7 @@ fun TopScreen(state: AppState) {
     if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showKeySheet.value) KeySheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
+    if (state.exporter.showSheet.value && !state.exporter.active.value) ExportSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
     if (state.showSettings.value) SettingsSheet(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls

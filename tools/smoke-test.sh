@@ -149,6 +149,28 @@ shots() {
   adb shell am start -n $PKG/$ACT --ez play true >/dev/null; sleep 1; adb exec-out screencap -p > "$d/top-song.png"
   adb shell am start -n $PKG/$ACT --ez play false --ez keylock true --ez keysheet true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-keysheet.png"
   adb shell am start -n $PKG/$ACT --ez keylock false --ez keysheet false >/dev/null; sleep 1
+  # EXPORT: the sheet; then a real bounce of the pattern ×2 (FLAC, stems, MIDI): files on disk, the result sheet
+  adb shell am start -n $PKG/$ACT --es view SONG --ez exportsheet true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-export.png"
+  adb logcat -c || true
+  adb shell am start -n $PKG/$ACT --ez exportsheet false --es exportnow pattern-flac-stems-midi >/dev/null; sleep 0.7
+  adb exec-out screencap -p > "$d/top-exporting.png"
+  for _ in $(seq 1 90); do adb logcat -d -s Thorbox | grep -q "export:" && break; sleep 1; done
+  sleep 1; adb exec-out screencap -p > "$d/top-export-done.png"
+  if adb logcat -d -s Thorbox | grep -q "export: EXPORTED"; then
+    echo "::notice::[$name] $(adb logcat -d -s Thorbox | grep 'export: EXPORTED' | tail -1 | sed 's/.*export: //')"
+    adb shell 'ls -l "/sdcard/Music/Clamshell Beats/Exports/"*' || true
+    ex=$(mktemp -d); adb pull "/sdcard/Music/Clamshell Beats/Exports" "$ex" >/dev/null 2>&1 || true
+    if command -v ffprobe >/dev/null; then
+      find "$ex" -name '*.flac' -print0 | while IFS= read -r -d '' f; do
+        ffmpeg -v error -i "$f" -f null - && echo "decodes: $(basename "$f") $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f") s" || { echo "::error::[$name] export doesn't decode: $f"; touch "$ex/bad"; }
+      done
+      [ -e "$ex/bad" ] && fail=1
+    fi
+    rm -rf "$ex"
+  else
+    echo "::error::[$name] export never finished"; adb logcat -d -s Thorbox | tail -20; fail=1
+  fi
+  adb shell am start -n $PKG/$ACT --ez exportsheet false >/dev/null; sleep 1
   # DUCK: off (nothing picked yet), then keyed off the kick and playing, in pastel and genesis, several frames (the rat pumps)
   adb shell am start -n $PKG/$ACT --es view DUCK >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-duck-off.png"
   adb shell am start -n $PKG/$ACT --ez duckdemo true --ez play true >/dev/null; sleep 2

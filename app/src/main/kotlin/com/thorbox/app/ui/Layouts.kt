@@ -25,6 +25,7 @@ fun RoleContent(role: ScreenRole, state: AppState) = NavWindow(state, intArrayOf
             ScreenRole.DECK -> DeckScreen(state)
         }
         Scanlines()
+        if (state.exporter.active.value) ExportProgress(state, compact = role == ScreenRole.DECK)
     }
 }
 
@@ -46,6 +47,7 @@ fun SingleScreenContent(role: ScreenRole, state: AppState) = NavWindow(state, in
         }
         Scanlines()
     }
+    if (state.exporter.active.value) ExportProgress(state)
 }
 }
 

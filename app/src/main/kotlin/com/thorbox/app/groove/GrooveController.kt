@@ -219,6 +219,8 @@ class GrooveController(private val app: AppState) {
     val patternIdx = androidx.compose.runtime.mutableIntStateOf(0)
     val queuedPattern = androidx.compose.runtime.mutableIntStateOf(-1)
     private val bank = arrayOfNulls<List<Clip>>(PATTERNS)
+    // each pattern's own automation (the current one's is in [auto]); like the notes, it changes with the pattern
+    private val autoBank = arrayOfNulls<Map<String, List<Automation.Point>>>(PATTERNS)
     val bankVersion = androidx.compose.runtime.mutableIntStateOf(0)
     val patternNames = mutableStateOf(List(PATTERNS) { "" })
     val song = mutableStateOf(listOf<com.thorbox.model.SongStep>())
@@ -272,6 +274,9 @@ class GrooveController(private val app: AppState) {
         if (p != patternIdx.intValue) {
             bank[patternIdx.intValue] = clips.value
             clips.value = bank[p] ?: emptyClips()
+            autoBank[patternIdx.intValue] = auto.lanes.value
+            auto.lanes.value = autoBank[p] ?: emptyMap(); autoBank[p] = null
+            auto.resetPlayback(); releaseAutoFx()          // the new pattern's lanes apply from its first tick
             patternIdx.intValue = p
             undo.forEach { it.clear() }; canUndo.value = false
         }
@@ -289,8 +294,8 @@ class GrooveController(private val app: AppState) {
             adopt(p)
             if (step >= 0 && songMode.value) { songPos.intValue = step; queueNextStep(step) }
         }
-        // loop off: stop when the song's last step has played out
-        if (songEndAt > 0 && playing.value && loopTick >= songEndAt - 1) { songEndAt = -1.0; togglePlay() }
+        // loop off: stop when the song's last step has played out (an export stops on the exact sample itself)
+        if (!exporting && songEndAt > 0 && playing.value && loopTick >= songEndAt - 1) { songEndAt = -1.0; togglePlay() }
     }
 
     private fun queueNextStep(step: Int) {
@@ -327,17 +332,20 @@ class GrooveController(private val app: AppState) {
     }
 
     // ---- editing the bank ----
+    /** Pattern [p]'s automation lanes. */
+    fun automationOf(p: Int): Map<String, List<Automation.Point>> = if (p == patternIdx.intValue) auto.lanes.value else autoBank.getOrNull(p) ?: emptyMap()
     fun copyPattern(from: Int, to: Int) {
         if (from == to || to !in 0 until PATTERNS) return
         val src = clipsOf(from)
-        if (to == patternIdx.intValue) { clips.value = src; resendClips() } else bank[to] = src
+        val srcAuto = automationOf(from)
+        if (to == patternIdx.intValue) { clips.value = src; resendClips(); auto.lanes.value = srcAuto; auto.resetPlayback() } else { bank[to] = src; autoBank[to] = srcAuto }
         val names = patternNames.value.toMutableList(); names[to] = ""; patternNames.value = names
         bankVersion.intValue++
     }
     fun clearPattern(p: Int) {
         val e = clipsOf(p).map { it.copy(notes = emptyList()) }
-        if (p == patternIdx.intValue) { for (t in clips.value.indices) update(t, saveUndo = true) { c -> c.copy(notes = emptyList()) } }
-        else bank[p] = e
+        if (p == patternIdx.intValue) { for (t in clips.value.indices) update(t, saveUndo = true) { c -> c.copy(notes = emptyList()) }; auto.clearAll() }
+        else { bank[p] = e; autoBank[p] = null }
         bankVersion.intValue++
     }
     fun firstEmptyPattern(): Int = (0 until PATTERNS).firstOrNull { it != patternIdx.intValue && !hasNotes(it) } ?: -1
@@ -355,15 +363,19 @@ class GrooveController(private val app: AppState) {
 
     /** For saving: all 16 patterns (the current one from the editors). */
     fun patternSlots(): List<com.thorbox.model.PatternSlot> =
-        List(PATTERNS) { p -> com.thorbox.model.PatternSlot(patternNames.value[p], if (hasNotes(p) || p == patternIdx.intValue) clipsOf(p) else emptyList()) }
+        List(PATTERNS) { p -> com.thorbox.model.PatternSlot(patternNames.value[p], if (hasNotes(p) || p == patternIdx.intValue) clipsOf(p) else emptyList(),
+            // the current pattern's lanes are saved at the top level (ProjectFile.automation), as before
+            if (p == patternIdx.intValue) emptyMap() else automationOf(p).mapValues { (_, v) -> v.map { com.thorbox.model.AutoPointDto(it.tick, it.value) } }) }
 
     /** Loading: put the bank back ([current]'s clips are already in [clips]). */
     fun restorePatterns(slots: List<com.thorbox.model.PatternSlot>, current: Int, songSteps: List<com.thorbox.model.SongStep>, mode: Boolean, loop: Boolean) {
         for (p in 0 until PATTERNS) bank[p] = slots.getOrNull(p)?.clips?.takeIf { it.isNotEmpty() }?.let { cs ->
             List(com.thorbox.model.TRACK_COUNT) { t -> cs.getOrNull(t) ?: emptyClips()[t] }
         }
+        for (p in 0 until PATTERNS) autoBank[p] = slots.getOrNull(p)?.automation?.takeIf { it.isNotEmpty() }
+            ?.mapValues { (_, v) -> v.map { Automation.Point(it.tick, it.value) } }
         patternIdx.intValue = current.coerceIn(0, PATTERNS - 1)
-        bank[patternIdx.intValue] = null
+        bank[patternIdx.intValue] = null; autoBank[patternIdx.intValue] = null
         patternNames.value = List(PATTERNS) { slots.getOrNull(it)?.name ?: "" }
         song.value = songSteps.filter { it.pattern in 0 until PATTERNS }.map { it.copy(repeats = it.repeats.coerceIn(1, 16)) }
         songMode.value = mode; songLoop.value = loop; songPos.intValue = -1; queuedPattern.intValue = -1; songEndAt = -1.0
@@ -892,6 +904,49 @@ class GrooveController(private val app: AppState) {
         if (transport[1] == 0.0) return -1
         val c = clips.value.getOrNull(track) ?: return -1
         return ((loopTick % c.lengthTicks) / STEP_TICKS).toInt()
+    }
+
+    // ================= EXPORT hooks (see export/Exporter) =================
+    /** True while an export renders: the per-frame work runs per rendered block instead. */
+    var exporting = false
+    /** After each export block: the same song / pattern / automation logic a live frame runs. */
+    fun exportFrame() {
+        NativeEngine.transport(transport)
+        followScene()
+        flushClips()
+        while (NativeEngine.pollRecord(recBuf) != 0) Unit
+        runAutomation()
+    }
+    /** Play the current pattern from its top (PATTERN export). */
+    fun playPatternFromTop() {
+        if (playing.value) togglePlay()
+        setSongMode(false)
+        switchNow(patternIdx.intValue)
+        togglePlay()
+    }
+    /** Stop everything that could still be sounding or held (between export passes). */
+    fun silenceForExport() {
+        if (playing.value) togglePlay()
+        if (recording.value) { recording.value = false; NativeEngine.setRecording(false) }
+        stopAll(); releaseAutoFx(); auto.resetPlayback()
+        NativeEngine.stopPads(-1)
+        for (t in 0 until com.thorbox.model.TRACK_COUNT) NativeEngine.synthAllOff(t)
+    }
+    /** Put a saved mixer back (after solo passes). */
+    fun restoreChannels(list: List<Channel>) { channels.value = list; for (i in list.indices) pushChannel(i) }
+    /** Solo exactly [track] (or restore [saved] when -1), without writing automation. */
+    fun soloOnly(track: Int, saved: List<Channel>) {
+        channels.value = saved.mapIndexed { i, c -> if (track < 0) c else c.copy(solo = i == track) }
+        for (i in channels.value.indices) pushChannel(i)
+    }
+    /** Restore after an export: the pattern that was current, song settings. */
+    fun returnTo(pattern: Int, songSteps: List<com.thorbox.model.SongStep>, mode: Boolean, loop: Boolean) {
+        if (playing.value) togglePlay()
+        song.value = songSteps; songLoop.value = loop
+        songMode.value = false; songPos.intValue = -1; songEndAt = -1.0
+        if (queuedPattern.intValue >= 0) { NativeEngine.commitScene(0, -1); queuedPattern.intValue = -1 }
+        switchNow(pattern); lastSceneTag = tagOf(pattern)
+        songMode.value = mode
     }
 
     fun onFrame(dt: Float) {

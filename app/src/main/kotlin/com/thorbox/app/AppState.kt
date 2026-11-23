@@ -706,14 +706,7 @@ class AppState(private val app: Application) {
             if (info.kind == com.thorbox.model.TrackKind.EMPTY) return@forEachIndexed
             val c = clips[t]
             val voices = if (info.kind == com.thorbox.model.TrackKind.DRUMS) drumsFor(t).kit.value.voices else null
-            val notes = c.notes.map { e ->
-                val note = when (info.kind) {
-                    com.thorbox.model.TrackKind.DRUMS -> voices?.getOrNull(e.note)?.let { com.thorbox.model.MidiWriter.gmDrum(it.model, it.decayMs) } ?: (36 + e.note)
-                    com.thorbox.model.TrackKind.SAMPLER -> 36 + e.note
-                    else -> e.note
-                }
-                com.thorbox.model.MidiWriter.Note(e.tick, e.lengthTicks, note, (e.velocity * 127f).toInt())
-            }
+            val notes = c.notes.map { e -> com.thorbox.model.MidiWriter.Note(e.tick, e.lengthTicks, midiNote(t, e.note, voices), (e.velocity * 127f).toInt()) }
             val ch = if (info.kind == com.thorbox.model.TrackKind.DRUMS) 9 else (synthCh++).let { if (it >= 9) it + 1 else it }
             out += com.thorbox.model.MidiWriter.Track(info.name, ch, notes); lengths += c.lengthTicks
         }
@@ -726,6 +719,18 @@ class AppState(private val app: Application) {
             com.thorbox.app.ui.Info.stamp.intValue++
         }
     }
+
+    /** A step's note as MIDI: drums as General MIDI drums (by voice model), pads from C2, synth notes as they are. */
+    fun midiNote(t: Int, note: Int, voices: List<com.thorbox.model.DrumVoice>? = null): Int = when (trackKind(t)) {
+        com.thorbox.model.TrackKind.DRUMS -> (voices ?: drumsFor(t).kit.value.voices).getOrNull(note)?.let { com.thorbox.model.MidiWriter.gmDrum(it.model, it.decayMs) } ?: (36 + note)
+        com.thorbox.model.TrackKind.SAMPLER -> 36 + note
+        else -> note
+    }
+
+    /** For code that needs a Context (MediaStore, intents). */
+    val appContext: android.content.Context get() = app
+    /** EXPORT: songs and stems to WAV / FLAC (see export/Exporter). */
+    val exporter by lazy { com.thorbox.app.export.Exporter(this) }
 
     /** True if [t] can be removed: there must stay at least one track of each instrument kind. */
     fun canRemoveTrack(t: Int): Boolean {
@@ -1017,7 +1022,7 @@ class AppState(private val app: Application) {
             if (!halve || !skipNextPublish) t.frame.longValue = frameTimeNanos
             skipNextPublish = halve && !skipNextPublish
 
-            groove.onFrame(dt)
+            if (exporter.active.value) exporter.frame() else groove.onFrame(dt)   // EXPORT renders in place of the live frame
             drums.onFrame(telemetry.timeSec)
             tilt.onFrame()
             input.applySticks(dt)

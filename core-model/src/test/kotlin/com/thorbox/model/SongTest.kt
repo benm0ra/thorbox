@@ -20,6 +20,14 @@ class SongTest {
         assertTrue(back.songMode && !back.songLoop && back.scale.lockAll)
     }
 
+    @Test fun eachPatternKeepsItsAutomation() {
+        val lanes = mapOf("t1:vol" to listOf(AutoPointDto(0, -6f), AutoPointDto(1920, 0f)), "fx:7" to listOf(AutoPointDto(960, 1.5f)))
+        val p = ProjectFile(patterns = listOf(PatternSlot("A"), PatternSlot("B", automation = lanes)), currentPattern = 0)
+        val back = ProjectCodec.decode(ProjectCodec.encode(p))!!
+        assertEquals(lanes, back.patterns[1].automation)
+        assertTrue(back.patterns[0].automation.isEmpty())
+    }
+
     @Test fun olderProjectsHaveNoPatterns() {
         val back = ProjectCodec.decode(ProjectCodec.encode(ProjectFile()))!!
         assertTrue(back.patterns.isEmpty() && back.song.isEmpty() && !back.scale.lockAll)
