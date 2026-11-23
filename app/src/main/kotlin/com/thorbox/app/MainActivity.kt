@@ -87,6 +87,11 @@ class MainActivity : ComponentActivity() {
         if (i?.getBooleanExtra("dice", false) == true) {                                    // fill every track with a pattern
             for (t in 0 until com.thorbox.model.TRACK_COUNT) if (state.trackKind(t) != com.thorbox.model.TrackKind.EMPTY) state.groove.diceNotes(t)
         }
+        i?.getStringExtra("synth")?.let { n ->
+            val name = n.replace('_', ' ')
+            if (name == "INIT") state.loadSynthPreset(com.thorbox.model.SynthPreset("INIT", com.thorbox.model.SynthCategory.KEYS, com.thorbox.model.SynthPatch()))
+            else state.presets.allSynth().firstOrNull { it.name == name }?.let(state::loadSynthPreset)
+        }
         i?.getStringExtra("kit")?.let { n -> state.presets.allKits().firstOrNull { it.name == n.replace('_', ' ') }?.let(state.drums::loadKit) }
         if (i?.hasExtra("drumpage") == true) state.drums.page.intValue = i.getIntExtra("drumpage", 0).coerceIn(0, 2)
         if (i?.hasExtra("latch") == true) i.getIntExtra("latch", -1).let { id -> if (id in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.toggleLatch(id, 0.3f, 0.7f) }
@@ -101,6 +106,7 @@ class MainActivity : ComponentActivity() {
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
+        if (i?.hasExtra("play") == true && !i.getBooleanExtra("play", true) && state.groove.playing.value) state.groove.togglePlay()
     }
 
     override fun onStart() {

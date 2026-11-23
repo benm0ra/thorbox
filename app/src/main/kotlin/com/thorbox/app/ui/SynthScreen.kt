@@ -62,6 +62,9 @@ fun SynthScreen(state: AppState) {
     val all = remember(userPresets) { state.presets.allSynth() }
     val currentPreset = all.firstOrNull { it.name == patch.name }
     val cat = currentPreset?.category
+    // The sound family drives the cat's scene: the preset's own, else the preset it was edited from, else a guess from the patch.
+    val guessed = remember(patch) { com.thorbox.model.guessCategory(patch) }
+    val family = cat ?: all.firstOrNull { it.name == patch.name.removeSuffix("*") }?.category ?: guessed
 
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp),
@@ -103,25 +106,42 @@ fun SynthScreen(state: AppState) {
                 }
             }) {
             HeroStatus(state, page, Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
-            ScopeBand(state, Tb.enc(knobs[lastTouched.intValue.coerceIn(0, 3)].color), overlay,
-                Modifier.align(Alignment.BottomStart).fillMaxWidth().height(34.dp).padding(horizontal = 12.dp, vertical = 4.dp))
-            Crossfade(targetState = page, animationSpec = tween(160), label = "page") { pg ->
-                val m = Modifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, top = 28.dp, bottom = 38.dp)
-                when (pg) {
-                    SynthPage.OSC -> OscViz(patch, state.telemetry, m)
-                    SynthPage.FILTER -> FilterViz(patch, state.telemetry, m)
-                    SynthPage.AMP -> EnvViz(patch, state.telemetry, amp = true, m)
-                    SynthPage.FENV -> EnvViz(patch, state.telemetry, amp = false, m)
-                    SynthPage.LFO -> LfoViz(patch, state.telemetry, m)
-                    SynthPage.PITCH -> PitchViz(patch, state.telemetry, m)
-                    SynthPage.VOICE -> VoiceViz(patch, state.telemetry, m)
+            // The page's animation keeps one half of the screen; the cat making biscuits gets the other.
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().padding(top = 26.dp)) {
+                val side = maxWidth > maxHeight * 1.1f
+                val vizHalf: @Composable (Modifier) -> Unit = { hm ->
+                    Box(hm) {
+                        ScopeBand(state, Tb.enc(knobs[lastTouched.intValue.coerceIn(0, 3)].color), overlay,
+                            Modifier.align(Alignment.BottomStart).fillMaxWidth().height(34.dp).padding(horizontal = 12.dp, vertical = 4.dp))
+                        Crossfade(targetState = page, animationSpec = tween(160), label = "page") { pg ->
+                            val m = Modifier.fillMaxSize().padding(start = 10.dp, end = 6.dp, top = 2.dp, bottom = 38.dp)
+                            when (pg) {
+                                SynthPage.OSC -> OscViz(patch, state.telemetry, m)
+                                SynthPage.FILTER -> FilterViz(patch, state.telemetry, m)
+                                SynthPage.AMP -> EnvViz(patch, state.telemetry, amp = true, m)
+                                SynthPage.FENV -> EnvViz(patch, state.telemetry, amp = false, m)
+                                SynthPage.LFO -> LfoViz(patch, state.telemetry, m)
+                                SynthPage.PITCH -> PitchViz(patch, state.telemetry, m)
+                                SynthPage.VOICE -> VoiceViz(patch, state.telemetry, m)
+                            }
+                        }
+                        // Focus readout for the encoder being turned
+                        val k = knobs[lastTouched.intValue.coerceIn(0, 3)]
+                        Column(Modifier.align(Alignment.TopEnd).padding(6.dp).alpha(overlay).glass(state, 12.dp).padding(horizontal = 12.dp, vertical = 6.dp), horizontalAlignment = Alignment.End) {
+                            Text(k.label, color = Tb.enc(k.color), fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.5.sp)
+                            Text(k.format(patch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 30.sp)
+                        }
+                    }
                 }
-            }
-            // Focus readout for the encoder being turned
-            val k = knobs[lastTouched.intValue.coerceIn(0, 3)]
-            Column(Modifier.align(Alignment.TopEnd).padding(10.dp).alpha(overlay).glass(state, 12.dp).padding(horizontal = 12.dp, vertical = 6.dp), horizontalAlignment = Alignment.End) {
-                Text(k.label, color = Tb.enc(k.color), fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.5.sp)
-                Text(k.format(patch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 34.sp)
+                if (side) Row(Modifier.fillMaxSize()) {
+                    vizHalf(Modifier.weight(1f).fillMaxHeight())
+                    Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(Tb.Line))
+                    BiscuitCat(state, family, synthCategoryColor(family), Modifier.weight(1f).fillMaxHeight())
+                } else Column(Modifier.fillMaxSize()) {
+                    vizHalf(Modifier.weight(1f).fillMaxWidth())
+                    Box(Modifier.height(1.dp).fillMaxWidth().padding(horizontal = 12.dp).background(Tb.Line))
+                    BiscuitCat(state, family, synthCategoryColor(family), Modifier.weight(1f).fillMaxWidth())
+                }
             }
         }
 

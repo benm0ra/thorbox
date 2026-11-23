@@ -125,6 +125,11 @@ shots() {
   adb exec-out screencap -p > "$d/drums-dust.png"
   adb shell am start -n $PKG/$ACT --ei drumpage 0 >/dev/null; sleep 1
   for v in SYNTH SEQ MIX VIZ; do adb shell am start -n $PKG/$ACT --es view $v >/dev/null; sleep 3; adb exec-out screencap -p > "$d/$v.png"; done
+  # the cat on the SYNTH screen: one shot per sound family (each has its own thing to knead)
+  for p in WARM_PAD 808_CLASSIC ACID_LINE SQUARE_LEAD E-PIANO TRAP_BELL ROBOT; do
+    adb shell am start -n $PKG/$ACT --es view SYNTH --es synth $p --ez play true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/cat-$p.png"
+  done
+  adb shell am start -n $PKG/$ACT --ez play false --es synth INIT >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"
   adb shell am start -n $PKG/$ACT --ei fx 0 >/dev/null; sleep 0.3
   adb shell am start -n $PKG/$ACT --ei fx 8 >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/fx-on.png"
