@@ -299,7 +299,8 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     drawLine(Tb.Line, Offset(0f, wh), Offset(w, wh), 1f)
                     for ((x, lay) in ticks) {
                         drawLine(Tb.Muted, Offset(x, wh), Offset(x, wh + 5.dp.toPx()), 1f)
-                        val lx = (x + 3.dp.toPx()).coerceAtMost(w - lay.size.width - 2f)
+                        // clear of the frame's rounded corners at both ends (0:00 was cut in half)
+                        val lx = (x + 3.dp.toPx()).coerceAtLeast(9.dp.toPx()).coerceAtMost(w - lay.size.width - 9.dp.toPx())
                         if (lx >= 0f) drawText(lay, topLeft = Offset(lx, wh + rulerH - lay.size.height - 1f))
                     }
                     barLabels.forEachIndexed { k, lay ->
@@ -361,7 +362,7 @@ private fun ChopControls(state: AppState) {
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(state, 12.dp).padding(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
     Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        HwButton("AUTO", Modifier.weight(1.1f).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
+        HwButton("AUTO", Modifier.width(56.dp).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
         if (mode == ChopMode.AUTO)
             DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(60.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })

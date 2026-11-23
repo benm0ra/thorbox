@@ -89,6 +89,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
     val nameStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 12.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, letterSpacing = 1.sp) }
     val readStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }
     val axisStyle = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontFamily = Tb.Mono) }
+    val nameFit = remember(Tb.palette) { floatArrayOf(-1f, 12f) }   // [tile width it was fitted for, font size]
     val tel = state.telemetry
     val cols = 3; val rows = FX_ROWS.size
     val xy = remember { FloatArray(Fx.COUNT * 2) { 0.5f } }       // last XY per effect (glyph + readout)
@@ -204,18 +205,21 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                     drawRect(accent, Offset(px - m, py - m), Size(2 * m, 2 * m), style = Stroke(1.5f * hair))
                 }
 
-                // header: index + name, and the group dot (filled = engaged, ring = ready, pulsing = tail)
-                // name between the index and the dot; long names (RESONATOR, TAPE STOP) step down a size,
-                // and on a narrow tile the index makes way, so text never runs under the dot
+                // header: index + name, and the group dot (filled = engaged, ring = ready, pulsing = tail).
+                // One size for every tile: the biggest at which the longest name (RESONATOR, TAPE STOP)
+                // still fits between the index and the dot, worked out once per tile width.
                 val name = FX_INFO[id]?.name ?: "?"
                 val dotRoom = 14.dp.toPx()
                 val nx = o.x + pad + 20.dp.toPx()
-                var ns = nameStyle
-                // every tile keeps its number; a long name steps down a size or two instead
-                for (fs in floatArrayOf(10f, 9f, 8f)) {
-                    if (tm.measure(name, ns).size.width <= o.x + s.width - pad - dotRoom - nx) break
-                    ns = nameStyle.copy(fontSize = fs.sp, letterSpacing = 0.3.sp)
+                val room = o.x + s.width - pad - dotRoom - nx
+                if (nameFit[0] != s.width) {
+                    nameFit[0] = s.width; nameFit[1] = 8f
+                    for (fs in floatArrayOf(12f, 11f, 10f, 9f, 8f)) {
+                        val st = nameStyle.copy(fontSize = fs.sp, letterSpacing = if (fs >= 12f) 1.sp else 0.4.sp)
+                        if (FX_INFO.values.all { tm.measure(it.name, st).size.width <= room }) { nameFit[1] = fs; break }
+                    }
                 }
+                val ns = nameStyle.copy(fontSize = nameFit[1].sp, letterSpacing = if (nameFit[1] >= 12f) 1.sp else 0.4.sp)
                 drawTextSafe(tm, String.format(java.util.Locale.US, "%02d", k + 1), o + Offset(pad, pad - 1f), idxStyle)
                 drawTextSafe(tm, name, Offset(nx, o.y + pad - 3f), ns)
                 val dot = Offset(o.x + s.width - pad - 4.dp.toPx(), o.y + pad + 6.dp.toPx())

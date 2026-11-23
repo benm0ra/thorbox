@@ -257,10 +257,12 @@ private fun Strip(
         Box(Modifier.fillMaxWidth().height(4.dp).background(color))                       // the track's colour band
         Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(name, color = color, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp, maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.navClickable(label = "OPEN $name") { Info.show("OPEN TRACK"); onName() } else Modifier))
+        // fixed-height header so MASTER (no ⋯) lines up with the track strips; long names shrink
+        // to fit rather than turning into "SAMPL…"
+        Row(Modifier.height(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            FitText(name, androidx.compose.ui.text.TextStyle(color = color, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp),
+                modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.navClickable(label = "OPEN $name") { Info.show("OPEN TRACK"); onName() } else Modifier),
+                minSize = 8f)
             if (onMenu != null) Text(" ⋯", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 14.sp,
                 modifier = Modifier.navClickable(label = "$name MENU") { Info.show("TRACK MENU"); onMenu() })
         }
