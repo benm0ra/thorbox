@@ -410,15 +410,19 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawNavRing(cornerDp: Float
     val o = Offset(inset, inset)
     val sz = Size(size.width - 2 * inset, size.height - 2 * inset)
     if (sz.width <= 0f || sz.height <= 0f) return
-    if (cornerDp == NavTarget.ROUND) {
+    // A round target that's really a knob WITH its label and value under it (taller than wide): a circle
+    // would cut through the text, so it gets the rounded frame around the whole control instead.
+    val roundish = cornerDp == NavTarget.ROUND && kotlin.math.abs(sz.width - sz.height) <= 0.15f * maxOf(sz.width, sz.height)
+    if (roundish) {
         val r = minOf(sz.width, sz.height) / 2f
         drawCircle(halo, r, center, style = Stroke(haloW))
         drawCircle(ink, r, center, style = Stroke(if (grabbed) w * 1.4f else w))
         if (grabbed) drawCircle(ink.copy(alpha = 0.18f), r, center)
         return
     }
-    val cr = CornerRadius(cornerDp.dp.toPx())
+    val cr = CornerRadius(if (cornerDp == NavTarget.ROUND) 18.dp.toPx() else cornerDp.dp.toPx())
     drawRoundRect(halo, o, sz, cr, style = Stroke(haloW))
+    if (grabbed && cornerDp == NavTarget.ROUND) drawRoundRect(ink.copy(alpha = 0.12f), o, sz, cr)
     drawRoundRect(ink.copy(alpha = if (grabbed) 1f else 0.55f), o, sz, cr, style = Stroke(if (grabbed) w * 1.4f else w * 0.6f))
     // corner brackets
     val L = minOf(14.dp.toPx(), sz.width / 3f, sz.height / 3f)

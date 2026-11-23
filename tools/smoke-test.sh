@@ -152,7 +152,7 @@ shots() {
   # EXPORT: the sheet; then a real bounce of the pattern ×2 (FLAC, stems, MIDI): files on disk, the result sheet
   adb shell am start -n $PKG/$ACT --es view SONG --ez exportsheet true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-export.png"
   adb logcat -c || true
-  adb shell am start -n $PKG/$ACT --ez exportsheet false --es exportnow pattern-flac-stems-midi >/dev/null; sleep 0.7
+  adb shell am start -n $PKG/$ACT --ez exportsheet false --es exportnow pattern-flac-stems-midi >/dev/null; sleep 2.5
   adb exec-out screencap -p > "$d/top-exporting.png"
   for _ in $(seq 1 90); do adb logcat -d -s Thorbox | grep -q "export:" && break; sleep 1; done
   sleep 1; adb exec-out screencap -p > "$d/top-export-done.png"

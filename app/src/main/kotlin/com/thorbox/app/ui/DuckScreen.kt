@@ -218,8 +218,9 @@ private fun DuckMeter(state: AppState, modifier: Modifier) {
         // the BOUNCE curve: 0 dB along the top, dips hang down (scale 0 … 30 dB)
         val cTop = barTop + barH + 10.dp.toPx(); val keyH = 22.dp.toPx()
         val cBot = h - keyH - 8.dp.toPx()
-        if (cBot - cTop > 20f) {
-            val span = cBot - cTop
+        val lblH = 14.dp.toPx()                                   // the BOUNCE label gets its own strip under the plot
+        if (cBot - lblH - cTop > 20f) {
+            val span = cBot - lblH - cTop
             for (db in intArrayOf(0, 6, 12, 24)) {
                 val y = cTop + span * db / 30f
                 drawLine(Tb.Line, Offset(0f, y), Offset(w, y), 1f)
@@ -241,7 +242,7 @@ private fun DuckMeter(state: AppState, modifier: Modifier) {
                 drawLine(Tb.Key, Offset(px, py), Offset(x, y), 2.dp.toPx(), cap = StrokeCap.Round)
                 px = x; py = y
             }
-            drawText(tm.measure("BOUNCE (last 3 s)", small), topLeft = Offset(0f, cBot - 12.dp.toPx()))
+            drawText(tm.measure("BOUNCE (last 3 s)", small), topLeft = Offset(0f, cTop + span + 1.dp.toPx()))
         }
 
         // the key against WEIGHT: −60 … 0 dBFS; past the WEIGHT line, it ducks
