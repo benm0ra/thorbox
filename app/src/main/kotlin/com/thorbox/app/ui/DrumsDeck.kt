@@ -82,6 +82,15 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
         val now = tel.timeSec
         val voices = dc.kit.value.voices
         val cw = size.width / 4f; val ch = size.height / 4f; val gap = 4.dp.toPx(); val r = CornerRadius(10.dp.toPx())
+        // One name size for all 16 pads (the biggest that fits the longest name), so the grid reads
+        // evenly instead of some names shrinking and others not.
+        val room = cw - 2 * gap - 18.dp.toPx()
+        var fit = 1f
+        for (s in 0 until minOf(DRUM_SLOTS, voices.size)) {
+            val wpx = tm.measure(voices[s].name, nameStyle).size.width
+            if (wpx > room) fit = minOf(fit, room / wpx)
+        }
+        val shared = if (fit >= 1f) nameStyle else nameStyle.copy(fontSize = (13f * fit).coerceAtLeast(9f).sp)
         for (s in 0 until DRUM_SLOTS) {
             val col = s % 4; val row = 3 - s / 4
             val dt = now - dc.hitTime[s]
@@ -107,14 +116,14 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
             drawRoundRect(c.copy(alpha = 0.62f + 0.38f * maxOf(pop, dc.levels[s].coerceIn(0f, 1f))), o, Size(w, h), r)
             if (s == dc.selected.intValue) drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(3.dp.toPx()))
             val v = voices.getOrNull(s) ?: continue
-            // name top-left (steps down a size if it's long), pad number bottom-right: they never meet
-            val room = w - 18.dp.toPx()
-            val ns = if (tm.measure(v.name, nameStyle).size.width > room) nameStyle.copy(fontSize = 11.sp) else nameStyle
-            drawTextSafe(tm, v.name, o + Offset(9.dp.toPx(), 7.dp.toPx()), ns)
+            // name top-left (same size on every pad), the sound type under it when the name doesn't say it,
+            // pad number bottom-right: they never meet
+            val nameLay = tm.measure(v.name, shared)
+            drawText(nameLay, topLeft = o + Offset(9.dp.toPx(), 7.dp.toPx()))
             val num = "${s + 1}"
             drawTextSafe(tm, num, Offset(o.x + w - 8.dp.toPx() - tm.measure(num, numStyle).size.width, o.y + h - 20.dp.toPx()), numStyle)
             if (!v.name.uppercase().contains(v.model.label.uppercase()) && tm.measure(v.model.label, modelStyle).size.width < room)
-                drawTextSafe(tm, v.model.label, o + Offset(9.dp.toPx(), 24.dp.toPx()), modelStyle)
+                drawTextSafe(tm, v.model.label, o + Offset(9.dp.toPx(), 7.dp.toPx() + nameLay.size.height + 1.dp.toPx()), modelStyle)
             // decay bar along the bottom: a quick read of the sound's length
             val frac = (kotlin.math.cbrt(((v.decayMs - 5f) / 3995f).coerceIn(0f, 1f)))
             drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(o.x + 9.dp.toPx(), o.y + h - 10.dp.toPx()), Size((w - 40.dp.toPx()).coerceAtLeast(4f) * frac, 3.dp.toPx()), CornerRadius(2.dp.toPx()))

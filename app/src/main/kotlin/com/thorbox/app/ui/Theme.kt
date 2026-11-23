@@ -19,6 +19,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
@@ -178,7 +179,13 @@ fun ThorboxTheme(content: @Composable () -> Unit) {
             bodyLarge = t.bodyLarge.m(), bodyMedium = t.bodyMedium.m(), bodySmall = t.bodySmall.m(),
             labelLarge = t.labelLarge.m(), labelMedium = t.labelMedium.m(), labelSmall = t.labelSmall.m())
     } else Typography()
-    MaterialTheme(colorScheme = scheme, typography = type) {
+    // Text() takes bodyLarge unless told otherwise, and its line height is a fixed 24 sp. Our labels are
+    // mostly 8-14 sp, so they sat low in a 24 sp line and got clipped by small chips (the drum rows,
+    // pad tabs…). Line height relative to the font size, centred, fixes every one of them at once.
+    val tight = type.copy(bodyLarge = type.bodyLarge.copy(lineHeight = 1.2.em,
+        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+            androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center, androidx.compose.ui.text.style.LineHeightStyle.Trim.None)))
+    MaterialTheme(colorScheme = scheme, typography = tight) {
         // Our own press/focus indication (FocusRing.kt): the NAV cursor's ring on every clickable.
         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalIndication provides FocusRingIndication, content = content)
     }

@@ -183,7 +183,7 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
     val track = state.drums.track
     val clip = g.clips.value[track]
     val steps = com.thorbox.app.groove.Steps.count(clip.lengthTicks)
-    val labelW = 34.dp
+    val labelW = 54.dp
     // 16 pads, 8 rows at a time: bank A = pads 1–8, B = 9–16 (follows the selected pad)
     val bankStart = (dc.selected.intValue / 8) * 8
     Row(modifier) {
@@ -194,7 +194,9 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(end = 3.dp).clip(RoundedCornerShape(4.dp))
                     .background(if (on) drumColor(s) else drumColor(s).copy(alpha = 0.28f))
                     .navClickable(label = dc.kit.value.voices[s].name) { dc.selected.intValue = s; dc.hit(s, 0.85f); dc.release(s) }, contentAlignment = Alignment.Center) {
-                    Text(dc.kit.value.voices[s].name.take(4), color = if (on) Tb.Black else Tb.Text, fontSize = 8.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    // the whole name, shrunk to fit and centred (it used to be cut to 4 letters and sat low in the chip)
+                    FitText(dc.kit.value.voices[s].name, androidx.compose.ui.text.TextStyle(color = if (on) Tb.Black else Tb.Text, fontSize = 9.sp,
+                        fontWeight = FontWeight.Black, lineHeight = 9.sp), modifier = Modifier.padding(horizontal = 3.dp), minSize = 6f)
                 }
             }
         }

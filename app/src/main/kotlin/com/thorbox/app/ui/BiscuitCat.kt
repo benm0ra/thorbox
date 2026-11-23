@@ -203,7 +203,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
             if (patch.lfo.target == LfoTarget.CUTOFF) bright = (bright + lfo * depthL * 0.15f).coerceIn(0f, 1f)
             // size from the octave: low = chonk, high = kitten
             val oct = patch.osc1.octave + (patch.osc2.octave - patch.osc1.octave) * mix
-            val size = 1.13f.pow(-oct).coerceIn(0.78f, 1.25f)
+            val catSize = 1.13f.pow(-oct).coerceIn(0.78f, 1.25f)
             // the hop on a pitch drop
             val hopH = (abs(v.pitchEnvSemis) * 0.7f).coerceAtMost(16f)
             val hopT = (v.pitchEnvDecayMs / 1000f * 3f).coerceIn(0.15f, 0.6f)
@@ -227,7 +227,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                 val rel = (log10(1f + patch.ampEnv.releaseMs) / 3.6f).coerceIn(0f, 1f)
                 val dl = press(beat, atk, rel); val dr = press((beat + 0.5f) % 1f, atk, rel)
                 val depth = 0.6f + 0.6f * amp
-                val pl = 120f + (82f - 120f) * size; val pr = 120f + (108f - 120f) * size
+                val pl = 120f + (82f - 120f) * catSize; val pr = 120f + (108f - 120f) * catSize
                 when (family) {
                     SynthCategory.PAD -> pillow(cs, dl * depth, dr * depth, pl, pr, now, amp, accent)
                     SynthCategory.SUB808 -> waterbed(beat, dl * depth, dr * depth, pl, pr, now, amp, accent, cs)
@@ -247,13 +247,13 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                     cs.twin.alpha = (0.18f + 0.35f * mix).coerceAtMost(0.5f)
                     val lag = (abs(det) / 400f).coerceAtMost(0.2f)
                     drawIntoCanvas { it.saveLayer(Rect(0f, 0f, 240f, 200f), cs.twin) }
-                    withTransform({ translate(drift, hop * 0.8f); scale(size, size, Offset(120f, 142f)) }) {
+                    withTransform({ translate(drift, hop * 0.8f); scale(catSize, catSize, Offset(120f, 142f)) }) {
                         cat(cs, now - lag, (beat + 1f - lag) % 1f, playing, amp, lfo, press((beat + 1f - lag) % 1f, atk, rel),
                             press((beat + 1.5f - lag) % 1f, atk, rel), sink * depth, 82f, 108f)
                     }
                     drawIntoCanvas { it.restore() }
                 }
-                withTransform({ translate(0f, hop); scale(size, size, Offset(120f, 142f)) }) {
+                withTransform({ translate(0f, hop); scale(catSize, catSize, Offset(120f, 142f)) }) {
                     cat(cs, now, beat, playing, amp, lfo, dl, dr, sink * depth, 82f, 108f)
                 }
                 // POLY: kittens kneading along the front edge

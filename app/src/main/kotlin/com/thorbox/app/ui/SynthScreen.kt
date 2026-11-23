@@ -133,16 +133,18 @@ fun SynthScreen(state: AppState) {
                         }
                     }
                 }
+                // The character on the left, the readouts on the right: the same order as the drum screen
+                // (Big Dawg | step grid), so every instrument page reads the same way.
                 if (side) Row(Modifier.fillMaxSize()) {
-                    vizHalf(Modifier.weight(1f).fillMaxHeight())
-                    Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(Tb.Line))
                     BiscuitCat(state, family, synthCategoryColor(family), patch,
                         catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxHeight())
+                    Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(Tb.Line))
+                    vizHalf(Modifier.weight(1f).fillMaxHeight())
                 } else Column(Modifier.fillMaxSize()) {
-                    vizHalf(Modifier.weight(1f).fillMaxWidth())
-                    Box(Modifier.height(1.dp).fillMaxWidth().padding(horizontal = 12.dp).background(Tb.Line))
                     BiscuitCat(state, family, synthCategoryColor(family), patch,
                         catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxWidth())
+                    Box(Modifier.height(1.dp).fillMaxWidth().padding(horizontal = 12.dp).background(Tb.Line))
+                    vizHalf(Modifier.weight(1f).fillMaxWidth())
                 }
             }
         }
