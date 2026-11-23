@@ -93,11 +93,16 @@ Go @('--ez', 'meters', 'false')
 foreach ($t in 0..4) { Go @('--ei', 'settings', "$t"); Shot "settings-$t" 2 }
 Go @('--ei', 'settings', '-1', '--ez', 'mic', 'true');  Shot 'recorder' 2
 Go @('--ez', 'mic', 'false')
+# DUCK: keyed off the kick, the sampler + synth dipping, playing (a few frames: the rat pumps)
+Go @('--es', 'view', 'DUCK', '--ez', 'duckdemo', 'true', '--ez', 'play', 'true'); Shot 'duck-1' 2
+Shot 'duck-2' 0
+Go @('--es', 'duckpreset', 'HEAVY_DILLA_PUMP'); Shot 'duck-dilla' 2
 # every theme on the screens that draw the most: synth (cat | waveform), drums, mixer
 foreach ($th in 'genesis', 'studio', 'bodega', 'cyberpunk', 'vintage', 'pastel', 'terminal', 'grayscale') {
     Go @('--es', 'theme', $th, '--es', 'view', 'SYNTH', '--es', 'deck', 'KEYS'); Shot "theme-$th-synth" 3
     Go @('--es', 'view', 'DRUM', '--es', 'deck', 'DRUMS'); Shot "theme-$th-drums" 2
     Go @('--es', 'view', 'MIX', '--es', 'deck', 'FX');     Shot "theme-$th-mixer" 2
+    Go @('--es', 'view', 'DUCK');                            Shot "theme-$th-duck" 2
 }
 Go @('--es', 'theme', 'genesis')
 

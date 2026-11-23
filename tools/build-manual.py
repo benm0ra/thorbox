@@ -44,6 +44,7 @@ SHOTS = {
     "drums.jpg": ("drums-dust.png", (180, 0, 1170, 1010)),
     "mixer.jpg": ("MIX.png", (180, 0, 1170, 1010)),
     "look.jpg": ("settings-look.png", (0, 0, 1170, 1060)),
+    "duck.jpg": ("top-duck-pastel-2.png", (180, 0, 1920, 1010)),
 }
 
 

@@ -12,6 +12,8 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 
 ## New in this round
 
+- **DUCK, a sidechain page for the whole mix.** One key (the kick alone, any track, or a ghost BEAT) ducks any set of tracks: WEIGHT, SQUASH, SNAP, BOUNCE, PUMP and LOUD are real threshold, ratio, attack, release, mix and makeup. There are four presets (BOOM BAP POCKET, HEAVY DILLA PUMP, SUBTLE GLUE, LO-FI GHOST), a gain-reduction meter with the last 3 s of the pump, and an NYC subway rat on the DUCK ST platform. He holds a slice overhead and squashes by the real gain reduction, then rises on the release. The mixer's PUMP moved here (older projects carry over).
+
 - **Sampler: 1 AT A TIME** (the default). Playing a pad silences the pad before it, so chops never pile up; turn it off in PAD EDIT → MUTE to layer them. Mute groups and targets still work either way.
 - **Sampler: transpose ALL.** The PITCH − / + buttons switch between the selected pad and **ALL** pads (a track transpose on top of each pad's pitch, saved with the project).
 - **Bottom screen:** a status line where the empty NAV band was (track, sample · pad · mode · 1 AT A TIME, key, kit, bar.beat with beat lights), and pads that show their slice's waveform, play mode, mute group, pitch and length.
@@ -34,7 +36,7 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 
 ## What works now
 
-- **8 tracks, any instrument on any track:** chop a jazz loop on one sampler track, a drum break on another, and add an 808 and a lead synth. **MIXER → + TRACK** adds a sampler, synth or drum-synth track. Each strip has a sideways-only pan above the fader (so raising a fader can't pan by accident), a relative-drag fader with a dB scale, LED meters with peak hold and a clip light, mute, solo and **PUMP** (sidechain compression from any other track).
+- **8 tracks, any instrument on any track:** chop a jazz loop on one sampler track, a drum break on another, and add an 808 and a lead synth. **MIXER → + TRACK** adds a sampler, synth or drum-synth track. Each strip has a sideways-only pan above the fader (so raising a fader can't pan by accident), a relative-drag fader with a dB scale, LED meters with peak hold and a clip light, mute and solo. Sidechain ducking lives on the **DUCK** page.
 - **Projects:** the whole session (tracks, patterns, automation, mixer, sounds, kits, sampler chops) saves itself every few seconds and when the app goes to the background, and the last project reopens at launch. **⚙ → PROJECTS** has save, save as new, new, open, rename, copy and delete. Each project keeps its own copy of its samples, so it still opens if the originals move.
 - **Field recorder:** record from the Thor's mic with a live waveform, clip warning and clock. Recordings save to *Music/Clamshell Beats/Field Recordings* and land on the pads, already chopped.
 - **DEMO BREAK:** a built-in 90 BPM boom-bap break, to try the sampler before picking a folder.

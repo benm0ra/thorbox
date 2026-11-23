@@ -173,7 +173,11 @@ enum class DuckKnob(val label: String, val real: String) {
     }
     fun format(d: DuckSettings): String = when (this) {
         WEIGHT -> String.format(Locale.US, "%.0f dB", d.thresholdDb)
-        SQUASH -> if (d.ratio >= 19.95f) "∞:1" else String.format(Locale.US, if (d.ratio < 10f) "%.1f:1" else "%.0f:1", d.ratio)
+        SQUASH -> when {
+            d.ratio >= 19.95f -> "∞:1"
+            abs(d.ratio - d.ratio.roundToInt()) < 0.05f || d.ratio >= 10f -> "${d.ratio.roundToInt()}:1"
+            else -> String.format(Locale.US, "%.1f:1", d.ratio)
+        }
         SNAP -> String.format(Locale.US, if (d.attackMs < 10f) "%.1f ms" else "%.0f ms", d.attackMs)
         BOUNCE -> String.format(Locale.US, "%.0f ms", d.releaseMs)
         PUMP -> "${(d.mix * 100).roundToInt()}%"
@@ -267,9 +271,14 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
     val g = state.groove
     val tel = state.telemetry
     val tm = rememberTextMeasurer(cacheSize = 16)
-    val sign = remember { TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
-    val bullet = remember { TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black) }
-    val boom = remember { TextStyle(color = Color(0xFFFFE27A), fontSize = 12.sp, fontWeight = FontWeight.Black) }
+    // text drawn INSIDE the scaled scene is sized in scene units (1 unit = 1 px before the scale), so
+    // the sign reads the same at any size instead of being scaled twice
+    val dens = androidx.compose.ui.platform.LocalDensity.current
+    fun unitSp(u: Float) = (u / dens.density / dens.fontScale).sp
+    val sign = remember(dens) { TextStyle(color = Color.White, fontSize = unitSp(15f), fontWeight = FontWeight.Black, letterSpacing = unitSp(1f)) }
+    val bullet = remember(dens) { TextStyle(color = Color.White, fontSize = unitSp(11f), fontWeight = FontWeight.Black) }
+    val boom = remember(dens) { TextStyle(color = Color(0xFFFFE27A), fontSize = unitSp(13f), fontWeight = FontWeight.Black) }
+    val notice = remember { TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
     val rs = remember { RatState() }
     val slice = remember { Path() }; val tail = remember { Path() }
     Canvas(modifier) {
@@ -302,14 +311,14 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
             if (since in 0f..0.45f && d.on) {
                 val a = 1f - since / 0.45f
                 val t = tm.measure("BOOM", boom)
-                withTransform({ translate(150f, 40f - since * 30f); scale(0.9f + since, 0.9f + since, Offset.Zero) }) {
+                withTransform({ translate(158f, 66f - since * 24f); scale(0.9f + since, 0.9f + since, Offset.Zero) }) {
                     drawText(t, topLeft = Offset(-t.size.width / 2f, 0f), alpha = a)
                 }
             }
         }
         if (!d.on) {
             drawRect(Color.Black.copy(alpha = 0.35f), Offset.Zero, size)
-            val t = tm.measure(when { d.source < 0 -> "PICK A KEY ↓"; d.targets == 0 -> "PICK WHAT DIPS ↓"; else -> "DUCK IS OFF" }, sign)
+            val t = tm.measure(when { d.source < 0 -> "PICK A KEY ↓"; d.targets == 0 -> "PICK WHAT DIPS ↓"; else -> "DUCK IS OFF" }, notice)
             drawText(t, topLeft = Offset((size.width - t.size.width) / 2f, size.height * 0.12f))
         }
     }

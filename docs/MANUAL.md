@@ -151,13 +151,38 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 **MIXER** has a strip per track, coloured like its instrument; **+ TRACK** adds a sampler, synth or drum track (8 tracks, any instrument on any track). From the top down, each strip has:
 
-- **Name** (tap to open the track) and **⋯** (the track menu: PUMP, rename, delete).
+- **Name** (tap to open the track) and **⋯** (the track menu: DUCK THIS TRACK, open the DUCK page, clear, remove).
 - **Pan** above the fader. It only follows sideways drags, so a fader move can't pan by accident. It moves relative to where you touch, and a double-tap re-centres it. The readout says C, L40 or R25.
 - **Fader** on its own, with the dB readout above it. Grab it anywhere: it moves relative to your finger and never jumps to it. The scale marks +6, 0, −6, −12, −24, −48 and −∞; a double-tap returns to 0 dB.
 - **LED meters** (left and right) with peak hold, and a **clip light** that stays on for a moment after an overload.
-- **M / S** for mute and solo. With PUMP on, a thin bar shows how hard the sidechain is ducking the track right now.
+- **M / S** for mute and solo. On a track that DUCK turns down, a thin bar shows how far it's ducked right now.
 
 The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your finger for its X / Y, latch it to keep it on, **ALL DRY** to kill everything. TONE: filter + drive, isolator, lo-fi. TIME: looper, scatter, slicer. SPACE: tape echo, reverb, resonator. MEDIA: vinyl, cassette, tape stop. **TILT** steers held effects by leaning the Thor; shake it to dice.
+
+### DUCK (sidechain)
+
+![DUCK: the rat on DUCK ST](img/duck.jpg)
+
+**DUCK** (on the rail, after MIXER) makes tracks dip every time a **KEY** hits, then swell back up in time. That's the boom-bap pump: the chop breathes with the kick while the drums stay punchy. It's one sidechain compressor for the whole mix.
+
+- **KEY** is what makes it duck: a track, or **BEAT** (a ghost kick on every quarter note, no drum needed). With a drum track you pick one voice (**KICK ▸**, tap to step through the kit, or ALL DRUMS), so only the kick pumps the mix and the snare doesn't.
+- **DIPS** are the tracks that get ducked: tap as many as you like. Drums usually stay dry. A track can't duck itself.
+- **The six knobs** (kid name = the real control):
+
+| Knob | Real control | Range | What you hear |
+|---|---|---|---|
+| WEIGHT | threshold | −60 … 0 dB | how hard the key must hit before anything ducks (lower = ducks more often) |
+| SQUASH | ratio | 1:1 … ∞:1 | how far it pushes the targets down: a nudge at 2:1, a slam at ∞ |
+| SNAP | attack | 0.1 … 50 ms | how fast it grabs. Fast lets the kick's click through clean |
+| BOUNCE | release | 20 … 1000 ms | how fast the targets swell back. This is the swing of the pump |
+| PUMP | mix | 0 … 100 % | how much of the ducking you hear |
+| LOUD | makeup | 0 … +12 dB | turns the ducked tracks back up so the mix stays loud |
+
+- **Presets** set the sound and keep your routing: **BOOM BAP POCKET** (the chop dips under every kick), **HEAVY DILLA PUMP** (deep and slow, the loop breathes), **SUBTLE GLUE** (a nudge), **LO-FI GHOST** (a soft, slow swell). **ON / OFF** keeps every setting.
+- **The rat** stands on the DUCK ST platform holding a slice over his head. Every kick drops its weight on him, and he squashes exactly as far as the mix ducks; then he pushes it back up along the BOUNCE curve. Between kicks he nods to the tempo, and the boombox, the pigeon and the steam grate react to the key.
+- **The meter** beside him shows how far the targets are down right now, the last 3 seconds of it as a curve (the dips are the kicks, the climbs are BOUNCE), and the key's level against the **WEIGHT** line: cross the line and it ducks.
+
+Older projects that used the mixer's PUMP open with those settings moved onto the DUCK page.
 
 ## 9. Projects and settings
 
@@ -176,6 +201,7 @@ The whole session saves itself every few seconds and when the app goes to the ba
 | DRUMS | ◀ ▶ step, ▲ ▼ sound · A toggle step · R1 hold plays the sound · sticks = encoders · X dice beat · Y undo · L3 next kit · R3 dice kit |
 | STEPS | ◀ ▶ step, ▲ ▼ lane · A toggle · X dice · Y undo |
 | MIXER | ◀ ▶ channel, ▲ ▼ ±1 dB · A mute · Y solo · X open the track · left stick volume · right stick pan |
+| DUCK | left stick ◀ ▶ WEIGHT, ▲ ▼ SQUASH · right stick ◀ ▶ SNAP, ▲ ▼ BOUNCE · ▲ ▼ PUMP ±5 % · ◀ ▶ preset · A plays the key · X next key · Y on / off |
 | FX deck | D-pad picks an effect · A / R1 hold punches in · sticks sweep X / Y · X latch · Y ALL DRY |
 | always | START play / stop · B back · L1 hold note repeat · L2 / R2 filter / stutter punch-in |
 
