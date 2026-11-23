@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.font.FontWeight
@@ -158,26 +159,29 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     drawOval(CREAM_SHADOW, Offset(pfx - 2f - 8f - 2f * df, pfy - 5f), Size(16f + 4f * df, 10f))
 
     // ---- body: back, haunch, belly ----
-    p.reset()
-    p.moveTo(90f, 98f)
-    p.cubicTo(110f, 80f, 166f, 78f, 192f, 94f)
-    p.cubicTo(210f, 106f, 208f, 136f, 188f, 143f)
-    p.lineTo(152f, 143f)
-    p.cubicTo(142f, 134f, 130f, 124f, 116f, 121f)
-    p.cubicTo(102f, 119f, 90f, 114f, 87f, 106f)
-    p.cubicTo(86f, 102f, 87f, 100f, 90f, 98f)
-    p.close()
-    drawPath(p, FUR)
-    drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+    val body = cs.path2                                                                         // kept: the stripes clip to it
+    body.reset()
+    body.moveTo(90f, 98f)
+    body.cubicTo(110f, 80f, 166f, 78f, 192f, 94f)
+    body.cubicTo(210f, 106f, 208f, 136f, 188f, 143f)
+    body.lineTo(152f, 143f)
+    body.cubicTo(142f, 134f, 130f, 124f, 116f, 121f)
+    body.cubicTo(102f, 119f, 90f, 114f, 87f, 106f)
+    body.cubicTo(86f, 102f, 87f, 100f, 90f, 98f)
+    body.close()
+    drawPath(body, FUR)
     p.reset(); p.moveTo(150f, 142f); p.cubicTo(146f, 120f, 160f, 100f, 184f, 100f)            // haunch
     drawPath(p, FUR_DARK, style = Stroke(2f, cap = StrokeCap.Round))
     drawOval(CREAM, Offset(150f, 136.5f), Size(20f, 9f))                                        // hind paw
     drawOval(OUT, Offset(150f, 136.5f), Size(20f, 9f), style = Stroke(1f))
-    for (k in 0 until 4) {                                                                      // tabby stripes
-        val x = 130f + k * 14.5f; val y = if (k == 0) 84f else 82f
-        p.reset(); p.moveTo(x, y); p.quadraticTo(x + 3f, y + 8f, x, y + 14f)
-        drawPath(p, FUR_DARK, style = Stroke(3f, cap = StrokeCap.Round))
+    clipPath(body) {                                                                            // tabby stripes, inside her coat only
+        for (k in 0 until 4) {
+            val x = 130f + k * 14.5f; val y = 78f
+            p.reset(); p.moveTo(x, y); p.quadraticTo(x + 3f, y + 10f, x, y + 18f)
+            drawPath(p, FUR_DARK, style = Stroke(3f, cap = StrokeCap.Round))
+        }
     }
+    drawPath(body, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
     // purr: little lines off her chest while anything sounds
     if (amp > 0.02f || playing) {
         val j = sin(now * 60f) * 1f

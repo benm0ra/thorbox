@@ -1060,8 +1060,8 @@ private val CAP_SHADE = Color(0xFF0C152A)
 private val STICKER = Color(0xFFE0B03A)
 
 /**
- * The fitted cap: navy crown with panel seams, a top button, the interlocking "CB" monogram
- * (Clamshell Beats; our own mark) and the gold size sticker left on the brim, the way it should be.
+ * The fitted cap: navy crown with panel seams, a top button, a dog's face embroidered on the front
+ * and the gold size sticker left on the brim, the way it should be.
  */
 private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float) {
     val base = cy - 22f - hop * 0.5f
@@ -1072,11 +1072,17 @@ private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float)
     drawLine(CAP_SHADE, Offset(cx + 16f, capTop + 6f), Offset(cx + 25f, base), 1.5f)
     drawCircle(CAP_SHADE, 3.5f, Offset(cx, capTop + 1f))
     val mx = cx; val my = capTop + (base - capTop) * 0.55f
+    // the patch: a dog's face (floppy ears, a muzzle, a little smile), embroidered in white
     val ink = Color(0xFFF4F4F5)
-    drawArc(ink, 50f, 260f, false, Offset(mx - 11f, my - 8f), Size(14f, 16f), style = Stroke(2.4f, cap = StrokeCap.Round))
-    drawLine(ink, Offset(mx - 1f, my - 8f), Offset(mx - 1f, my + 8f), 2.4f, cap = StrokeCap.Round)
-    drawArc(ink, -90f, 180f, false, Offset(mx - 5f, my - 8f), Size(11f, 8f), style = Stroke(2.2f))
-    drawArc(ink, -90f, 180f, false, Offset(mx - 5f, my), Size(13f, 8f), style = Stroke(2.2f))
+    withTransform({ translate(mx, my); scale(1.3f, 1.3f, Offset.Zero) }) {
+        rotate(25f, Offset(-7.5f, -1f)) { drawOval(ink, Offset(-10.9f, -6.4f), Size(6.8f, 10.8f)) }
+        rotate(-25f, Offset(7.5f, -1f)) { drawOval(ink, Offset(4.1f, -6.4f), Size(6.8f, 10.8f)) }
+        drawOval(ink, Offset(-7f, -7f), Size(14f, 13f))
+        drawOval(CHROME, Offset(-4.6f, -0.6f), Size(9.2f, 6.4f))
+        drawOval(CAP, Offset(-2f, 0.1f), Size(4f, 2.6f))
+        drawCircle(CAP, 1f, Offset(-3f, -2.6f)); drawCircle(CAP, 1f, Offset(3f, -2.6f))
+        drawArc(CAP, 20f, 140f, false, Offset(-2f, 2.6f), Size(4f, 3f), style = Stroke(0.7f))
+    }
     drawOval(CAP_SHADE, Offset(cx - 50f, base - 4f), Size(100f, 14f))
     drawOval(CAP, Offset(cx - 50f, base - 6f), Size(100f, 12f))
     drawCircle(STICKER, 4.5f, Offset(cx + 28f, base))
