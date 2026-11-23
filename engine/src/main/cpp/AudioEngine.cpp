@@ -245,6 +245,14 @@ bool AudioEngine::setPadRegion(int pad, int64_t s, int64_t e) {
     Command c{CmdType::SetPadRegion, pad, (int32_t)s}; c.i1 = (int32_t)e;
     return mCmds.push(c);
 }
+bool AudioEngine::setPadParam(int pad, int param, float v) {
+    if (pad < 0 || pad >= kMaxPads || param < 0 || param > (int)PadParam::VelSens || !std::isfinite(v)) return false;
+    return mCmds.push({CmdType::SetPadParam, pad, param, v});
+}
+bool AudioEngine::stopPads(int track) {
+    if (track < -1 || track >= kTracks) return false;
+    return mCmds.push({CmdType::StopPads, track, 0, 0.f});
+}
 bool AudioEngine::setPadGain(int pad, float g) {
     if (pad < 0 || pad >= kMaxPads) return false;
     return mCmds.push({CmdType::SetPadGain, pad, 0, std::clamp(g, 0.f, 16.f)});
@@ -445,6 +453,34 @@ bool AudioEngine::getPeaks(int sampleId, int buckets, float* out) {
     return true;
 }
 
+// [min, max, rms] per bucket of the mono mix: the waveform view draws the peaks as the outline
+// and the RMS as the solid body (what you hear as loudness).
+bool AudioEngine::getWave(int sampleId, int buckets, float* out) {
+    std::shared_ptr<SampleBuffer> buf;
+    {
+        std::lock_guard<std::mutex> l(mRegMtx);
+        auto it = mRegistry.find(sampleId);
+        if (it == mRegistry.end()) return false;
+        buf = it->second.buf;
+    }
+    if (buckets <= 0 || buf->frames <= 0) return false;
+    const int ch = buf->channels;
+    const float inv = 1.f / (float)ch;
+    const float* d = buf->data.data();
+    for (int b = 0; b < buckets; ++b) {
+        const int64_t a = buf->frames * b / buckets;
+        const int64_t e = std::min(buf->frames, std::max(a + 1, buf->frames * (b + 1) / buckets));
+        float mn = 0.f, mx = 0.f; double sq = 0.0;
+        for (int64_t f = a; f < e; ++f) {
+            float s = d[f * ch];
+            if (ch == 2) s = (s + d[f * ch + 1]) * 0.5f; else for (int c = 1; c < ch; ++c) s += d[f * ch + c] * inv;
+            mn = std::min(mn, s); mx = std::max(mx, s); sq += (double)s * s;
+        }
+        out[3 * b] = mn; out[3 * b + 1] = mx; out[3 * b + 2] = (float)std::sqrt(sq / (double)std::max<int64_t>(1, e - a));
+    }
+    return true;
+}
+
 bool AudioEngine::regionLevels(int sampleId, const int64_t* starts, const int64_t* ends, int n, float* outPeakDb, float* outLoudDb) {
     std::shared_ptr<SampleBuffer> buf;
     {
@@ -565,6 +601,29 @@ void AudioEngine::handleCommand(const Command& c) {
         case CmdType::RepeatVelocity: mSeq.setRepeatVelocity(c.f0); break;
         case CmdType::SetPadRegion: mPads[c.pad].start = c.i0; mPads[c.pad].end = c.i1; break;
         case CmdType::SetPadGain: mPads[c.pad].gain = c.f0; break;
+        case CmdType::SetPadParam: {
+            PadState& p = mPads[c.pad];
+            const float v = c.f0;
+            switch ((PadParam)c.i0) {
+                case PadParam::Pan:         p.opts.pan = std::clamp(v, -1.f, 1.f); break;
+                case PadParam::AttackMs:    p.opts.attackMs = std::clamp(v, 1.f, 5000.f); break;
+                case PadParam::DecayMs:     p.opts.decayMs = std::clamp(v, 0.f, 20000.f); break;
+                case PadParam::ReleaseMs:   p.opts.releaseMs = std::clamp(v, 1.f, 5000.f); break;
+                case PadParam::Cutoff:      p.opts.cutoff = std::clamp(v, 0.f, 1.f); break;
+                case PadParam::Reso:        p.opts.reso = std::clamp(v, 0.f, 1.f); break;
+                case PadParam::Reverse:     p.opts.reverse = v >= 0.5f; break;
+                case PadParam::MuteGroup:   p.muteGroup = std::clamp((int)std::lround(v), 0, 16); break;
+                case PadParam::MuteTargetA: p.muteA = std::clamp((int)std::lround(v), -1, kPreviewPad - 1); break;
+                case PadParam::MuteTargetB: p.muteB = std::clamp((int)std::lround(v), -1, kPreviewPad - 1); break;
+                case PadParam::Poly:        p.poly = v >= 0.5f; break;
+                case PadParam::VelSens:     p.velSens = std::clamp(v, 0.f, 1.f); break;
+            }
+            break;
+        }
+        case CmdType::StopPads:
+            for (auto& v : mVoices)
+                if (v.active() && !v.releasing() && (c.pad < 0 || v.pad() / kPadsPerTrack == c.pad)) v.release(25.f, sr);
+            break;
         case CmdType::FxOn:   mFx.engage(c.i0, c.f0, c.f1); break;
         case CmdType::FxMove: mFx.move(c.i0, c.f0, c.f1); break;
         case CmdType::FxOff:  mFx.release(c.i0); break;
@@ -626,17 +685,33 @@ void AudioEngine::startPad(int pad, float vel, float sr) {
     if (pad < 0 || pad >= kMaxPads) return;
     PadState& p = mPads[pad];
     if (!p.buf) return;
-    // Each pad is monophonic, like classic samplers: a retrigger fades the previous hit out over 4 ms.
-    for (auto& v : mVoices)
-        if (v.active() && v.pad() == pad && !v.releasing()) v.release(4.f, sr);
-    const float gain = 0.1f + 0.9f * vel * vel;   // a gentle curve: soft taps stay audible
-    allocVoice()->start(p.buf, pad, p.pitchRatio, gain * p.gain, p.mode, sr, ++mVoiceStamp, p.start, p.end);
+    // MONO pads (the default, like classic samplers): a retrigger fades the previous hit out over 4 ms.
+    // POLY pads let hits overlap.
+    if (!p.poly)
+        for (auto& v : mVoices)
+            if (v.active() && v.pad() == pad && !v.releasing()) v.release(4.f, sr);
+    // Mute group: every other pad on this track in the same group is cut (open / closed hat).
+    // Mute targets: up to two specific pads this one cuts.
+    const int track = pad / kPadsPerTrack, local = pad % kPadsPerTrack;
+    if (p.muteGroup > 0 || p.muteA >= 0 || p.muteB >= 0) {
+        for (auto& v : mVoices) {
+            if (!v.active() || v.releasing() || v.pad() == pad || v.pad() / kPadsPerTrack != track) continue;
+            const int other = v.pad() % kPadsPerTrack;
+            if (other == kPreviewPad) continue;
+            const bool grouped = p.muteGroup > 0 && mPads[v.pad()].muteGroup == p.muteGroup;
+            if (grouped || other == p.muteA || other == p.muteB) v.release(10.f, sr);
+        }
+    }
+    (void)local;
+    const float curve = 0.1f + 0.9f * vel * vel;   // a gentle curve: soft taps stay audible
+    const float gain = 1.f + (curve - 1.f) * p.velSens;
+    allocVoice()->start(p.buf, pad, p.pitchRatio, gain * p.gain, p.mode, sr, ++mVoiceStamp, p.start, p.end, p.opts);
 }
 
 void AudioEngine::releasePad(int pad, float sr) {
     for (auto& v : mVoices)
         if (v.active() && v.pad() == pad && v.mode() != PlayMode::OneShot && !v.releasing())
-            v.release(15.f, sr);
+            v.release(sr);                                // the pad's own release time
 }
 
 // Live hits are recorded only while recording AND playing. They're also registered with the

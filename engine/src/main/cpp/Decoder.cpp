@@ -128,65 +128,74 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut, DecodeP
         }
     }
     const int64_t capUs = kMaxSeconds * 1000000LL;
-    bool inEos = false, outEos = false;
+    bool inEos = false, outEos = false, stop = false;
     int idleSpins = 0;
     int reportEvery = 0;
-    while (!outEos) {
-        if (!inEos) {
-            ssize_t ib = AMediaCodec_dequeueInputBuffer(codec.p, 2000);
-            if (ib >= 0) {
-                size_t cap = 0;
-                uint8_t* buf = AMediaCodec_getInputBuffer(codec.p, (size_t)ib, &cap);
-                ssize_t n = AMediaExtractor_readSampleData(ex.p, buf, cap);
-                const int64_t t = AMediaExtractor_getSampleTime(ex.p);
-                if (n >= 0 && t > capUs) {                        // past 10 minutes: keep what we have
-                    n = -1;
-                    if (prog) prog->truncated = true;
-                }
-                if (prog && prog->report && ++reportEvery >= 32) {
-                    reportEvery = 0;
-                    const float frac = durUs > 0 ? (float)std::min(1.0, (double)t / (double)std::min(durUs, capUs)) : -1.f;
-                    if (!prog->report(frac)) return fail("cancelled");
-                }
-                if (n < 0) {
-                    AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
-                    inEos = true;
-                } else {
-                    AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, (size_t)n, AMediaExtractor_getSampleTime(ex.p), 0);
-                    AMediaExtractor_advance(ex.p);
-                }
+    // Feed every free input buffer and drain every ready output buffer each pass, without waiting.
+    // Only when a whole pass moved nothing do we block (briefly) for the codec. The old loop took one
+    // buffer each way per pass and waited 2 ms twice, which capped MP3/AAC decoding at ~10-15x
+    // realtime (a 4-minute song took 15-20 s); this runs as fast as the decoder itself.
+    while (!outEos && !stop) {
+        bool moved = false;
+        while (!inEos) {
+            const ssize_t ib = AMediaCodec_dequeueInputBuffer(codec.p, 0);
+            if (ib < 0) break;
+            moved = true;
+            size_t cap = 0;
+            uint8_t* buf = AMediaCodec_getInputBuffer(codec.p, (size_t)ib, &cap);
+            ssize_t n = buf ? AMediaExtractor_readSampleData(ex.p, buf, cap) : -1;
+            const int64_t t = AMediaExtractor_getSampleTime(ex.p);
+            if (n >= 0 && t > capUs) {                        // past 10 minutes: keep what we have
+                n = -1;
+                if (prog) prog->truncated = true;
+            }
+            if (prog && prog->report && ++reportEvery >= 32) {
+                reportEvery = 0;
+                const float frac = durUs > 0 ? (float)std::min(1.0, (double)t / (double)std::min(durUs, capUs)) : -1.f;
+                if (!prog->report(frac)) return fail("cancelled");
+            }
+            if (n < 0) {
+                AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
+                inEos = true;
+            } else {
+                AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, (size_t)n, t, 0);
+                AMediaExtractor_advance(ex.p);
             }
         }
-        AMediaCodecBufferInfo info{};
-        ssize_t ob = AMediaCodec_dequeueOutputBuffer(codec.p, &info, 2000);
-        if (ob >= 0) {
-            idleSpins = 0;
-            if (info.size > 0) {
-                size_t sz = 0;
-                const uint8_t* p = AMediaCodec_getOutputBuffer(codec.p, (size_t)ob, &sz);
-                // Never trust codec-reported offsets: they must lie inside the buffer we were given.
-                const bool inBounds = p && info.offset >= 0 &&
-                    (size_t)info.offset + (size_t)info.size <= sz;
-                const bool fmtOk = ch >= 1 && ch <= kMaxChannels;
-                if (inBounds && fmtOk) {
-                    appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data);
+        while (!outEos) {
+            AMediaCodecBufferInfo info{};
+            const ssize_t ob = AMediaCodec_dequeueOutputBuffer(codec.p, &info, moved ? 0 : 5000);
+            if (ob >= 0) {
+                moved = true; idleSpins = 0;
+                if (info.size > 0) {
+                    size_t sz = 0;
+                    const uint8_t* p = AMediaCodec_getOutputBuffer(codec.p, (size_t)ob, &sz);
+                    // Never trust codec-reported offsets: they must lie inside the buffer we were given.
+                    const bool inBounds = p && info.offset >= 0 &&
+                        (size_t)info.offset + (size_t)info.size <= sz;
+                    const bool fmtOk = ch >= 1 && ch <= kMaxChannels;
+                    if (inBounds && fmtOk) appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data);
                 }
-            }
-            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) outEos = true;
-            AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false);
-            if (sr > 0 && ch > 0 && (int64_t)out->data.size() / (ch > 2 ? 2 : ch) > kMaxSeconds * sr) {
-                // the length wasn't known up front: stop here, keep the first 10 minutes
-                out->data.resize((size_t)(kMaxSeconds * sr) * (size_t)(ch > 2 ? 2 : ch));
-                if (prog) prog->truncated = true;
+                if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) outEos = true;
+                AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false);
+                if (sr > 0 && ch > 0 && (int64_t)out->data.size() / (ch > 2 ? 2 : ch) > kMaxSeconds * sr) {
+                    // the length wasn't known up front: stop here, keep the first 10 minutes
+                    out->data.resize((size_t)(kMaxSeconds * sr) * (size_t)(ch > 2 ? 2 : ch));
+                    if (prog) prog->truncated = true;
+                    stop = true;
+                    break;
+                }
+            } else if (ob == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+                FmtGuard of{AMediaCodec_getOutputFormat(codec.p)};
+                AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);
+                AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &ch);
+                int32_t e; if (AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_PCM_ENCODING, &e)) enc = e;
+            } else if (ob == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+                continue;
+            } else {                                          // TRY_AGAIN_LATER (or an error)
+                if (!moved && inEos && ++idleSpins > 200) stop = true;   // ~1 s with no output after EOS
                 break;
             }
-        } else if (ob == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-            FmtGuard of{AMediaCodec_getOutputFormat(codec.p)};
-            AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);
-            AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &ch);
-            int32_t e; if (AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_PCM_ENCODING, &e)) enc = e;
-        } else if (ob == AMEDIACODEC_INFO_TRY_AGAIN_LATER && inEos) {
-            if (++idleSpins > 500) break;                     // ~1 s with no output after EOS: give up gracefully
         }
     }
 

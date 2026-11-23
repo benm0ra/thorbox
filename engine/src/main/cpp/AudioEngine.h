@@ -67,6 +67,9 @@ public:
     bool setPlayMode(int pad, int mode);
     bool setPadRegion(int pad, int64_t startFrame, int64_t endFrame);
     bool setPadGain(int pad, float linear);
+    bool setPadParam(int pad, int param, float value);
+    bool getWave(int sampleId, int buckets, float* out);   // [min, max, rms] × buckets; any thread
+    bool stopPads(int track);                         // -1 = all tracks
     // Transient onsets of a loaded sample (frames, ascending, first is 0). Safe from any thread.
     int transients(int sampleId, float sensitivity, int maxSlices, int64_t* out);
     bool setMasterGainDb(float db);
@@ -151,6 +154,10 @@ private:
         PlayMode mode = PlayMode::OneShot;
         int64_t start = 0, end = -1;          // slice region in frames (-1 = to the end)
         float gain = 1.f;
+        VoiceOpts opts;
+        int muteGroup = 0, muteA = -1, muteB = -1;
+        bool poly = false;
+        float velSens = 1.f;
     };
     struct RegistryEntry {
         std::shared_ptr<SampleBuffer> buf;

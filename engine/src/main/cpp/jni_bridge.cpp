@@ -95,6 +95,22 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadRegion)(JNIEnv*, jobject, jint pad
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadGain)(JNIEnv*, jobject, jint pad, jfloat g) {
     return gEngine && finite(g) && g >= 0.f && g <= 16.f && gEngine->setPadGain(pad, g);   // up to +24 dB (NORMALIZE on quiet chops)
 }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeGetWave)(JNIEnv* env, jobject, jint sampleId, jfloatArray out) {
+    if (!gEngine || !out) return JNI_FALSE;
+    const jsize len = env->GetArrayLength(out);
+    if (len < 3 || len > 3 * 16384 || len % 3 != 0) return JNI_FALSE;
+    jfloat* p = env->GetFloatArrayElements(out, nullptr);
+    if (!p) return JNI_FALSE;
+    const bool ok = gEngine->getWave(sampleId, len / 3, p);
+    env->ReleaseFloatArrayElements(out, p, ok ? 0 : JNI_ABORT);
+    return ok;
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadParam)(JNIEnv*, jobject, jint pad, jint param, jfloat v) {
+    return gEngine && finite(v) && gEngine->setPadParam(pad, param, v);
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeStopPads)(JNIEnv*, jobject, jint track) {
+    return gEngine && gEngine->stopPads(track);
+}
 // Safe from any thread (reads an immutable buffer).
 JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sampleId, jfloat sens, jint maxSlices, jlongArray out) {
     if (!gEngine || !out || !finite(sens) || maxSlices < 1 || maxSlices > 64) return 0;

@@ -99,6 +99,16 @@ object NativeEngine {
     /** Slice region for a pad, in frames of its sample (end -1 = to the end). */
     fun setPadRegion(pad: Int, startFrame: Int, endFrame: Int) = nativeSetPadRegion(pad, startFrame, endFrame)
     fun setPadGain(pad: Int, linear: Float) = nativeSetPadGain(pad, linear)
+    /** One PAD EDIT setting ([PadParam]) for a pad. */
+    fun setPadParam(pad: Int, param: Int, value: Float) = nativeSetPadParam(pad, param, value)
+    /** Fade out every sampler voice on [track] (-1 = all tracks), one-shots included. */
+    fun stopPads(track: Int) = nativeStopPads(track)
+    /** Must match the engine's PadParam. */
+    object PadParam {
+        const val PAN = 0; const val ATTACK_MS = 1; const val DECAY_MS = 2; const val RELEASE_MS = 3; const val CUTOFF = 4
+        const val RESO = 5; const val REVERSE = 6; const val MUTE_GROUP = 7; const val MUTE_A = 8; const val MUTE_B = 9
+        const val POLY = 10; const val VEL_SENS = 11
+    }
     /** Peak and loudness (loudest 50 ms RMS) in dBFS for each region (start, end pairs) of a sample → out[2i], out[2i+1]. */
     fun regionLevels(sampleId: Int, regions: LongArray, out: FloatArray) = nativeRegionLevels(sampleId, regions, out)
     /** Onset frames for auto-chop (first is 0). Thread-safe: call it off the main thread. */
@@ -192,6 +202,11 @@ object NativeEngine {
     fun assignSample(pad: Int, sampleId: Int) = nativeAssignSample(pad, sampleId)
     fun unloadSample(sampleId: Int) = nativeUnloadSample(sampleId)
 
+    /** [min, max, rms] triples of the mono mix, [buckets] long (≤ 16384). Thread-safe. */
+    fun wave(sampleId: Int, buckets: Int): FloatArray? {
+        val out = FloatArray(buckets * 3)
+        return if (nativeGetWave(sampleId, out)) out else null
+    }
     /** Min/max pairs, [buckets] long. Thread-safe. */
     fun peaks(sampleId: Int, buckets: Int): FloatArray? {
         val out = FloatArray(buckets * 2)
@@ -259,6 +274,9 @@ object NativeEngine {
                                           flags: IntArray, lockIds: IntArray, lockVals: FloatArray): Boolean
     private external fun nativeSetPadRegion(pad: Int, start: Int, end: Int): Boolean
     private external fun nativeSetPadGain(pad: Int, g: Float): Boolean
+    private external fun nativeGetWave(sampleId: Int, out: FloatArray): Boolean
+    private external fun nativeSetPadParam(pad: Int, param: Int, v: Float): Boolean
+    private external fun nativeStopPads(track: Int): Boolean
     private external fun nativeRegionLevels(sampleId: Int, regions: LongArray, out: FloatArray): Boolean
     private external fun nativeGetTransients(sampleId: Int, sens: Float, maxSlices: Int, out: LongArray): Int
     private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int, cropStart: Long, cropEnd: Long)

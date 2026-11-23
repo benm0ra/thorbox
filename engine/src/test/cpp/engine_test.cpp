@@ -62,6 +62,36 @@ int main() {
         CHECK(got && (int)lv[0] == 41 && lv[1] > 0 && (int64_t)lv[2] == 48000, "a loaded sample comes back with an id and its length");
         const int sid = (int)lv[1];
         CHECK(e.assignSample(0, sid), "the loaded sample can be put on a pad");
+        {   // waveform view data: [min, max, rms] per bucket; a steady sine has rms ≈ peak / √2
+            float w[3 * 64];
+            CHECK(e.getWave(sid, 64, w) && w[1] > 0.1f && w[0] < -0.1f && std::fabs(w[2] - w[1] / std::sqrt(2.f)) < 0.05f * w[1] + 0.01f,
+                  "wave: min %.2f max %.2f rms %.2f", w[0], w[1], w[2]);
+            CHECK(!e.getWave(sid + 999, 64, w), "wave: unknown sample → false");
+        }
+        {   // PAD EDIT: stop, mute group, mono vs poly (track 0 is a sampler)
+            e.noteOn(0, 1.f); render(e, 4800);
+            const double before = rms(render(e, 2400), 0);
+            e.stopPads(0); render(e, 2400);
+            CHECK(before > 0.01 && rms(render(e, 2400), 0) < 1e-4, "STOP fades out a one-shot that's still playing");
+            e.assignSample(1, sid);
+            e.setPadParam(0, (int)PadParam::Pan, -1.f); e.setPadParam(1, (int)PadParam::Pan, 1.f);
+            e.setPadParam(0, (int)PadParam::MuteGroup, 3); e.setPadParam(1, (int)PadParam::MuteGroup, 3);
+            e.noteOn(0, 1.f); render(e, 2400); e.noteOn(1, 1.f); render(e, 2400);
+            auto ch = render(e, 4800);
+            CHECK(rms(ch, 0) < 1e-3 && rms(ch, 1) > 0.01, "mute group: pad 2 cuts pad 1 off (open/closed hat)");
+            e.stopPads(-1); render(e, 4800);
+            e.setPadParam(0, (int)PadParam::MuteGroup, 0); e.setPadParam(1, (int)PadParam::MuteGroup, 0);
+            e.setPadParam(0, (int)PadParam::Pan, 0.f);
+            // 2400 frames at 48 kHz = exactly 11 cycles of 220 Hz, so two overlapping hits are in phase
+            e.noteOn(0, 1.f); render(e, 2400); e.noteOn(0, 1.f); const double mono = rms(render(e, 4800), 0);
+            e.stopPads(0); render(e, 4800);
+            e.setPadParam(0, (int)PadParam::Poly, 1.f);
+            e.noteOn(0, 1.f); render(e, 2400); e.noteOn(0, 1.f); const double poly = rms(render(e, 4800), 0);
+            CHECK(poly > mono * 1.7, "poly: a retrigger overlaps the last hit (%.3f vs mono %.3f)", poly, mono);
+            e.stopPads(0); render(e, 4800);
+            e.setPadParam(0, (int)PadParam::Poly, 0.f);
+            CHECK(!e.setPadParam(0, 99, 1.f) && !e.setPadParam(-1, 0, 0.f) && !e.stopPads(42), "bad pad params / tracks rejected");
+        }
         {   // NORMALIZE input: per-region peak + loudness (a steady sine: loudness = peak − 3 dB)
             int64_t st[2] = {0, 24000}, en[2] = {24000, 48000}; float pk[2], ld[2];
             CHECK(e.regionLevels(sid, st, en, 2, pk, ld) && pk[0] < 0.1f && pk[0] > -30.f && std::fabs((pk[0] - ld[0]) - 3.01f) < 0.3f,

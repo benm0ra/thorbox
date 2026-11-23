@@ -5,8 +5,20 @@
 #include "Commands.h"
 #include "SampleBuffer.h"
 
-// One playing instance of a sample. Varispeed playback with 4-point Hermite interpolation
-// and a linear AR envelope (the full ADSR arrives in M2). Everything here is RT-safe.
+// Per-hit sound settings from the pad (PAD EDIT page). Defaults = the plain old behaviour.
+struct VoiceOpts {
+    float pan = 0.f;          // -1 … 1, equal power (unity in the centre)
+    float attackMs = 1.f;     // ≥ 1 ms (de-click)
+    float decayMs = 0.f;      // 0 = hold; else fades to silence over this long after the attack ("decay from start")
+    float releaseMs = 15.f;   // the fade on note-off / choke / stop
+    float cutoff = 1.f;       // 0 … 1 (20 Hz … 20 kHz, log); 1 = filter off
+    float reso = 0.f;         // 0 … 1
+    bool reverse = false;     // plays the slice backwards
+};
+
+// One playing instance of a sample. Varispeed playback with 4-point Hermite interpolation, an
+// attack / decay / release envelope, equal-power pan, an optional 2-pole low-pass (TPT state
+// variable filter) and reverse. Everything here is RT-safe.
 class SamplerVoice {
 public:
     bool active() const { return mStage != Stage::Off; }
@@ -16,20 +28,37 @@ public:
     bool sounding() const { return mStage == Stage::Attack || mStage == Stage::Sustain; }
     uint64_t startedAt() const { return mStartStamp; }
     bool releasing() const { return mStage == Stage::Release; }
+    float releaseMs() const { return mReleaseMs; }
 
     // [startFrame, endFrame) is the slice this hit plays (the whole buffer if endFrame <= startFrame).
     void start(const SampleBuffer* buf, int pad, float pitchRatio, float gain, PlayMode mode,
-               float deviceRate, uint64_t stamp, int64_t startFrame = 0, int64_t endFrame = -1) {
+               float deviceRate, uint64_t stamp, int64_t startFrame = 0, int64_t endFrame = -1,
+               const VoiceOpts& o = VoiceOpts()) {
         mBuf = buf; mPad = pad; mPitchRatio = pitchRatio; mGain = gain; mMode = mode;
         const int64_t n = buf ? buf->frames : 0;
         mStart = std::clamp<int64_t>(startFrame, 0, std::max<int64_t>(0, n - 2));
         mEnd = (endFrame <= mStart || endFrame > n) ? n : endFrame;
-        mPos = (double)mStart; mStartStamp = stamp;
+        mReverse = o.reverse;
+        mPos = mReverse ? (double)(mEnd - 1) : (double)mStart; mStartStamp = stamp;
         mEnv = 0.f;
         mStage = Stage::Attack;
-        mEnvStep = 1.f / std::max(1.f, 0.001f * deviceRate);      // 1 ms de-click attack
+        mEnvStep = 1.f / std::max(1.f, std::max(1.f, o.attackMs) * 0.001f * deviceRate);
+        mDecayStep = o.decayMs > 0.f ? 1.f / std::max(1.f, o.decayMs * 0.001f * deviceRate) : 0.f;
+        mReleaseMs = std::max(1.f, o.releaseMs);
+        const float a = (std::clamp(o.pan, -1.f, 1.f) + 1.f) * 0.78539816f;   // equal power, unity at centre
+        mPanL = std::cos(a) * 1.41421356f; mPanR = std::sin(a) * 1.41421356f;
+        mFilter = o.cutoff < 0.995f;
+        if (mFilter) {
+            const float fc = std::min(20.f * std::pow(1000.f, std::clamp(o.cutoff, 0.f, 1.f)), 0.45f * deviceRate);
+            mG = std::tan(3.14159265f * fc / deviceRate);
+            mK = 2.f - 1.9f * std::clamp(o.reso, 0.f, 1.f);
+            mA1 = 1.f / (1.f + mG * (mG + mK)); mA2 = mG * mA1; mA3 = mG * mA2;
+            mIc1[0] = mIc1[1] = mIc2[0] = mIc2[1] = 0.f;
+        }
     }
 
+    /** Fade out over the pad's own release time. */
+    void release(float deviceRate) { release(mReleaseMs, deviceRate); }
     void release(float ms, float deviceRate) {
         if (mStage == Stage::Off) return;
         mStage = Stage::Release;
@@ -49,44 +78,67 @@ public:
     }
 
 private:
-    enum class Stage { Off, Attack, Sustain, Release };
+    enum class Stage { Off, Attack, Sustain, Decay, Release };
 
     // Channel count is a template parameter, so the inner loop has no per-sample channel branch.
     // The end-of-slice fade is computed only inside its last ~4 ms (no per-sample division before it).
     template <int CH>
     void renderT(float* out, int numFrames, float deviceRate) {
         const SampleBuffer& b = *mBuf;
-        const double inc = (double)mPitchRatio * (double)b.sampleRate / (double)deviceRate;
+        const double step = (double)mPitchRatio * (double)b.sampleRate / (double)deviceRate;
+        const double inc = mReverse ? -step : step;
         const bool loop = (mMode == PlayMode::Loop);
-        const double end = (double)mEnd, len = (double)(mEnd - mStart);
+        const double lo = (double)mStart, hi = (double)mEnd, len = hi - lo;
         const double fadeLen = std::max(1.0, 0.004 * (double)b.sampleRate);
-        const double fadeStart = loop ? 1e300 : end - fadeLen;
         const float invFade = (float)(1.0 / fadeLen);
         for (int i = 0; i < numFrames; ++i) {
-            if (mStage == Stage::Attack) {
-                mEnv += mEnvStep;
-                if (mEnv >= 1.f) { mEnv = 1.f; mStage = Stage::Sustain; }
-            } else if (mStage == Stage::Release) {
-                mEnv -= mEnvStep;
-                if (mEnv <= 0.f) { mStage = Stage::Off; return; }
+            switch (mStage) {
+                case Stage::Attack:
+                    mEnv += mEnvStep;
+                    if (mEnv >= 1.f) { mEnv = 1.f; mStage = mDecayStep > 0.f ? Stage::Decay : Stage::Sustain; }
+                    break;
+                case Stage::Decay:
+                    mEnv -= mDecayStep;
+                    if (mEnv <= 0.f) { mStage = Stage::Off; return; }
+                    break;
+                case Stage::Release:
+                    mEnv -= mEnvStep;
+                    if (mEnv <= 0.f) { mStage = Stage::Off; return; }
+                    break;
+                default: break;
             }
-            if (mPos >= end) {
+            if (!mReverse && mPos >= hi) {
                 if (loop && len >= 2.0) mPos -= len;
+                else { mStage = Stage::Off; return; }
+            } else if (mReverse && mPos < lo) {
+                if (loop && len >= 2.0) mPos += len;
                 else { mStage = Stage::Off; return; }
             }
             const int64_t i0 = (int64_t)mPos;
             const float t = (float)(mPos - (double)i0);
             float g = mGain * mEnv;
-            if (mPos > fadeStart) g *= (float)(end - mPos) * invFade;
-            if constexpr (CH == 1) {
-                const float s = interp(b, 0, i0, t, loop) * g;
-                out[2 * i] += s; out[2 * i + 1] += s;
-            } else {
-                out[2 * i]     += interp(b, 0, i0, t, loop) * g;
-                out[2 * i + 1] += interp(b, 1, i0, t, loop) * g;
+            if (!loop) {                                      // fade the last ~4 ms before the slice edge
+                const double left = mReverse ? mPos - lo : hi - mPos;
+                if (left < fadeLen) g *= (float)left * invFade;
             }
+            float l, r;
+            if constexpr (CH == 1) { l = r = interp(b, 0, i0, t, loop); }
+            else { l = interp(b, 0, i0, t, loop); r = interp(b, 1, i0, t, loop); }
+            if (mFilter) { l = svf(l, 0); r = (CH == 1) ? l : svf(r, 1); }
+            out[2 * i]     += l * g * mPanL;
+            out[2 * i + 1] += r * g * mPanR;
             mPos += inc;
         }
+    }
+
+    // TPT state-variable low-pass (Zavalishin), one state pair per channel.
+    inline float svf(float x, int ch) {
+        const float v3 = x - mIc2[ch];
+        const float v1 = mA1 * mIc1[ch] + mA2 * v3;
+        const float v2 = mIc2[ch] + mA2 * mIc1[ch] + mA3 * v3;
+        mIc1[ch] = 2.f * v1 - mIc1[ch];
+        mIc2[ch] = 2.f * v2 - mIc2[ch];
+        return v2;
     }
 
     static inline int64_t idx(int64_t i, int64_t n, bool loop) {
@@ -123,6 +175,12 @@ private:
     float mGain = 1.f;
     float mEnv = 0.f;
     float mEnvStep = 0.f;
+    float mDecayStep = 0.f;
+    float mReleaseMs = 15.f;
+    float mPanL = 1.f, mPanR = 1.f;
+    bool mReverse = false, mFilter = false;
+    float mG = 0.f, mK = 2.f, mA1 = 1.f, mA2 = 0.f, mA3 = 0.f;
+    float mIc1[2] = {0.f, 0.f}, mIc2[2] = {0.f, 0.f};
     PlayMode mMode = PlayMode::OneShot;
     Stage mStage = Stage::Off;
     uint64_t mStartStamp = 0;

@@ -37,6 +37,18 @@ enum class CmdType : uint8_t {
     DrumParam,     // pad = slot, i1 = track, i0 = drums::Param, f0 = value
     SetTrackType,  // pad = track, i0 = TrackType
     SetFocus,      // pad = track: its synth feeds the synth telemetry/scope, its pads the pad telemetry
+    SetPadParam,   // pad, i0 = PadParam, f0 = value
+    StopPads,      // pad = track (-1 = every track): fade out every sampler voice, one-shots too
+};
+
+// Per-pad sound settings (the PAD EDIT page). Must match com.thorbox.engine.NativeEngine.PadParam.
+enum class PadParam : int32_t {
+    Pan = 0, AttackMs = 1, DecayMs = 2, ReleaseMs = 3, Cutoff = 4, Reso = 5, Reverse = 6,
+    MuteGroup = 7,   // 0 off, 1…16: pads in the same group on a track cut each other off (open/closed hat)
+    MuteTargetA = 8, // local pad 0…15 this pad cuts off when it plays (-1 none)
+    MuteTargetB = 9,
+    Poly = 10,       // 0 mono (a retrigger cuts the last hit), 1 poly (hits overlap)
+    VelSens = 11,    // 0 … 1: how much velocity sets the level (0 = every hit full)
 };
 
 // What instrument a track plays. Must match com.thorbox.engine.NativeEngine.TrackType.
