@@ -42,6 +42,8 @@ SHOTS = {
     "padedit.jpg": ("padedit-3.png", (180, 0, 1170, 1010)),
     "synth.jpg": ("cat-WARM_PAD.png", (180, 0, 1170, 1010)),
     "drums.jpg": ("drums-dust.png", (180, 0, 1170, 1010)),
+    "mixer.jpg": ("MIX.png", (180, 0, 1170, 1010)),
+    "look.jpg": ("settings-look.png", (0, 0, 1170, 1060)),
 }
 
 

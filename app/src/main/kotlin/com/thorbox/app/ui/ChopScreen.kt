@@ -360,22 +360,27 @@ private fun ChopControls(state: AppState) {
     // Two rows on the Thor's top screen: how to chop (top), then the selected pad (bottom). One row
     // squeezed ÷4 / ÷8 / ÷16 to blank buttons and pushed + and the play mode off the edge.
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(state, 12.dp).padding(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // narrow (phones / the CI emulator): smaller fixed buttons so ÷16 and TAP-CHOP keep their labels
+    val tight = maxWidth < 560.dp
+    val fixedW = if (tight) 40.dp else 46.dp
     Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        HwButton("AUTO", Modifier.width(56.dp).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
+        HwButton("AUTO", Modifier.width(if (tight) 50.dp else 60.dp).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
         if (mode == ChopMode.AUTO)
-            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(60.dp).fillMaxHeight(), pxPerUnit = 300f,
+            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(if (tight) 52.dp else 64.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })
         listOf(4, 8, 16).forEach { n ->
             HwButton("÷$n", Modifier.weight(1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12, hPad = 2.dp) { sm.setEqualCount(n) }
         }
-        HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12, hPad = 3.dp) {
+        HwButton((if (tight) "TAP" else "TAP-CHOP") + if (sm.lazyRunning.value) " ●" else "", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12, hPad = 3.dp) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
-        HoldButton("▶", false, Tb.Good, Modifier.width(46.dp).fillMaxHeight()) { sm.togglePreview(it) }
+        HoldButton("▶", false, Tb.Good, Modifier.width(fixedW).fillMaxHeight()) { sm.togglePreview(it) }
         // STOP: lights while anything on this sampler is sounding (one-shots, loops, the preview); cuts it all
         val sounding by remember { androidx.compose.runtime.derivedStateOf { state.playhead.floatValue >= 0f } }
-        HwButton("■", Modifier.width(46.dp).fillMaxHeight(), active = sounding, accent = Tb.Warn, fontSize = 16, hPad = 2.dp) { sm.stopAll() }
+        HwButton("■", Modifier.width(fixedW).fillMaxHeight(), active = sounding, accent = Tb.Warn, fontSize = 16, hPad = 2.dp) { sm.stopAll() }
+    }
     }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     // Wide (the Thor's top screen): one row. Narrow (single-screen phones / emulator): pitch on one

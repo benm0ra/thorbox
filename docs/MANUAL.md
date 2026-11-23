@@ -143,7 +143,15 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 ## 8. Mixer and FX
 
-**MIXER** has a strip per track with fader, pan, mute, solo, meters and **PUMP** (sidechain from any other track); **+ TRACK** adds a sampler, synth or drum track (8 tracks, any instrument on any track).
+![The mixer](img/mixer.jpg)
+
+**MIXER** has a strip per track, coloured like its instrument; **+ TRACK** adds a sampler, synth or drum track (8 tracks, any instrument on any track). From the top down, each strip has:
+
+- **Name** (tap to open the track) and **⋯** (the track menu: PUMP, rename, delete).
+- **Pan** above the fader. It only follows sideways drags, so a fader move can't pan by accident. It moves relative to where you touch, and a double-tap re-centres it. The readout says C, L40 or R25.
+- **Fader** on its own, with the dB readout above it. Grab it anywhere: it moves relative to your finger and never jumps to it. The scale marks +6, 0, −6, −12, −24, −48 and −∞; a double-tap returns to 0 dB.
+- **LED meters** (left and right) with peak hold, and a **clip light** that stays on for a moment after an overload.
+- **M / S** for mute and solo. With PUMP on, a thin bar shows how hard the sidechain is ducking the track right now.
 
 The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your finger for its X / Y, latch it to keep it on, **ALL DRY** to kill everything. TONE: filter + drive, isolator, lo-fi. TIME: looper, scatter, slicer. SPACE: tape echo, reverb, resonator. MEDIA: vinyl, cassette, tape stop. **TILT** steers held effects by leaning the Thor; shake it to dice.
 
@@ -151,7 +159,9 @@ The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your
 
 The whole session saves itself every few seconds and when the app goes to the background; the last project reopens at launch. **⚙ → PROJECTS** saves, saves as new, opens, renames, copies and deletes. Each project keeps its own copy of its samples.
 
-**⚙ → LOOK:** six themes (Genesis, Studio, Cyberpunk, Pastel, Terminal, Grayscale), glass FULL / SUBTLE / OFF, the meters strip, hints. **DEFAULTS:** what every launch starts with. **CONTROLS:** start in NAV, tilt, the controller map. **SYSTEM:** audio status, diagnostics and logs, version.
+![⚙ → LOOK](img/look.jpg)
+
+**⚙ → LOOK:** eight themes (Genesis, Studio, Bodega, Cyberpunk, Vintage, Pastel, Terminal, Grayscale), each tile a live preview of its tempo readout, pads and knob colours. Bodega is navy with corner-store neon; Vintage and Pastel are the two light themes. Text on coloured buttons and tabs picks dark or light by contrast, so every theme stays readable. Also in LOOK: glass FULL / SUBTLE / OFF, the meters strip, hints. **DEFAULTS:** what every launch starts with. **CONTROLS:** start in NAV, tilt, the controller map. **SYSTEM:** audio status, diagnostics and logs, version.
 
 ## 10. Button map (PLAY mode)
 
