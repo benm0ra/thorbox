@@ -67,6 +67,7 @@ private val CREAM = Color(0xFFF6E9D8)
 private val BEAN = Color(0xFFF2A1A8)
 private val SHADES = Color(0xFF111118)
 private val HOOP = Color(0xFFE6B93C)
+private const val CAT_SCALE = 0.86f
 
 /** What she kneads, per sound family. */
 fun kneadObjectName(c: SynthCategory) = when (c) {
@@ -103,7 +104,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, modifier: 
                 // press amount per paw: 1 = fully down, 0 = lifted; left on the beat, right on the off-beat
                 val dl = press(beat); val dr = press((beat + 0.5f) % 1f)
                 val depth = 0.6f + 0.6f * amp
-                val pl = 98f; val pr = 142f
+                val pl = 101f; val pr = 139f                              // paw x after the cat's scale below
                 when (family) {
                     SynthCategory.PAD -> pillow(cs, dl * depth, dr * depth, pl, pr, now, amp, accent)
                     SynthCategory.SUB808 -> waterbed(beat, dl * depth, dr * depth, pl, pr, now, amp, accent, cs)
@@ -114,11 +115,13 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, modifier: 
                     SynthCategory.WEIRD -> slime(cs, dl * depth, dr * depth, pl, pr, now, amp, tel.lfoValue, accent)
                 }
                 val sink = when (family) { SynthCategory.PAD -> 7f; SynthCategory.WEIRD -> 9f; SynthCategory.SUB808 -> 4f; else -> 2f }
-                cat(cs, now, beat, playing, amp, tel.lfoValue, dl, dr, sink * depth, pl, pr)
+                withTransform({ scale(CAT_SCALE, CAT_SCALE, Offset(120f, 142f)) }) {
+                    cat(cs, now, beat, playing, amp, tel.lfoValue, dl, dr, sink * depth / CAT_SCALE, 98f, 142f)
+                }
             }
         }
         Text("${family.label} · ${kneadObjectName(family)}", color = accent.copy(alpha = 0.85f), fontSize = 10.sp,
-            fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 6.dp))
+            fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 2.dp))
     }
 }
 
@@ -243,7 +246,7 @@ private fun DrawScope.ear(cs: CatState, x: Float, hy: Float, side: Float, angle:
 // ----------------------------------------------------------------------------- what she kneads
 
 private fun DrawScope.pillow(cs: CatState, dl: Float, dr: Float, pl: Float, pr: Float, now: Float, amp: Float, accent: Color) {
-    val base = lerp2(Color(0xFFB9A6E8), accent, 0.25f)
+    val base = lerp2(Color(0xFFC3B1F0), accent, 0.10f)
     val dark = lerp2(base, Color.Black, 0.3f)
     val puff = 1.5f * sin(now * 1.2f) + 2f * amp
     // the pillow: puffy body, corner tufts, a seam
@@ -380,7 +383,7 @@ private fun DrawScope.guitar(cs: CatState, now: Float, amp: Float, accent: Color
     drawCircle(accent.copy(alpha = 0.7f), 15.5f, Offset(106f, 160f), style = Stroke(1.6f))                         // rosette
     drawRoundRect(neck, Offset(52f, 152f), Size(8f, 16f), CornerRadius(1.5f))                                    // bridge
     // strings: shimmer while notes ring
-    val ring = if (voices > 0) 0.6f + 1.8f * amp else 0f
+    val ring = if (voices > 0) 0.4f + 1.1f * amp else 0f
     val p = cs.path2
     for (s in 0 until 6) {
         val y0 = 153.5f + s * 2.6f
@@ -388,7 +391,7 @@ private fun DrawScope.guitar(cs: CatState, now: Float, amp: Float, accent: Color
         var x = 56f
         while (x <= 222f) {
             val env = sin(PI.toFloat() * (x - 56f) / 166f)
-            p.lineTo(x, y0 + sin(now * (70f + s * 9f) + x * 0.3f) * ring * env); x += 8f
+            p.lineTo(x, y0 + sin(now * (70f + s * 9f) + s) * ring * env); x += 8f
         }
         drawPath(p, Color(0xFFE8E2D6).copy(alpha = 0.85f), style = Stroke(0.7f + (5 - s) * 0.1f))
     }

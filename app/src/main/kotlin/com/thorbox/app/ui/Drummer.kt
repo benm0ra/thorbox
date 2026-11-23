@@ -153,6 +153,8 @@ private const val FLOOR = 284f
 
 private val OUTLINE_THICK = Stroke(14f, join = StrokeJoin.Round)
 private val NEON_GLOW = Stroke(10f, join = StrokeJoin.Round)
+private val NEON_WASH = androidx.compose.ui.graphics.Brush.radialGradient(
+    listOf(Color(0x2EFF4FA3), Color(0x00FF4FA3)), center = Offset(300f, 32f), radius = 90f)
 
 private fun pieceFor(v: DrumVoice, slot: Int, toms: IntArray): Piece = when (v.model) {
     DrumModel.KICK -> Piece.KICK
@@ -180,7 +182,7 @@ private fun strikeX(p: Piece): Float = when (p) {
     Piece.CYMBAL -> 284f; Piece.RIDE -> 112f; Piece.COWBELL -> 164f; Piece.ZAP -> 330f; else -> 200f
 }
 private fun strikeY(p: Piece): Float = when (p) {
-    Piece.SNARE -> 198f; Piece.RIM -> 202f; Piece.HIHAT -> 144f; Piece.RACK_TOM -> 176f; Piece.FLOOR_TOM -> 190f
+    Piece.SNARE -> 198f; Piece.RIM -> 202f; Piece.HIHAT -> 144f; Piece.RACK_TOM -> 176f; Piece.FLOOR_TOM -> 198f
     Piece.CYMBAL -> 96f; Piece.RIDE -> 120f; Piece.COWBELL -> 182f; Piece.ZAP -> 192f; else -> 140f
 }
 
@@ -465,7 +467,7 @@ private fun DrawScope.floorTom(st: DrummerState, now: Float) {
     val s = sizeOf(v)
     val dt = now - st.pieceHit[Piece.FLOOR_TOM.ordinal]
     val c = slotColor(st, Piece.FLOOR_TOM)
-    val cx = 112f; val w = 64f * s; val depth = 44f * s; val top = 196f
+    val cx = 112f; val w = 64f * s; val depth = 34f * s; val top = 202f
     // the back leg first (dimmer), then the two you see, each out of a bracket on the shell
     drawLine(CHROME_DARK.copy(alpha = 0.55f), Offset(cx + 4f, top + depth * 0.4f), Offset(cx + 8f, FLOOR - 4f), 2.2f, cap = StrokeCap.Round)
     for (k in floatArrayOf(-1f, 1f)) {
@@ -956,7 +958,7 @@ private fun DrawScope.street(
     val flick = if (((now * 3.7f).toInt() * 2654435761L % 23L) == 0L) 0.35f else 1f
     neonWord(tm.measure("DELI", neon), 262f, 18f, 52f, NEON_PINK, (0.75f + 0.25f * pulse + 0.15f * kickK) * flick)
     neonWord(tm.measure("24HR", neon), 326f, 18f, 58f, NEON_CYAN, 0.8f + 0.2f * pulse)
-    drawCircle(NEON_PINK.copy(alpha = 0.05f + 0.06f * pulse), 70f, Offset(300f, 32f))           // wash on the wall
+    drawCircle(NEON_WASH, 90f, Offset(300f, 32f), alpha = 0.6f + 0.4f * pulse)                 // wash on the wall
 
     // ---- the power line, with a pair of sneakers slung over it ----
     p.reset(); p.moveTo(l - 10f, 6f); p.quadraticTo(200f, 26f, r + 10f, 4f)
@@ -965,12 +967,13 @@ private fun DrawScope.street(
     val wu = ((123f - (l - 10f)) / (r - l + 20f)).coerceIn(0f, 1f)                          // where on the curve the shoes hang
     val wireY = (1f - wu) * (1f - wu) * 6f + 2f * wu * (1f - wu) * 26f + wu * wu * 4f
     for (k in 0..1) {
-        val sx = 118f + k * 10f; val ex = sx + sway; val ey = wireY + 26f + k * 6f
-        drawLine(back(TRIM, 0.3f), Offset(123f, wireY), Offset(ex, ey - 4f), 0.9f)
-        rotate(70f + sway * 4f, Offset(ex, ey)) {
-            drawRoundRect(back(GUM, 0.3f), Offset(ex - 9f, ey + 2f), Size(18f, 3f), CornerRadius(1.5f))
-            drawRoundRect(back(SNEAKER, 0.35f), Offset(ex - 9f, ey - 5f), Size(18f, 8f), CornerRadius(4f))
-            drawLine(back(SNEAKER_STRIPE, 0.3f), Offset(ex - 6f, ey), Offset(ex + 4f, ey - 3f), 1.6f)
+        val sx = 114f + k * 16f; val ex = sx + sway; val ey = wireY + 30f + k * 6f
+        drawLine(back(TRIM, 0.2f), Offset(123f, wireY), Offset(ex - 6f, ey - 4f), 1f)
+        rotate(80f + sway * 4f, Offset(ex, ey)) {
+            drawRoundRect(back(GUM, 0.15f), Offset(ex - 12f, ey + 4f), Size(26f, 4f), CornerRadius(2f))
+            drawRoundRect(back(SNEAKER, 0.15f), Offset(ex - 12f, ey - 6f), Size(24f, 11f), CornerRadius(5f))
+            drawOval(back(SNEAKER, 0.15f), Offset(ex + 2f, ey - 3f), Size(12f, 8f))
+            drawLine(back(SNEAKER_STRIPE, 0.15f), Offset(ex - 8f, ey + 2f), Offset(ex + 5f, ey - 3f), 2.2f, cap = StrokeCap.Round)
         }
     }
 
@@ -995,7 +998,7 @@ private fun DrawScope.street(
     for (k in 0 until 3) {
         val ph = ((now * 0.16f + k / 3f) % 1f)
         val sx = 62f + sin(now * 0.9f + k * 2f) * 8f * ph
-        drawCircle(Color.White.copy(alpha = 0.08f * (1f - ph) * (0.6f + 0.4f * ph)), 7f + 18f * ph, Offset(sx, curb + 14f - 90f * ph))
+        drawCircle(Color.White.copy(alpha = 0.14f * (1f - ph) * (0.6f + 0.4f * ph)), 7f + 18f * ph, Offset(sx, curb + 14f - 90f * ph))
     }
     // soft shadow under the kit
     drawOval(Color.Black.copy(alpha = 0.28f), Offset(60f, 276f), Size(310f, 16f))
