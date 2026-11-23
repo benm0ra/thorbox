@@ -152,6 +152,15 @@ shots() {
   for i in 1 2 3 4; do adb exec-out screencap -p > "$d/top-duck-$i.png"; sleep 0.17; done
   adb shell am start -n $PKG/$ACT --es theme pastel >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view MIX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-mix-pastel.png"
+  # motion: 4 s of each character, playing, on the Thor-sized top screen (reviewed as frame sheets)
+  rec() { adb shell screenrecord --time-limit "$2" --size 960x540 --bit-rate 8000000 "/sdcard/$1.mp4" || true
+          adb pull "/sdcard/$1.mp4" "$d/$1.mp4" >/dev/null 2>&1 || true; adb shell rm -f "/sdcard/$1.mp4" || true; }
+  adb shell am start -n $PKG/$ACT --ez toponly true --es theme genesis --es view SYNTH --es synth WARM_PAD --ez play true >/dev/null; sleep 2.5
+  rec motion-cat 4
+  adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 2.5
+  rec motion-dog 4
+  adb shell am start -n $PKG/$ACT --es view DUCK --ez duckdemo true >/dev/null; sleep 2.5
+  rec motion-rat 4
   adb shell am start -n $PKG/$ACT --ez toponly false --es theme genesis >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --ez play false --es synth INIT >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"

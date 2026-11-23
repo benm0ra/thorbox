@@ -102,6 +102,16 @@ private class CatState {
     var tailShape = 0.666f; var tailAmp = 3.5f; var tailPhase = 0f
     var whisker = 0f; var mohawk = 0f; var static = 0f; var glide = 0f; var headLfo = 0f; var purr = 1f
     var accent = Color.White
+    // her rig (stepped once per frame in BiscuitCat, read by cat()): weight shift into each press, the
+    // head following a beat late, ears and tail lagging, a squash on landing, the shades peek
+    val lean = Spring(4.5f, 0.45f)        // body tilt (deg): the chest dips into each press
+    val head = Spring(5f, 0.38f)          // head drop, lagging the chest
+    val ears = Spring(4f, 0.25f)          // ear flop (deg) from the head's motion
+    val tailS = Spring(1.8f, 0.3f)        // tail sway, lagging the body
+    val land = Spring(9f, 0.3f)           // landing squash after a hop
+    var wasUp = false
+    var peekAt = 9f                       // she lowers her shades for a look now and then
+    var lean0 = 0f; var head0 = 0f; var ear0 = 0f; var tail0 = 0f; var land0 = 0f; var peek = 0f; var peekBlink = 0f
 }
 
 // her colours (her own, the same on every theme)
@@ -233,6 +243,22 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                 val rel = (log10(1f + patch.ampEnv.releaseMs) / 3.6f).coerceIn(0f, 1f)
                 val dl = press(beat, atk, rel); val dr = press((beat + 0.5f) % 1f, atk, rel)
                 val depth = 0.6f + 0.6f * amp
+                // ---- her rig: springs chase the kneading, so the body has weight and the extremities lag ----
+                val breath = if (!playing && amp < 0.02f) sin(now * 1.7f) * 0.7f else 0f
+                cs.lean0 = cs.lean.step((dl * 0.6f + dr * 0.4f) * 2.6f * depth + breath, dt)
+                cs.head0 = cs.head.step(cs.lean0 * 1.3f, dt)
+                cs.ear0 = cs.ears.step(cs.head.v * -0.35f, dt)
+                cs.tail0 = cs.tailS.step(cs.lean0 * 5f + bob(beat, playing) * 3f, dt)
+                val up = hop < -0.5f
+                if (cs.wasUp && !up) cs.land.kick(5f)                           // she lands: a little squash
+                cs.wasUp = up
+                cs.land0 = cs.land.step(0f, dt)
+                // the peek: every 9-16 s (when it's calm), the shades slide down her nose; she gives you a slow blink
+                if (now > cs.peekAt + 2.2f) cs.peekAt = now + 9f + ((now * 7.31f) % 7f)
+                val pu = (now - cs.peekAt) / 2.2f
+                val calm = amp < 0.6f
+                cs.peek = if (calm && pu in 0f..1f) smooth01(minOf(pu / 0.15f, (1f - pu) / 0.15f, 1f)) else 0f
+                cs.peekBlink = if (pu in 0.45f..0.75f) sin((pu - 0.45f) / 0.3f * PI.toFloat()) else 0f
                 val pl = 120f + (82f - 120f) * catSize; val pr = 120f + (108f - 120f) * catSize
                 when (family) {
                     SynthCategory.PAD -> pillow(cs, dl * depth, dr * depth, pl, pr, now, amp, accent)
@@ -259,7 +285,8 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                     }
                     drawIntoCanvas { it.restore() }
                 }
-                withTransform({ translate(0f, hop); scale(catSize, catSize, Offset(120f, 142f)) }) {
+                val squashL = (cs.land0 * 0.02f).coerceIn(-0.12f, 0.12f)
+                withTransform({ translate(0f, hop); scale(catSize * (1f + squashL * 0.6f), catSize * (1f - squashL), Offset(120f, 142f)) }) {
                     cat(cs, now, beat, playing, amp, lfo, dl, dr, sink * depth, 82f, 108f)
                 }
                 // POLY: kittens kneading along the front edge
@@ -379,7 +406,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
 
     // ---- tail: up and over, swishing with the LFO ----
     // her tail IS the oscillator's waveform, travelling along it (sine curls … square crenellates)
-    val wag = lfo * 10f + sin(now * 1.3f) * 4f
+    val wag = lfo * 10f + sin(now * 1.3f) * 4f + cs.tail0
     val x3 = 210f + wag * 0.3f; val y3 = 60f + wag
     p.reset()
     val n = 28
@@ -401,10 +428,17 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     drawPath(p, FUR, style = Stroke(8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     drawCircle(FUR_DARK, 4.2f, Offset(tipX, tipY))
 
+    // the chest dips into each press: everything from here to the head tilts around her haunch
+    val lean = cs.lean0
+    val pivot = Offset(176f, 142f)
+    val ca = kotlin.math.cos(-lean * PI.toFloat() / 180f); val sa = sin(-lean * PI.toFloat() / 180f)
+    fun tiltY(x: Float, y: Float) = pivot.y + (x - pivot.x) * sa + (y - pivot.y) * ca
+    fun tiltX(x: Float, y: Float) = pivot.x + (x - pivot.x) * ca - (y - pivot.y) * sa
     // ---- far front leg, in shadow behind her chest ----
     val liftF = 10f * (1f - df).pow(1.5f)
     val pfx = farX + 2f - 4f * (1f - df); val pfy = 140f + sink * df - liftF
-    p.reset(); p.moveTo(112f, 110f + rock); p.quadraticTo((112f + pfx) / 2f - 4f, (110f + pfy) / 2f, pfx, pfy - 4f)
+    val fsx = tiltX(112f, 110f + rock); val fsy = tiltY(112f, 110f + rock)
+    p.reset(); p.moveTo(fsx, fsy); p.quadraticTo((fsx + pfx) / 2f - 4f, (fsy + pfy) / 2f, pfx, pfy - 4f)
     drawPath(p, FUR_SHADOW, style = Stroke(12f, cap = StrokeCap.Round))
     drawOval(CREAM_SHADOW, Offset(pfx - 2f - 8f - 2f * df, pfy - 5f), Size(16f + 4f * df, 10f))
 
@@ -422,6 +456,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
             drawPath(p, col)
         }
     }
+    rotate(-lean, pivot) {
     val body = cs.path2                                                                         // kept: the stripes clip to it
     body.reset()
     body.moveTo(90f, 98f)
@@ -458,6 +493,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
             drawLine(c, Offset(bx, by), Offset(bx + 2f, by - 4f), 1f); drawLine(c, Offset(bx + 2f, by - 4f), Offset(bx - 1f, by - 6f), 1f)
         }
     }
+    }   // (end of the body tilt)
     // purr: little lines off her chest while anything sounds
     if (amp > 0.02f || playing) {
         val j = sin(now * 60f) * 1f
@@ -467,10 +503,11 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     // ---- near front leg + paw ----
     val liftN = 10f * (1f - dn).pow(1.5f)
     val pnx = nearX + 2f - 4f * (1f - dn); val pny = 140f + sink * dn - liftN
-    p.reset(); p.moveTo(98f, 108f); p.quadraticTo((98f + pnx) / 2f - 5f, (108f + pny) / 2f, pnx, pny - 4f)
+    val nsx = tiltX(98f, 108f); val nsy = tiltY(98f, 108f)
+    p.reset(); p.moveTo(nsx, nsy); p.quadraticTo((nsx + pnx) / 2f - 5f, (nsy + pny) / 2f, pnx, pny - 4f)
     drawPath(p, OUT, style = Stroke(15f, cap = StrokeCap.Round))
     drawPath(p, FUR, style = Stroke(12f, cap = StrokeCap.Round))
-    drawOval(FUR, Offset(89f, 98f), Size(18f, 16f))                                             // shoulder, blended into the chest
+    drawOval(FUR, Offset(nsx - 9f, nsy - 10f), Size(18f, 16f))                                  // shoulder, blended into the chest
     val sp = 1f + 2.5f * dn                                                                     // toes spread as it presses
     drawOval(CREAM, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f))
     drawOval(OUT, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f), style = Stroke(1f))
@@ -482,17 +519,17 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     }
 
     // ---- head, three-quarter, on her shoulders ----
-    val hx = 84f; val hy = 76f + rock * 0.5f + bob + cs.headLfo
+    val hx = tiltX(84f, 76f); val hy = tiltY(84f, 76f) + rock * 0.5f + bob + cs.headLfo + (cs.head0 - lean) * 0.9f
     val tw = now - cs.twitchAt
     val twitch = if (tw in 0f..0.3f) sin(tw * 40f) * 9f * (1f - tw / 0.3f) else 0f
-    rotate(twitch * 0.6f, Offset(hx + 18f, hy - 20f)) {                                        // far ear (gold hoop)
+    rotate(twitch * 0.6f + cs.ear0, Offset(hx + 18f, hy - 20f)) {                              // far ear (gold hoop)
         p.reset(); p.moveTo(hx + 10f, hy - 22f); p.lineTo(hx + 26f, hy - 44f); p.lineTo(hx + 28f, hy - 14f); p.close()
         drawPath(p, FUR); drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
         p.reset(); p.moveTo(hx + 14f, hy - 22f); p.lineTo(hx + 24f, hy - 37f); p.lineTo(hx + 24f, hy - 18f); p.close()
         drawPath(p, BEAN)
         drawCircle(HOOP, 3f, Offset(hx + 27f, hy - 16f), style = Stroke(1.4f))
     }
-    rotate(-twitch, Offset(hx - 14f, hy - 18f)) {                                               // near ear
+    rotate(-twitch - cs.ear0, Offset(hx - 14f, hy - 18f)) {                                     // near ear
         p.reset(); p.moveTo(hx - 26f, hy - 12f); p.lineTo(hx - 24f, hy - 44f); p.lineTo(hx - 4f, hy - 24f); p.close()
         drawPath(p, FUR); drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
         p.reset(); p.moveTo(hx - 22f, hy - 17f); p.lineTo(hx - 21f, hy - 37f); p.lineTo(hx - 9f, hy - 24f); p.close()
@@ -536,6 +573,18 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
         drawLine(FUR_DARK, Offset(hx - 22f, hy - 12f - brow), Offset(hx - 9f, hy - 13f - brow), 2f, cap = StrokeCap.Round)
         drawLine(FUR_DARK, Offset(hx + 7f, hy - 13f - brow), Offset(hx + 19f, hy - 12f - brow), 2f, cap = StrokeCap.Round)
     }
+    // the peek: her eyes (green, slit pupils) show over the lowered shades, with one slow cat-blink
+    val pk = cs.peek * 6f
+    if (pk > 0.3f) {
+        val lid = cs.peekBlink
+        for ((ex, w) in listOf(hx - 14f to 9f, hx + 13f to 8f)) {
+            val eh = 7f * (1f - 0.92f * lid)
+            drawOval(Color(0xFFB9E07A), Offset(ex - w / 2f, hy - 7f - eh / 2f), Size(w, eh))
+            if (eh > 2f) drawLine(SHADES, Offset(ex, hy - 7f - eh / 2f + 0.8f), Offset(ex, hy - 7f + eh / 2f - 0.8f), 1.6f, cap = StrokeCap.Round)
+            drawLine(OUT, Offset(ex - w / 2f, hy - 7f - eh / 2f), Offset(ex + w / 2f, hy - 7f - eh / 2f), 1.2f, cap = StrokeCap.Round)
+        }
+    }
+    withTransform({ translate(0f, pk) }) {
     // shades: the near lens bigger (three-quarter), a bridge, an arm back to the far ear, a sweeping glint
     p.reset(); p.moveTo(hx - 26f, hy - 9f); p.lineTo(hx - 3f, hy - 9f); p.lineTo(hx - 5f, hy + 1f); p.quadraticTo(hx - 14f, hy + 5f, hx - 24f, hy + 1f); p.close()
     drawPath(p, SHADES)
@@ -550,7 +599,11 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
         val gx = hx - 24f + g / 0.2f * 46f
         if (gx < hx - 5f || gx > hx + 5f) drawLine(Color.White.copy(alpha = 0.6f), Offset(gx, hy - 8f), Offset(gx + 4f, hy), 1.5f, cap = StrokeCap.Round)
     }
+    }   // (end of the shades peek)
 }
+
+/** Her beat bob (shared by the head and the tail's lag). */
+private fun bob(beat: Float, playing: Boolean) = if (playing) abs(sin(PI.toFloat() * beat)) else 0f
 
 // ----------------------------------------------------------------------------- what she kneads
 

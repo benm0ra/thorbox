@@ -261,10 +261,16 @@ private fun DuckMeter(state: AppState, modifier: Modifier) {
 
 /**
  * The NYC subway rat, on a tiled platform (DUCK ST). He's holding a slice over his head like a barbell:
- * every kick drops its weight on him and he squashes exactly as far as the mix ducks; then he pushes
- * it back up on the BOUNCE (release) curve. Between kicks he nods to the tempo. Fresh Timbs, big
- * headphones, a hoodie in the theme's colour; the boombox thumps with the key, the grate puffs steam
- * on every trigger, and the train's lights sweep through the tunnel behind him.
+ * every kick drops its weight on him and he squashes by the real gain reduction; then he pushes it
+ * back up on the BOUNCE (release) curve. Fresh Timbs, big headphones, a hoodie in the theme's colour.
+ *
+ * How he moves (the animation principles, each from a real signal):
+ *  - squash & stretch: a spring chases the gain reduction, so the recovery overshoots into a stretch
+ *    (that's the "bounce"); his width trades with his height so he keeps his volume
+ *  - anticipation: he reads the key's pattern (or the beat) ahead and braces just before each kick
+ *  - follow-through: ears, tail, headphone cups and the slice's wobble are springs that lag and settle
+ *  - secondary action: he blinks, nods to the tempo (drop on the beat, ease up), sniffs and breathes
+ *    when it's quiet; the woofers, the pigeon and the steam react to the key
  */
 @Composable
 fun SubwayRat(state: AppState, modifier: Modifier) {
@@ -285,18 +291,49 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
         tel.frame.longValue
         val d = g.duck.value
         val now = tel.timeSec
-        val dt = (now - rs.lastT).coerceIn(0f, 0.1f); rs.lastT = now
-        // squash = the real gain reduction, 0 … 1 over 0 … 24 dB (deeper still reads as fully flat)
-        val sq = if (d.on) (g.duckGrDb / 24f).coerceIn(0f, 1f) else 0f
-        // a new trigger: puff of steam + "BOOM"
-        if (g.duckTriggers != rs.lastTrig) { if (d.on && g.duckTriggers > rs.lastTrig) rs.hitAt = now; rs.lastTrig = g.duckTriggers }
-        val since = now - rs.hitAt
+        val dt = (now - rs.lastT).coerceIn(0f, 0.05f); rs.lastT = now
         val playing = g.transport[1] != 0.0
-        val beat = if (playing) ((g.transport[0] / com.thorbox.model.PPQN) % 1.0).toFloat() else (now * 0.5f) % 1f
-        // nod to the tempo, less while he's under the weight
-        val nod = sin(beat * 2f * PI.toFloat()).let { it * it } * (1f - sq) * (if (playing) 1f else 0.35f)
+        val bpm = g.groove.value.bpm.coerceAtLeast(30f)
+        val beatPos = g.transport[0] / com.thorbox.model.PPQN
+        val beat = if (playing) (beatPos % 1.0).toFloat() else (now * 0.5f) % 1f
+        val gr = if (d.on) g.duckGrDb else 0f
+
+        // ---- a new trigger: the weight lands ----
+        val fresh = g.duckTriggers != rs.lastTrig
+        if (fresh) {
+            if (d.on && g.duckTriggers > rs.lastTrig) {
+                rs.hitAt = now
+                rs.slice.kick(if (rs.flip) 140f else -140f); rs.flip = !rs.flip
+                rs.cups.kick(-60f); rs.ears.kick(80f); rs.cone.kick(30f)
+                if (gr > 14f || rs.lastGr > 14f) { rs.pigeonAt = now; rs.pigeon.kick(-70f) }
+            }
+            rs.lastTrig = g.duckTriggers
+        }
+        rs.lastGr = gr
+        val since = now - rs.hitAt
+
+        // ---- anticipation: brace in the last 120 ms before the next kick ----
+        val toGo = if (d.on && playing) nextKeyIn(state, d, beatPos, bpm) else -1f
+        val brace = if (toGo in 0f..0.12f) smooth01(1f - toGo / 0.12f) else 0f
+
+        // ---- the springs ----
+        val target = (gr / 24f).coerceIn(0f, 1.1f) + 0.12f * brace
+        val sq = rs.body.step(target, dt)                                     // overshoots below 0 = a stretch on the way up
+        val nodCurve = if (playing) decay((beat * 60f / bpm), 9f) * (1f - (gr / 24f).coerceIn(0f, 1f)) else 0f
+        val nod = rs.head.step(nodCurve, dt)
+        val ear = rs.ears.step(sq * 14f, dt)                                  // droop (deg), lagging the body
+        val tailSway = rs.tail.step(nod * 8f + sq * 10f, dt)
+        val tilt = rs.slice.step(0f, dt)
+        val cupDy = rs.cups.step(0f, dt)
         val keyLvl = ((g.duckKeyDb + 50f) / 50f).coerceIn(0f, 1f)
-        rs.boomPulse = maxOf(keyLvl, rs.boomPulse - dt * 4f)
+        val cone = rs.cone.step(keyLvl * 1.6f, dt)
+        val pigeonHop = rs.pigeon.step(0f, dt)
+        val blink = rs.blink.closed(now)
+        // quiet: breathe, and every few seconds a sniff (the nose and whiskers flutter)
+        val idle = !playing || gr < 0.1f && since > 1.5f
+        val breathe = if (idle) sin(now * 2.2f) * 0.018f else 0f
+        if (now > rs.sniffAt + 0.7f) rs.sniffAt = now + 3.5f + ((now * 13.7f) % 3f)
+        val sniff = if (idle && now in rs.sniffAt..(rs.sniffAt + 0.6f)) sin((now - rs.sniffAt) * 75f) else 0f
 
         val sc = min(size.width / 240f, size.height / 200f)
         val ox = (size.width - 240f * sc) / 2f; val oy = (size.height - 200f * sc) / 2f
@@ -304,10 +341,10 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
         drawRect(TILE, Offset.Zero, size)
         withTransform({ translate(ox, oy); scale(sc, sc, Offset.Zero) }) {
             platform(now, since, tm, sign, bullet, d.source)
-            boombox(rs.boomPulse)
-            pigeon(rs.boomPulse, since, now)
+            boombox(cone)
+            pigeon(pigeonHop, now - rs.pigeonAt, now)
             steam(since)
-            rat(sq, nod, now, since, slice, tail)
+            rat(RatPose(sq, nod, ear, tailSway, tilt, cupDy, blink, sniff, breathe, brace, since), now, slice, tail)
             if (since in 0f..0.45f && d.on) {
                 val a = 1f - since / 0.45f
                 val t = tm.measure("BOOM", boom)
@@ -325,7 +362,43 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
     }
 }
 
-private class RatState { var lastT = 0f; var hitAt = -10f; var lastTrig = 0; var boomPulse = 0f }
+/** Seconds until the DUCK key next fires (from the key track's pattern, or the next quarter for BEAT); -1 = none soon. */
+private fun nextKeyIn(state: AppState, d: DuckSettings, beatPos: Double, bpm: Float): Float {
+    val secPerBeat = 60f / bpm
+    if (d.source == DuckSettings.BEAT) return ((1.0 - beatPos % 1.0) * secPerBeat).toFloat()
+    val clip = state.groove.clips.value.getOrNull(d.source) ?: return -1f
+    val len = clip.lengthTicks.toDouble()
+    if (len <= 0.0) return -1f
+    val pos = (beatPos * com.thorbox.model.PPQN) % len
+    var best = Double.MAX_VALUE
+    val drumKey = d.sourceSlot >= 0 && state.trackKind(d.source) == TrackKind.DRUMS
+    for (e in clip.notes) {
+        if (drumKey && e.note != d.sourceSlot) continue
+        var dd = e.tick - pos; if (dd <= 0) dd += len
+        if (dd < best) best = dd
+    }
+    return if (best == Double.MAX_VALUE) -1f else (best / com.thorbox.model.PPQN * secPerBeat).toFloat()
+}
+
+private class RatState {
+    var lastT = 0f; var hitAt = -10f; var lastTrig = 0; var lastGr = 0f; var flip = false
+    var pigeonAt = -10f; var sniffAt = 3f
+    val body = Spring(6.5f, 0.34f)       // squash (+) / stretch (−): overshoots on the way back up
+    val head = Spring(7f, 0.45f)         // the nod
+    val ears = Spring(4.5f, 0.25f)       // ear droop, lagging
+    val tail = Spring(2.4f, 0.3f)        // tail tip sway
+    val slice = Spring(3.2f, 0.18f)      // the slice's wobble (deg) after it lands
+    val cups = Spring(8f, 0.3f)          // headphone cups bounce
+    val cone = Spring(12f, 0.3f)         // boombox woofers
+    val pigeon = Spring(5f, 0.45f)       // the pigeon's hop
+    val blink = Blinker(11)
+}
+
+/** One frame of the rat's pose (all from the springs above). */
+private class RatPose(
+    val sq: Float, val nod: Float, val ear: Float, val tail: Float, val tilt: Float, val cupDy: Float,
+    val blink: Float, val sniff: Float, val breathe: Float, val brace: Float, val since: Float,
+)
 
 // subway-platform palette (the scene has its own colours, like the drummer's corner)
 private val TILE = Color(0xFFE8E2D2)
@@ -387,36 +460,38 @@ private fun DrawScope.platform(now: Float, since: Float, tm: androidx.compose.ui
     for (i in 0 until 7) drawLine(Color(0xFF2E2D2B), Offset(25f + i * 5.5f, 161f), Offset(25f + i * 5.5f, 168f), 1.2f)
 }
 
-/** A boombox on the platform; the woofers push out with the key. */
-private fun DrawScope.boombox(pulse: Float) {
+/** A boombox on the platform; the woofers push out with the key (a spring, so they flex past and back). */
+private fun DrawScope.boombox(cone: Float) {
     val x = 156f; val y = 150f
     drawLine(Color(0xFF2A2A2E), Offset(x + 6f, y - 4f), Offset(x + 34f, y - 4f), 2.5f)                // handle
     drawRoundRect(Color(0xFF2C2C33), Offset(x, y), Size(40f, 22f), CornerRadius(3f))
     drawRoundRect(Color(0xFF45454E), Offset(x + 15f, y + 3f), Size(10f, 6f), CornerRadius(1f))         // tape deck
     for (cx in floatArrayOf(x + 8f, x + 32f)) {
-        drawCircle(Color(0xFF101013), 6.5f + pulse * 1.2f, Offset(cx, y + 14f))
-        drawCircle(Color(0xFF5B5B66), 2.5f + pulse * 1.5f, Offset(cx, y + 14f))
+        drawCircle(Color(0xFF101013), 6.5f + cone * 0.8f, Offset(cx, y + 14f))
+        drawCircle(Color(0xFF5B5B66), (2.5f + cone * 1.2f).coerceAtLeast(1f), Offset(cx, y + 14f))
     }
 }
 
-/** An NYC pigeon perched on the boombox: bobs its head, and flaps when the woofers thump. */
-private fun DrawScope.pigeon(pulse: Float, since: Float, now: Float) {
-    val x = 182f; val y = 143f
-    val flap = if (since in 0f..0.35f) sin(since / 0.35f * PI.toFloat() * 3f) else 0f
-    val hop = if (since in 0f..0.35f) -3f * sin(since / 0.35f * PI.toFloat()) else 0f
-    val bob = sin(now * 5f) * 1.2f
-    drawLine(Color(0xFFE07A5F), Offset(x - 3f, y + 4f + hop), Offset(x - 3f, y + 7f), 1.2f)             // feet
-    drawLine(Color(0xFFE07A5F), Offset(x + 2f, y + 4f + hop), Offset(x + 2f, y + 7f), 1.2f)
-    drawOval(Color(0xFF8D93A0), Offset(x - 9f, y - 4f + hop), Size(16f, 9f))                           // body
-    drawOval(Color(0xFF5E6472), Offset(x + 4f, y - 3f + hop), Size(8f, 4f))                            // tail
-    rotate(-25f - flap * 45f, Offset(x - 2f, y - 2f + hop)) {                                          // wing
-        drawOval(Color(0xFF6E7482), Offset(x - 6f, y - 4f + hop), Size(11f, 5f))
+/** An NYC pigeon perched on the boombox: head-bobs like pigeons do (a jerk forward, a hold), and startles
+ *  on a big hit: a flap and a hop (a spring) that lands back on the box. */
+private fun DrawScope.pigeon(hop: Float, sinceStartle: Float, now: Float) {
+    val x = 182f; val y = 143f + hop
+    val flap = if (sinceStartle in 0f..0.5f) sin(sinceStartle / 0.5f * PI.toFloat() * 4f) * (1f - sinceStartle / 0.5f) else 0f
+    // the pigeon bob: the head snaps forward, holds, snaps back (a stepped curve, not a sine)
+    val bp = (now * 1.6f) % 1f
+    val bob = if (bp < 0.12f) -3f * smooth01(bp / 0.12f) else if (bp < 0.55f) -3f else -3f * (1f - smooth01((bp - 0.55f) / 0.12f))
+    drawLine(Color(0xFFE07A5F), Offset(x - 3f, y + 4f), Offset(x - 3f, 150f), 1.2f)                    // feet stay on the box
+    drawLine(Color(0xFFE07A5F), Offset(x + 2f, y + 4f), Offset(x + 2f, 150f), 1.2f)
+    drawOval(Color(0xFF8D93A0), Offset(x - 9f, y - 4f), Size(16f, 9f))                                 // body
+    drawOval(Color(0xFF5E6472), Offset(x + 4f, y - 3f), Size(8f, 4f))                                  // tail
+    rotate(-20f - flap * 70f, Offset(x - 2f, y - 2f)) {                                                // wing
+        drawOval(Color(0xFF6E7482), Offset(x - 6f, y - 4f), Size(11f, 5f))
     }
-    drawCircle(Color(0xFF5DA28C), 3.2f, Offset(x - 8f, y - 4f + hop))                                  // the green-purple neck
-    drawCircle(Color(0xFF8A5BA8).copy(alpha = 0.6f), 2.2f, Offset(x - 7f, y - 3f + hop))
-    drawCircle(Color(0xFF8D93A0), 3.4f, Offset(x - 11f + bob, y - 8f + hop))                           // head
-    drawCircle(Color(0xFFF08A24), 0.9f, Offset(x - 12f + bob, y - 9f + hop))                           // eye
-    drawLine(Color(0xFF3A3A3A), Offset(x - 14f + bob, y - 7.5f + hop), Offset(x - 16.5f + bob, y - 6.8f + hop), 1.3f)   // beak
+    drawCircle(Color(0xFF5DA28C), 3.2f, Offset(x - 8f, y - 4f))                                        // the green-purple neck
+    drawCircle(Color(0xFF8A5BA8).copy(alpha = 0.6f), 2.2f, Offset(x - 7f, y - 3f))
+    drawCircle(Color(0xFF8D93A0), 3.4f, Offset(x - 11f + bob, y - 8f))                                 // head
+    drawCircle(Color(0xFFF08A24), 0.9f, Offset(x - 12f + bob, y - 9f))                                 // eye
+    drawLine(Color(0xFF3A3A3A), Offset(x - 14f + bob, y - 7.5f), Offset(x - 16.5f + bob, y - 6.8f), 1.3f)   // beak
 }
 
 /** Steam up through the grate on each trigger: three puffs that rise and fade. */
@@ -431,105 +506,120 @@ private fun DrawScope.steam(since: Float) {
 }
 
 /**
- * The rat. [sq] 0 = standing tall, slice held high · 1 = flattened under it. [nod] 0…1 head bob.
- * Feet at (110, 178); everything above them scales with the squash, so the pivot is the floor.
+ * The rat. [RatPose.sq] 0 = standing tall, slice held high · 1 = flattened under it · below 0 = stretched
+ * taller than rest (the overshoot on the way back up). Feet at (110, 178); the floor is the pivot.
  */
-private fun DrawScope.rat(sq: Float, nod: Float, now: Float, since: Float, slice: Path, tail: Path) {
+private fun DrawScope.rat(pose: RatPose, now: Float, slice: Path, tail: Path) {
     val fx = 110f; val fy = 178f
-    val squashY = 1f - 0.36f * sq; val squashX = 1f + 0.2f * sq
+    val sq = pose.sq.coerceIn(-0.45f, 1.15f)
+    // squash & stretch with (roughly) constant volume: as he gets shorter he gets wider, and vice versa
+    val squashY = (1f - 0.36f * sq) * (1f + pose.breathe)
+    val squashX = (1f / kotlin.math.sqrt(squashY)).coerceIn(0.9f, 1.3f)
     val bodyH = 58f * squashY; val bodyW = 40f * squashX
-    val hip = fy - 14f                                     // top of the boots
+    val hip = fy - 14f + 2f * pose.brace                       // knees give a little as he braces
     val shoulderY = hip - bodyH * 0.92f
-    val headY = shoulderY - 16f * (1f - 0.15f * sq) + nod * 2.2f
-    val headX = fx + 6f + nod * 1.5f
+    val headY = shoulderY - 16f * (1f - 0.15f * sq.coerceAtLeast(0f)) + pose.nod * 3f
+    val headX = fx + 6f + pose.nod * 1.2f
 
-    // tail: a long pink S out the back, flicking a little with the beat
+    // tail: a long pink S out the back; its tip lags his moves (follow-through)
     tail.reset()
     tail.moveTo(fx - bodyW * 0.42f, hip - 6f)
-    tail.cubicTo(fx - 48f, hip + 6f, fx - 62f, hip - 30f + nod * 4f, fx - 74f, hip - 18f - sin(now * 3f) * 3f)
+    tail.cubicTo(fx - 48f, hip + 6f, fx - 62f, hip - 30f + pose.tail * 0.5f, fx - 74f, hip - 18f - pose.tail - sin(now * 3f) * 1.5f)
     drawPath(tail, PINK, style = Stroke(3.2f, cap = StrokeCap.Round))
 
-    // Timbs: tan work boots, dark soles, a lace line (they spread a bit as he squats)
-    val spread = 9f + 7f * sq
+    // Timbs: tan work boots, dark soles, laces, padded collar (feet spread as he squats)
+    val spread = 9f + 7f * sq.coerceAtLeast(0f)
     for (s in floatArrayOf(-1f, 1f)) {
         val bx = fx + s * spread
         drawRoundRect(TIMB, Offset(bx - 8f, fy - 14f), Size(17f, 13f), CornerRadius(4f))
         drawRoundRect(TIMB_SOLE, Offset(bx - 9f, fy - 3f), Size(19f, 4f), CornerRadius(1.5f))
         drawLine(Color(0xFF8A5E22), Offset(bx - 2f, fy - 13f), Offset(bx + 3f, fy - 6f), 1.2f)
-        drawRect(Color(0xFF6B4A1C), Offset(bx - 8f, fy - 15f), Size(17f, 2.5f))                // padded collar
+        drawRect(Color(0xFF6B4A1C), Offset(bx - 8f, fy - 15f), Size(17f, 2.5f))
     }
 
     // body in a hoodie (the theme's key colour), grey fur at the belly
     val hood = Tb.Key
     drawOval(hood, Offset(fx - bodyW / 2f, hip - bodyH), Size(bodyW, bodyH))
     drawOval(BELLY, Offset(fx - bodyW * 0.28f, hip - bodyH * 0.62f), Size(bodyW * 0.56f, bodyH * 0.5f))
-    drawRoundRect(hood.copy(alpha = 0.85f), Offset(fx - bodyW * 0.3f, hip - bodyH * 0.4f), Size(bodyW * 0.6f, bodyH * 0.18f), CornerRadius(4f))   // kangaroo pocket
-    drawLine(INK.copy(alpha = 0.5f), Offset(fx - 3f, shoulderY + 3f), Offset(fx - 4f, shoulderY + 12f), 1f)    // drawstrings
-    drawLine(INK.copy(alpha = 0.5f), Offset(fx + 3f, shoulderY + 3f), Offset(fx + 4f, shoulderY + 12f), 1f)
+    drawRoundRect(hood.copy(alpha = 0.85f), Offset(fx - bodyW * 0.3f, hip - bodyH * 0.4f), Size(bodyW * 0.6f, bodyH * 0.18f), CornerRadius(4f))
+    // drawstrings swing a little behind the body (follow-through off the ears' spring)
+    val swing = pose.ear * 0.12f
+    drawLine(INK.copy(alpha = 0.5f), Offset(fx - 3f, shoulderY + 3f), Offset(fx - 4f + swing, shoulderY + 12f), 1f)
+    drawLine(INK.copy(alpha = 0.5f), Offset(fx + 3f, shoulderY + 3f), Offset(fx + 4f + swing, shoulderY + 12f), 1f)
 
-    // arms up to the slice: shoulders → elbows (out wider as he's pushed down) → paws under the slice
-    // the slice rides above his ears, and comes to rest on them at the bottom of the squash
-    val sliceY = headY - 33f + 9f * sq + (if (since in 0f..0.12f) since * 20f else 0f)
-    val elbowOut = 18f + 10f * sq
+    // arms up to the slice: shoulders → elbows (out wider under the weight) → paws under the slice
+    val sliceY = headY - 33f + 9f * sq.coerceAtLeast(0f) - 4f * (-sq).coerceAtLeast(0f)
+    val elbowOut = 18f + 10f * sq.coerceAtLeast(0f)
     for (s in floatArrayOf(-1f, 1f)) {
         val sx = fx + s * bodyW * 0.42f; val sy = shoulderY + 6f
-        val ex = fx + s * (bodyW * 0.42f + elbowOut); val ey = (sy + sliceY) / 2f + 6f * sq
-        val px = fx + s * 22f; val py = sliceY + 4f
+        val ex = fx + s * (bodyW * 0.42f + elbowOut); val ey = (sy + sliceY) / 2f + 6f * sq.coerceAtLeast(0f)
+        val px = fx + s * 22f; val py = sliceY + 4f + s * pose.tilt * 0.12f
         drawLine(hood, Offset(sx, sy), Offset(ex, ey), 7f, cap = StrokeCap.Round)
         drawLine(FUR, Offset(ex, ey), Offset(px, py), 5f, cap = StrokeCap.Round)
         drawCircle(PINK, 3.4f, Offset(px, py))
     }
 
-    // head: big round ears, then the head, snout to the right
-    for ((ex, er) in listOf(headX - 11f to 9f, headX + 5f to 10f)) {
-        val earY = headY - 13f + sq * 3f
-        drawCircle(FUR_DARK, er, Offset(ex, earY))
-        drawCircle(PINK, er - 3.2f, Offset(ex, earY))
+    // ears: big and round; they droop under the weight and flop back up a beat late
+    for ((k, er) in listOf(-1f to 9f, 1f to 10f)) {
+        val ex = headX + (if (k < 0f) -11f else 5f)
+        val earY = headY - 13f + sq.coerceAtLeast(0f) * 2f
+        rotate(k * pose.ear * 0.9f, Offset(ex, earY + er * 0.6f)) {
+            drawCircle(FUR_DARK, er, Offset(ex, earY))
+            drawCircle(PINK, er - 3.2f, Offset(ex, earY))
+        }
     }
     drawCircle(FUR, 15f, Offset(headX, headY))
     slice.reset()                                       // (the slice's path, borrowed for the snout first)
+    val sn = pose.sniff * 1.2f
     slice.moveTo(headX + 8f, headY - 7f)
-    slice.quadraticBezierTo(headX + 27f, headY - 2f, headX + 26f, headY + 3f)
+    slice.quadraticBezierTo(headX + 27f + sn, headY - 2f, headX + 26f + sn, headY + 3f)
     slice.quadraticBezierTo(headX + 18f, headY + 8f, headX + 6f, headY + 7f)
     slice.close()
     drawPath(slice, FUR)
-    drawCircle(PINK, 3.2f, Offset(headX + 26f, headY + 1.5f))                                           // nose
-    for (k in -1..1) drawLine(INK.copy(alpha = 0.55f), Offset(headX + 20f, headY + 3f), Offset(headX + 34f, headY + 1f + k * 4f + sq * 2f), 0.8f)
+    drawCircle(PINK, 3.2f, Offset(headX + 26f + sn, headY + 1.5f))                                    // nose (sniffs)
+    for (k in -1..1) drawLine(INK.copy(alpha = 0.55f), Offset(headX + 20f, headY + 3f),
+        Offset(headX + 34f, headY + 1f + k * 4f + sq.coerceAtLeast(0f) * 2f + pose.sniff * 1.5f * k), 0.8f)
     drawLine(Color.White, Offset(headX + 20f, headY + 7f), Offset(headX + 20f, headY + 10f), 2.2f)        // buck teeth
-    // eye: open with a glint; straining (a squeezed ">") when the weight is heavy
+    // eye: straining under a heavy weight; looking up at the slice as he braces; blinking otherwise
+    val ex0 = headX + 8f; val ey0 = headY - 4f - 1.5f * pose.brace
     if (sq > 0.55f) {
-        drawLine(INK, Offset(headX + 5f, headY - 6f), Offset(headX + 10f, headY - 3.5f), 1.8f, cap = StrokeCap.Round)
-        drawLine(INK, Offset(headX + 10f, headY - 3.5f), Offset(headX + 5f, headY - 1f), 1.8f, cap = StrokeCap.Round)
+        drawLine(INK, Offset(ex0 - 3f, ey0 - 2f), Offset(ex0 + 2f, ey0 + 0.5f), 1.8f, cap = StrokeCap.Round)
+        drawLine(INK, Offset(ex0 + 2f, ey0 + 0.5f), Offset(ex0 - 3f, ey0 + 3f), 1.8f, cap = StrokeCap.Round)
+    } else if (pose.blink > 0.5f) {
+        drawLine(INK, Offset(ex0 - 3f, ey0), Offset(ex0 + 3f, ey0), 1.6f, cap = StrokeCap.Round)
     } else {
-        drawCircle(INK, 3f, Offset(headX + 8f, headY - 4f))
-        drawCircle(Color.White, 1f, Offset(headX + 9f, headY - 5f))
+        drawOval(INK, Offset(ex0 - 3f, ey0 - 3f * (1f - pose.blink)), Size(6f, 6f * (1f - pose.blink)))
+        drawCircle(Color.White, 1f, Offset(ex0 + 1f, ey0 - 1f - pose.brace))
     }
-    // headphones: band over the top, cups over the ears (the second accent colour)
+    // headphones: band over the top, the cup bounces on its own spring
     val cup = Tb.Tempo
     drawArc(INK, 200f, 140f, false, Offset(headX - 17f, headY - 20f), Size(34f, 30f), style = Stroke(3f))
-    drawRoundRect(cup, Offset(headX - 19f, headY - 7f), Size(8f, 13f), CornerRadius(3f))
-    drawRoundRect(INK, Offset(headX - 19f, headY - 7f), Size(8f, 13f), CornerRadius(3f), style = Stroke(1f))
+    val cy0 = headY - 7f + pose.cupDy * 0.08f
+    drawRoundRect(cup, Offset(headX - 19f, cy0), Size(8f, 13f), CornerRadius(3f))
+    drawRoundRect(INK, Offset(headX - 19f, cy0), Size(8f, 13f), CornerRadius(3f), style = Stroke(1f))
     // sweat when it's heavy
     if (sq > 0.6f) {
         val sy = headY - 14f + ((now * 1.8f) % 1f) * 12f
         drawCircle(Color(0xFF9FD8FF), 2.2f, Offset(headX - 15f, sy))
     }
 
-    // the slice, held flat overhead like a barbell: crust on the right, cheese, pepperoni
-    slice.reset()
-    slice.moveTo(fx - 36f, sliceY + 1f)
-    slice.lineTo(fx + 30f, sliceY - 10f)
-    slice.lineTo(fx + 32f, sliceY + 9f)
-    slice.close()
-    drawPath(slice, CHEESE)
-    drawRoundRect(CRUST, Offset(fx + 27f, sliceY - 12f), Size(9f, 23f), CornerRadius(3.5f))
-    for ((px, py) in listOf(fx - 14f to sliceY + 1f, fx + 2f to sliceY - 1.5f, fx + 16f to sliceY + 1.5f))
-        drawCircle(PEP, 2.6f, Offset(px, py))
-    // a cheese drip that stretches as he sinks
-    if (sq > 0.2f) drawLine(CHEESE, Offset(fx - 6f, sliceY + 2f), Offset(fx - 6f, sliceY + 4f + 10f * sq), 2f, cap = StrokeCap.Round)
-    // a little "weight" mark on the slice when it lands
-    if (since in 0f..0.25f) rotate(-8f, Offset(fx, sliceY - 14f)) {
-        drawLine(INK, Offset(fx - 6f, sliceY - 20f), Offset(fx - 6f, sliceY - 12f), 1.5f)
-        drawLine(INK, Offset(fx + 6f, sliceY - 20f), Offset(fx + 6f, sliceY - 12f), 1.5f)
+    // the slice, held flat overhead like a barbell; it wobbles (a spring) after the weight lands
+    rotate(pose.tilt, Offset(fx, sliceY)) {
+        slice.reset()
+        slice.moveTo(fx - 36f, sliceY + 1f)
+        slice.lineTo(fx + 30f, sliceY - 10f)
+        slice.lineTo(fx + 32f, sliceY + 9f)
+        slice.close()
+        drawPath(slice, CHEESE)
+        drawRoundRect(CRUST, Offset(fx + 27f, sliceY - 12f), Size(9f, 23f), CornerRadius(3.5f))
+        for ((px, py) in listOf(fx - 14f to sliceY + 1f, fx + 2f to sliceY - 1.5f, fx + 16f to sliceY + 1.5f))
+            drawCircle(PEP, 2.6f, Offset(px, py))
+        // a cheese drip that stretches as he sinks and swings with the wobble
+        if (sq > 0.2f) drawLine(CHEESE, Offset(fx - 6f, sliceY + 2f), Offset(fx - 6f - pose.tilt * 0.15f, sliceY + 4f + 10f * sq), 2f, cap = StrokeCap.Round)
+    }
+    // impact marks when it lands
+    if (pose.since in 0f..0.2f) {
+        val a = 1f - pose.since / 0.2f
+        for (k in -1..1) drawLine(INK.copy(alpha = a), Offset(fx + k * 14f, sliceY - 16f - pose.since * 20f), Offset(fx + k * 14f, sliceY - 10f - pose.since * 20f), 1.5f, cap = StrokeCap.Round)
     }
 }

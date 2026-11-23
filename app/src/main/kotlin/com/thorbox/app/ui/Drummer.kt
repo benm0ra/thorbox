@@ -101,6 +101,16 @@ private class DrummerState {
     val path = Path()
     val bricks = Path(); var bricksKey = Float.NaN
     val gate = Path(); var gateKey = Float.NaN
+    // his rig: weight and follow-through (stepped once per frame)
+    var lastT = 0f
+    val bodyS = Spring(4.5f, 0.42f)       // the whole dog drops on the kick and bounces back
+    val headS = Spring(5.5f, 0.4f)        // the nod: a real backbeat nod lands on the snare
+    val jowlS = Spring(3.2f, 0.22f)       // jowls lag the head and wobble
+    val earS = Spring(3.8f, 0.25f)        // ears flop a beat late
+    val capS = Spring(6f, 0.35f)          // the cap lifts off a hair on a hard drop
+    val chainS = Spring(1.6f, 0.15f)      // the chain is a pendulum
+    val leanS = Spring(2.8f, 0.55f)       // leans into the side of the kit he's playing
+    var chainFlip = false
 }
 
 // Big Dawg's colours: his own, not the theme's (he looks the same on every theme).
@@ -245,6 +255,15 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             if (p == Piece.HIHAT) st.hatOpenness = ((v.decayMs - 60f) / 500f).coerceIn(0f, 1f)
             if (drums.hitVel[s] >= 0.92f && (p == Piece.SNARE || p == Piece.CYMBAL || p == Piece.CLAP)) st.grinUntil = t + 0.5f
             st.lastActivity = t
+            val vel = drums.hitVel[s].coerceIn(0.3f, 1f)
+            when (p) {
+                Piece.KICK -> { st.bodyS.kick(26f * vel); st.chainS.kick(if (st.chainFlip) 40f else -40f); st.chainFlip = !st.chainFlip }
+                Piece.SNARE, Piece.CLAP, Piece.RIM -> st.headS.kick(70f * vel)
+                Piece.CYMBAL -> { st.headS.kick(-55f * vel); st.bodyS.kick(-14f * vel) }        // a crash: head back, chest up
+                Piece.HIHAT, Piece.RIDE -> st.headS.kick(10f * vel)
+                Piece.RACK_TOM, Piece.FLOOR_TOM -> { st.headS.kick(30f * vel); st.bodyS.kick(8f * vel) }
+                else -> Unit
+            }
             when (p) {
                 Piece.KICK -> Unit                                         // the foot does it
                 Piece.CLAP -> { st.left.at = t; st.right.at = t; st.left.fromX = 192f; st.left.fromY = 150f; st.right.fromX = 208f; st.right.fromY = 150f }
@@ -287,7 +306,21 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
         withTransform({ translate(ox, oy); scale(sc, sc, Offset.Zero) }) {
             val playing = state.groove.transport[1] != 0.0
             val beatPhase = ((state.groove.transport[0] / com.thorbox.model.PPQN) % 1.0).toFloat()
-            val nod = if (playing) abs(sin(PI.toFloat() * beatPhase)) * 4f else sin(now * 1.1f) * 1.2f
+            // ---- his rig: the hits above kicked the springs; here they settle (follow-through) ----
+            val fdt = (now - st.lastT).coerceIn(0f, 0.05f); st.lastT = now
+            val base = if (playing) abs(sin(PI.toFloat() * beatPhase)) * 1.5f else sin(now * 1.1f) * 1.2f   // a light groove + breathing
+            val bodyDrop = st.bodyS.step(0f, fdt)
+            val headNod = st.headS.step(0f, fdt)
+            val nod = base + headNod
+            val headTotal = bodyDrop + nod
+            val jowlLag = (st.jowlS.step(headTotal, fdt) - headTotal).coerceIn(-5f, 5f)
+            val earLag = (st.earS.step(headTotal, fdt) - headTotal).coerceIn(-6f, 6f)
+            val capLag = (headTotal - st.capS.step(headTotal, fdt)).coerceIn(0f, 5f)
+            // lean toward whichever paw is working (hats + crash one way, snare + toms the other)
+            val leanTarget = 4f * (envFor(now - st.right.at, 0.5f) - envFor(now - st.left.at, 0.5f)) +
+                3f * (st.right.antic - st.left.antic)
+            val leanX = st.leanS.step(leanTarget, fdt)
+            val chainSwing = st.chainS.step(leanX * 1.2f, fdt).coerceIn(-9f, 9f)
             val kickK = env(now - st.pieceHit[Piece.KICK.ordinal], 14f)
             val sleepy = !playing && now - st.lastActivity > 8f
 
@@ -310,9 +343,9 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             if (st.present[Piece.HIHAT.ordinal]) hihat(st, now, hatOpen, footLift)
 
             // ---- Big Dawg ----
-            val bodyY = nod * 0.6f + kickK * 2.5f
+            val bodyY = base * 0.6f + bodyDrop
             legs(bodyY, footLift, kickK, st.present[Piece.HIHAT.ordinal])
-            body(st, bodyY, beatPhase, playing)
+            withTransform({ translate(leanX, 0f) }) { body(st, bodyY, chainSwing) }
             // Arms go BEHIND the drums (the kit hides them where it's in front); only paws + sticks
             // are drawn over the kit, so nothing crosses the shells.
             val beatL = if (playing) -6f * (1f - abs(sin(PI.toFloat() * ((beatPhase + 0.5f) % 1f)))) else 0f
@@ -322,11 +355,14 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             val lt = pawPos(st.left, now, beatL); val rt = pawPos(st.right, now, beatR)
             // shoulders at the sides of his frame, below the jowls
             val shY = 146f + bodyY
-            val lp = reach(166f, shY, lt); val lx = lp.x; val ly = lp.y
-            val rp = reach(234f, shY, rt); val rx = rp.x; val ry = rp.y
-            arm(166f, shY, lx, ly, mirror = false)
-            arm(234f, shY, rx, ry, mirror = true)
-            head(st, now, bodyY + nod * 0.5f, sleepy, kickK)
+            val lp = reach(166f + leanX, shY, lt); val lx = lp.x; val ly = lp.y
+            val rp = reach(234f + leanX, shY, rt); val rx = rp.x; val ry = rp.y
+            arm(166f + leanX, shY, lx, ly, mirror = false)
+            arm(234f + leanX, shY, rx, ry, mirror = true)
+            // the head leans a touch further than the body, and tilts with it
+            withTransform({ translate(leanX * 1.3f, 0f); rotate(leanX * 1.1f, Offset(200f, 130f + bodyY)) }) {
+                head(st, now, bodyY + nod * 0.5f + headNod * 0.5f, sleepy, kickK, jowlLag, earLag, capLag)
+            }
 
             // ---- the drums, back to front ----
             if (st.present[Piece.FLOOR_TOM.ordinal]) floorTom(st, now)
@@ -722,7 +758,7 @@ private fun DrawScope.sneaker(x: Float, y: Float, angle: Float) {
  * edges of the frame (that's where the arms come from), drawstrings, and the gold chain with a
  * bone pendant over the top.
  */
-private fun DrawScope.body(st: DrummerState, y: Float, beatPhase: Float, playing: Boolean) {
+private fun DrawScope.body(st: DrummerState, y: Float, swingNow: Float) {
     drawRoundRect(HOODIE_DARK, Offset(170f, 110f + y), Size(60f, 24f), CornerRadius(12f))          // hood, behind the neck
     val p = st.path; p.reset()
     p.moveTo(157f, 160f + y)
@@ -741,8 +777,8 @@ private fun DrawScope.body(st: DrummerState, y: Float, beatPhase: Float, playing
     drawLine(BLAZE, Offset(192f, 132f + y), Offset(190f, 160f + y), 1.6f, cap = StrokeCap.Round)
     drawLine(BLAZE, Offset(208f, 132f + y), Offset(210f, 162f + y), 1.6f, cap = StrokeCap.Round)
     drawRect(CHROME, Offset(188.8f, 159f + y), Size(2.4f, 4f)); drawRect(CHROME, Offset(208.8f, 161f + y), Size(2.4f, 4f))
-    // gold chain: swings with the beat, a gold bone on the end
-    val swing = if (playing) sin(2f * PI.toFloat() * beatPhase) * 5f else 0f
+    // gold chain: a pendulum (a spring), knocked by the kick and the lean, a gold bone on the end
+    val swing = swingNow
     p.reset()
     p.moveTo(181f, 128f + y); p.quadraticTo(200f + swing, 172f + y, 219f, 128f + y)
     drawPath(p, GOLD_DARK, style = Stroke(4.2f))
@@ -754,12 +790,13 @@ private fun DrawScope.body(st: DrummerState, y: Float, beatPhase: Float, playing
     drawCircle(Color.White.copy(alpha = 0.7f), 0.9f, Offset(bx - 3f, by - 0.6f))
 }
 
-private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boolean, kickK: Float) {
+private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boolean, kickK: Float,
+                           jowlLag: Float = 0f, earLag: Float = 0f, capLag: Float = 0f) {
     val cx = 200f; val cy = 90f + y
-    val hop = 4f * kickK + (if (now < st.grinUntil) 2f else 0f)
-    val jowl = 3f * kickK                                         // jowls drop and bounce on the kick
-    // rose ears: small, folded back, flapping a touch on hits
-    val flap = 8f * kickK
+    val hop = 4f * kickK + (if (now < st.grinUntil) 2f else 0f) + capLag
+    val jowl = 1.5f * kickK - jowlLag                             // jowls trail the head and wobble after it
+    // rose ears: small, folded back; they flop a beat late (follow-through)
+    val flap = 4f * kickK + earLag * 2.2f
     rotate(-18f - flap, Offset(cx - 38f, cy - 30f)) {
         drawOval(COAT_DARK, Offset(cx - 52f, cy - 40f), Size(22f, 16f))
         drawOval(MASK, Offset(cx - 48f, cy - 36f), Size(12f, 8f))
