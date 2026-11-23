@@ -93,7 +93,7 @@ fun SongScreen(state: AppState) {
             Column(Modifier.weight(1.15f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("PATTERNS", style = Type.title, maxLines = 1)
-                    Text("your loops · lit = the one you're on (SYNTH, DRUMS and STEPS edit it) · tap to switch",
+                    Text("your loops · tap one to switch to it",
                         color = Tb.Muted, fontSize = 11.sp, maxLines = 1)
                 }
                 PatternPads(state, Modifier.weight(1f).fillMaxWidth())
@@ -120,7 +120,7 @@ fun SongScreen(state: AppState) {
                 Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("SONG", style = Type.title, maxLines = 1)
-                        Text(if (steps.isEmpty()) "empty" else "${steps.size} part${if (steps.size > 1) "s" else ""} · ${g.songBars()} bars · ${songTime(g)} · plays top to bottom",
+                        Text(if (steps.isEmpty()) "empty" else "${steps.size} part${if (steps.size > 1) "s" else ""} · ${g.songBars()} bars · ${songTime(g)}",
                             color = Tb.Muted, fontSize = 11.sp, maxLines = 1)
                     }
                     val playingSong = songMode && g.playing.value
@@ -159,14 +159,13 @@ private fun NowPlaying(state: AppState) {
         g.playing.value && g.songMode.value && pos in steps.indices -> {
             val st = steps[pos]
             val rep = (g.loopTick / g.patternTicks(st.pattern).coerceAtLeast(1)).toInt().coerceIn(0, st.repeats - 1) + 1
-            "▶ SONG · PART ${pos + 1} OF ${steps.size} · ${g.patternName(st.pattern)}" + if (st.repeats > 1) " ($rep of ${st.repeats})" else ""
+            "▶ PART ${pos + 1}/${steps.size} · ${g.patternName(st.pattern)}" + if (st.repeats > 1) " ($rep of ${st.repeats})" else ""
         }
-        g.playing.value && queued >= 0 -> "▶ ${g.patternName(cur)} · ${g.patternName(queued)} NEXT"
+        g.playing.value && queued >= 0 -> "▶ ${g.patternName(cur)} → ${g.patternName(queued)}"
         g.playing.value -> "▶ LOOPING ${g.patternName(cur)}"
-        g.songMode.value && steps.isNotEmpty() -> "■ STOPPED · ▶ plays the song"
-        else -> "■ STOPPED · ▶ loops ${g.patternName(cur)}"
+        else -> "■ STOPPED"
     }
-    Text(txt, style = Type.value, maxLines = 1)
+    Text(txt, style = Type.value, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
 }
 
 /**

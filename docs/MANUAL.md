@@ -167,7 +167,7 @@ In the header:
 
 - **▶ PLAYS: THE SONG / ONE PATTERN** sets what the play button does. Switching to a pattern by hand while the song plays leaves the song, and the pattern loops.
 - **LOOP SONG ↻ / PLAY ONCE** sets what happens at the end of the song.
-- The text on the right says what's happening ("▶ SONG · PART 2 OF 4 · PAT 2 (1 of 2)").
+- The text on the right says what's happening ("▶ PART 2/4 · PAT 2 (1 of 2)": part 2 of 4, playing PAT 2 for the first of two times).
 
 Recording, automation and the playheads all count from the start of the current pattern, so each pattern loops on its own beat 1. **Each pattern has its own automation:** moves you record go into the pattern you're on and change with it, like the notes. DUPLICATE copies them too.
 
