@@ -21,6 +21,8 @@ AudioEngine::AudioEngine() {
 AudioEngine::~AudioEngine() {
     stop();
     for (int t = 0; t < seq::kTracks; ++t) delete mSeq.setPattern(t, nullptr);   // stream is closed: safe
+    mSeq.commit(0, -1);                                                            // staged scene patterns too
+    while (const seq::Pattern* p = mSeq.retired()) delete p;
     { std::lock_guard<std::mutex> l(mJobMtx); mQuit = true; }
     mJobCv.notify_all();
     if (mWorker.joinable()) mWorker.join();
@@ -161,6 +163,21 @@ bool AudioEngine::setSwing(float a, int grid) {
 bool AudioEngine::setPlaying(bool on) { return mCmds.push({CmdType::SetPlaying, 0, on ? 1 : 0}); }
 bool AudioEngine::setRecording(bool on) { return mCmds.push({CmdType::SetRecording, 0, on ? 1 : 0}); }
 bool AudioEngine::setMetronome(bool on) { return mCmds.push({CmdType::SetMetronome, 0, on ? 1 : 0}); }
+bool AudioEngine::queuePattern(int track, seq::Pattern* owned) {
+    if (track < 0 || track >= seq::kTracks) { delete owned; return false; }
+    Command c{CmdType::QueuePattern, track};
+    c.ptr = owned;
+    if (!mCmds.push(c)) { delete owned; return false; }
+    return true;
+}
+bool AudioEngine::commitScene(int loopTicks, int tag) {
+    if (loopTicks < 0 || loopTicks > 64 * 4 * seq::kPpqn) return false;
+    Command c{CmdType::CommitScene, 0, loopTicks}; c.i1 = tag;
+    return mCmds.push(c);
+}
+void AudioEngine::freeRetired() {
+    while (const seq::Pattern* p = mSeq.retired()) { AudioEvent e; e.type = AudioEventType::PatternReleased; e.ptr = p; mAudioEvents.push(e); }
+}
 bool AudioEngine::setPattern(int track, seq::Pattern* owned) {
     if (!owned) return false;
     if (track < 0 || track >= seq::kTracks) { delete owned; return false; }
@@ -209,13 +226,16 @@ void AudioEngine::getTransport(double* out) {
     out[1] = f & 1; out[2] = (f >> 1) & 1; out[11] = (f >> 2) & 1;
     out[3] = mTelBpm.load(std::memory_order_relaxed);
     for (int i = 0; i < 6; ++i) out[4 + i] = 0;   // meters moved to getMeters()
+    out[4] = mTelQueueTag.load(std::memory_order_relaxed);   // scene queued to change (-1 none)
+    out[5] = mTelQueueAt.load(std::memory_order_relaxed);    // … at this tick
     out[10] = mTelSwing.load(std::memory_order_relaxed);
     out[12] = mTelFx.load(std::memory_order_relaxed);
     out[13] = (double)mTelPads.load(std::memory_order_relaxed);
     out[14] = mTelPlayPad.load(std::memory_order_relaxed);
     out[15] = mTelEchoTail.load(std::memory_order_relaxed);   // FX tails (echo / reverb) for the pads
 
-    out[16] = 0; out[17] = 0;
+    out[16] = mTelOrigin.load(std::memory_order_relaxed);    // the current scene started at this tick
+    out[17] = mTelScene.load(std::memory_order_relaxed);     // … and this is its tag
     out[18] = (double)mTelDrums.load(std::memory_order_relaxed);
     out[19] = mTelRevTail.load(std::memory_order_relaxed);
 }
@@ -601,6 +621,8 @@ void AudioEngine::handleCommand(const Command& c) {
             break;
         case CmdType::SetRecording: mRecording = c.i0 != 0; break;
         case CmdType::SetMetronome: mMetroOn = c.i0 != 0; mSeq.setMetronome(mMetroOn); break;
+        case CmdType::QueuePattern: mSeq.stage(c.pad, static_cast<const seq::Pattern*>(c.ptr)); break;
+        case CmdType::CommitScene: mSeq.commit(c.i0, c.i1); break;
         case CmdType::SetPattern: {
             const seq::Pattern* old = mSeq.setPattern(c.pad, static_cast<const seq::Pattern*>(c.ptr));
             if (old) { AudioEvent e; e.type = AudioEventType::PatternReleased; e.ptr = old; mAudioEvents.push(e); }  // full queue → leak, never UAF
@@ -941,6 +963,7 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
 #endif
     Command c;
     while (mCmds.pop(c)) handleCommand(c);
+    freeRetired();
 
     float* out = static_cast<float*>(audioData);
     std::memset(out, 0, sizeof(float) * (size_t)numFrames * 2);
@@ -972,6 +995,11 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
         mixChunk(out + 2 * off, len, sr, tickAtChunk, tps);
     }
     mScopeWrite.store(w, std::memory_order_release);
+    freeRetired();
+    mTelOrigin.store(mSeq.origin(), std::memory_order_relaxed);
+    mTelScene.store(mSeq.sceneTag(), std::memory_order_relaxed);
+    mTelQueueTag.store(mSeq.queuedTag(), std::memory_order_relaxed);
+    mTelQueueAt.store(mSeq.queuedAt(), std::memory_order_relaxed);
 
     // ---- telemetry ----
     {

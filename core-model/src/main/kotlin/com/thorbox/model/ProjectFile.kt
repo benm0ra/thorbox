@@ -34,13 +34,28 @@ data class ProjectFile(
     val focus: FocusDto = FocusDto(),
     /** DUCK (the sidechain page). null = an older project: its mixer PUMP settings are carried over. */
     val duck: DuckSettings? = null,
+    /** PATTERNS: 16 slots, each a whole set of track patterns ([clips] above is the current one, also kept here).
+     *  Empty = an older project (its [clips] become pattern 1). */
+    val patterns: List<PatternSlot> = emptyList(),
+    val currentPattern: Int = 0,
+    /** SONG: the patterns in order, each played [SongStep.repeats] times. */
+    val song: List<SongStep> = emptyList(),
+    val songMode: Boolean = false,
+    val songLoop: Boolean = true,
 )
+
+/** One pattern (an MPC-style "sequence"): a pattern for every track, and a name. */
+@Serializable data class PatternSlot(val name: String = "", val clips: List<Clip> = emptyList())
+/** One step of the song: play [pattern] (0…15) [repeats] times. */
+@Serializable data class SongStep(val pattern: Int, val repeats: Int = 1)
 
 @Serializable data class TransportDto(
     val bpm: Float = 90f, val swing: Float = 0.5f, val swing16: Boolean = true, val quantize: Float = 1f,
     val repeatRate: String = "SIXTEENTH", val metronome: Boolean = false,
 )
-@Serializable data class ScaleDto(val root: String = "C", val mode: String = "MINOR", val followSample: Boolean = true, val keyLock: Boolean = true)
+@Serializable data class ScaleDto(val root: String = "C", val mode: String = "MINOR", val followSample: Boolean = true, val keyLock: Boolean = true,
+    /** KEY LOCK: every track held in this key (samples key-matched to it, synth notes snapped into it). */
+    val lockAll: Boolean = false)
 @Serializable data class ChannelDto(
     val name: String, val volumeDb: Float = 0f, val pan: Float = 0f, val mute: Boolean = false, val solo: Boolean = false,
     val scSource: Int = -1, val scAmount: Float = 0f,

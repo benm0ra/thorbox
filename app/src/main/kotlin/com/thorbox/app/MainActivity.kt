@@ -114,6 +114,15 @@ class MainActivity : ComponentActivity() {
                 targets = (1 shl state.samplerTrack.intValue) or (1 shl state.synthTrack.intValue)).withPreset(com.thorbox.model.DuckPresets.all[0])
         }
         i?.getStringExtra("duckpreset")?.let { n -> com.thorbox.model.DuckPresets.all.firstOrNull { it.name == n.replace('_', ' ') }?.let { p -> state.groove.setDuck { it.withPreset(p) } } }
+        // `--ez songdemo true`: patterns 2 and 3 copied from 1, a 4-step song (1 ×2 · 2 · 3) · `--ez keylock true|false`
+        if (i?.getBooleanExtra("songdemo", false) == true) {
+            val g = state.groove
+            g.copyPattern(0, 1); g.copyPattern(0, 2)
+            g.song.value = emptyList(); g.addSongStep(0); g.setRepeats(0, 2); g.addSongStep(1); g.addSongStep(2); g.addSongStep(0)
+            g.setSongMode(true)
+        }
+        if (i?.hasExtra("keylock") == true) state.setLockAll(i.getBooleanExtra("keylock", false))
+        if (i?.hasExtra("keysheet") == true) state.showKeySheet.value = i.getBooleanExtra("keysheet", false)
         if (i?.hasExtra("toponly") == true) topOnly.value = i.getBooleanExtra("toponly", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()

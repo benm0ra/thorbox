@@ -40,6 +40,8 @@ enum class CmdType : uint8_t {
     SetPadParam,   // pad, i0 = PadParam, f0 = value
     StopPads,      // pad = track (-1 = every track): fade out every sampler voice, one-shots too
     SetDuck,       // i0 = duck::Param, f0 = value
+    QueuePattern,  // pad = track, ptr = seq::Pattern* (or nullptr = empty): staged for the next scene change
+    CommitScene,   // i0 = loop ticks (the change lands on the next multiple, from the scene's start; 0 = now), i1 = tag (-1 = cancel)
 };
 
 // Per-pad sound settings (the PAD EDIT page). Must match com.thorbox.engine.NativeEngine.PadParam.

@@ -11,7 +11,7 @@ import com.thorbox.model.Deck
  * FX deck under an instrument) the buttons follow the deck under your thumbs, the way a hardware
  * box's pads and cursor always act on what's in front of you.
  */
-enum class PlayCtx(val title: String) { SAMPLER("SAMPLE"), SYNTH("SYNTH"), DRUM("DRUMS"), SEQ("STEPS"), MIX("MIXER"), DUCK("DUCK"), FX("FX") }
+enum class PlayCtx(val title: String) { SAMPLER("SAMPLE"), SYNTH("SYNTH"), DRUM("DRUMS"), SEQ("STEPS"), SONG("SONG"), MIX("MIXER"), DUCK("DUCK"), FX("FX") }
 
 fun playContext(s: AppState): PlayCtx {
     val deck = s.deck.value
@@ -19,6 +19,7 @@ fun playContext(s: AppState): PlayCtx {
         TopView.SEQ -> PlayCtx.SEQ
         TopView.MIX -> PlayCtx.MIX
         TopView.DUCK -> PlayCtx.DUCK
+        TopView.SONG -> PlayCtx.SONG
         else -> if (deck == Deck.FX) PlayCtx.FX else when (v) {
             TopView.SAMPLER -> PlayCtx.SAMPLER
             TopView.SYNTH -> PlayCtx.SYNTH
@@ -82,6 +83,9 @@ object Bindings {
         PlayCtx.MIX -> listOf(
             "◀ ▶" to "channel", "▲ ▼ · L-stick" to "volume", "R-stick" to "pan",
             "A" to "mute", "Y" to "solo", "X" to "open track")
+        PlayCtx.SONG -> listOf(
+            "D-pad" to "choose pattern", "A" to "launch it (on the beat)", "X" to "+ SONG", "Y" to "PATTERN / SONG mode",
+            "L3" to "copy → new pattern", "R3" to "KEY LOCK")
         PlayCtx.DUCK -> listOf(
             "L-stick ◀▶ · ▲▼" to "WEIGHT · SQUASH", "R-stick ◀▶ · ▲▼" to "SNAP · BOUNCE", "▲ ▼" to "PUMP ±5 %",
             "◀ ▶" to "preset", "A" to "play the key", "X" to "next key", "Y" to "ON / OFF")

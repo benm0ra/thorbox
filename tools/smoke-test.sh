@@ -144,6 +144,11 @@ shots() {
   done
   adb shell am start -n $PKG/$ACT --es theme pastel --es view SYNTH --es synth E-PIANO >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-synth-pastel-keys.png"
   adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-drums-pastel.png"
+  # SONG: patterns + a song, playing in song mode; then the key sheet with KEY LOCK on
+  adb shell am start -n $PKG/$ACT --es view SONG --ez songdemo true >/dev/null; sleep 2
+  adb shell am start -n $PKG/$ACT --ez play true >/dev/null; sleep 1; adb exec-out screencap -p > "$d/top-song.png"
+  adb shell am start -n $PKG/$ACT --ez play false --ez keylock true --ez keysheet true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-keysheet.png"
+  adb shell am start -n $PKG/$ACT --ez keylock false --ez keysheet false >/dev/null; sleep 1
   # DUCK: off (nothing picked yet), then keyed off the kick and playing, in pastel and genesis, several frames (the rat pumps)
   adb shell am start -n $PKG/$ACT --es view DUCK >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-duck-off.png"
   adb shell am start -n $PKG/$ACT --ez duckdemo true --ez play true >/dev/null; sleep 2

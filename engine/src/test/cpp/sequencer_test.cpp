@@ -129,6 +129,38 @@ int main() {
       for (int i = 0; i < c; ++i) if (f[i].on && f[i].src && f[i].src->lockId[0] == 6 && f[i].src->lockVal[0] == 300.f) ok = true;
       CHECK(ok, "pattern hits carry their parameter locks"); }
 
+    {   // scenes: a set of patterns staged, then swapped in exactly on a loop boundary (120 BPM: a bar = 2 s = 96000 samples)
+        Pattern A; A.lengthTicks = 3840; A.count = 1; A.events[0] = Event{0, 120, 1, 1.f, 1.f};
+        Pattern B; B.lengthTicks = 3840; B.count = 1; B.events[0] = Event{0, 120, 2, 1.f, 1.f};
+        Pattern C; C.lengthTicks = 1920; C.count = 1; C.events[0] = Event{0, 120, 3, 1.f, 1.f};   // a 2-beat pattern
+        Sequencer s; s.setTempo(120); s.setPattern(0, &A); s.setPlaying(true);
+        run(s, 1.0);                                                   // half way through bar 1
+        s.stage(0, &B); s.commit(3840, 5);
+        CHECK(s.queuedTag() == 5 && std::fabs(s.queuedAt() - 3840) < 1e-6, "commit arms the change for the next bar (tick %.0f)", s.queuedAt());
+        auto h = run(s, 3.0);                                          // 1.0 s … 4.0 s
+        std::vector<long> a1, b2;
+        for (auto& x : h) if (x.on && x.track == 0) (x.note == 1 ? a1 : b2).push_back(x.sample + 48000);
+        CHECK(a1.empty() && b2.size() == 2 && std::labs(b2[0] - 96000) <= 1 && std::labs(b2[1] - 192000) <= 1,
+              "pattern B takes over exactly on the bar (%ld), A is gone", b2.empty() ? -1L : b2[0]);
+        CHECK(std::fabs(s.origin() - 3840) < 1e-6 && s.sceneTag() == 5 && s.queuedTag() == -1, "origin = the change point, tag reported");
+        const Pattern* r = s.retired();
+        CHECK(r == &A && s.retired() == nullptr, "the replaced pattern is handed back to be freed");
+        // a longer loop (B × 2): C lands two bars after B started, and loops from there
+        s.stage(0, &C); s.commit(7680, 6);
+        CHECK(std::fabs(s.queuedAt() - 3840 - 7680) < 1e-6, "B ×2: the next change waits for two bars of B (tick %.0f)", s.queuedAt());
+        auto h2 = run(s, 4.0);                                         // 4.0 s … 8.0 s: C starts at 6.0 s
+        std::vector<long> c3;
+        for (auto& x : h2) if (x.on && x.track == 0 && x.note == 3 && x.sample + 192000 < 380000) c3.push_back(x.sample + 192000);
+        CHECK(c3.size() == 2 && std::labs(c3[0] - 288000) <= 1 && std::labs(c3[1] - 336000) <= 1,
+              "C starts on its own beat 1 and loops every 2 beats (%zu hits)", c3.size());
+        s.retired();
+        // stopped: the change is immediate; a cancel hands the staged pattern back
+        Sequencer t; t.setPattern(0, &A);
+        t.stage(0, &B); t.commit(3840, 9);
+        CHECK(t.pattern(0) == &B && t.sceneTag() == 9 && t.origin() == 0.0 && t.retired() == &A, "stopped: the scene changes at once");
+        t.stage(0, &C); t.commit(0, -1);
+        CHECK(t.pattern(0) == &B && t.retired() == &C && t.queuedTag() == -1, "cancel: the staged pattern comes back, nothing changes");
+    }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

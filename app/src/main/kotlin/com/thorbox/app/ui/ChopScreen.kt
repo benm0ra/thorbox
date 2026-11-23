@@ -102,7 +102,8 @@ private fun MatchBar(state: AppState) {
             }
             KeyBpmChip("SAMPLE", s?.key?.label()?.uppercase() ?: "—", s?.bpm?.let { fmtBpm(it) } ?: "—")
             Text("→", color = Tb.Muted, fontSize = 16.sp, fontWeight = FontWeight.Black)
-            KeyBpmChip("PROJECT", project.label().uppercase(), fmtBpm(bpm))
+            // the project key: tap it for the key sheet (and KEY LOCK)
+            KeyBpmChip(if (state.lockAll.value) "PROJECT 🔒" else "PROJECT", project.label().uppercase(), fmtBpm(bpm)) { state.showKeySheet.value = true }
         }
         var choosing by remember { mutableStateOf(false) }
         if (!choosing) Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -146,8 +147,10 @@ private fun StretchChooser(state: AppState, close: () -> Unit) {
 private fun fmtBpm(b: Float) = if (b % 1f == 0f) "${b.roundToInt()}" else String.format(Locale.US, "%.1f", b)
 
 @Composable
-private fun KeyBpmChip(label: String, key: String, bpm: String) {
-    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Void.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+private fun KeyBpmChip(label: String, key: String, bpm: String, onClick: (() -> Unit)? = null) {
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Void.copy(alpha = 0.55f))
+        .then(if (onClick != null) Modifier.navClickable(label = "PROJECT KEY") { onClick() } else Modifier)
+        .padding(horizontal = 10.dp, vertical = 4.dp)) {
         Text(label, style = Tb.Label)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(key, color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)

@@ -54,7 +54,7 @@ data class DisplayProbe(
 )
 
 enum class ScreenRole { SESSION, DECK }
-enum class TopView { SAMPLER, SYNTH, DRUM, SEQ, MIX, DUCK, VIZ }
+enum class TopView { SAMPLER, SYNTH, DRUM, SEQ, SONG, MIX, DUCK, VIZ }
 
 /**
  * A sample load in progress (for the loading card). [opened] = the file was opened and handed to the
@@ -304,6 +304,35 @@ class AppState(private val app: Application) {
     val keyOctave = androidx.compose.runtime.mutableIntStateOf(0)
     val chordMode = mutableStateOf(false)
     val keyLock = mutableStateOf(true)
+    /**
+     * KEY LOCK: the whole project held in one key you pick. Every sampler track key-matches its sample to
+     * it (new loads too), synth patterns are snapped into it as they play (the notes you wrote are kept),
+     * the keys and steps stay in scale, and the key no longer follows the loaded sample.
+     */
+    val lockAll = mutableStateOf(false)
+    val showKeySheet = mutableStateOf(false)
+    /** The pattern pad the controller's D-pad is on (SONG page, PLAY mode). */
+    val songCursor = androidx.compose.runtime.mutableIntStateOf(0)
+    fun setLockAll(on: Boolean) {
+        if (on == lockAll.value) return
+        lockAll.value = on
+        if (on) {
+            keyLock.value = true
+            val s = groove.scale.value
+            if (s.followSample) { val k = lockKey(); groove.setScale(s.copy(root = k.root, mode = k.mode, followSample = false)) }
+            forEachSampler { it.lockToKey(true) }
+        } else forEachSampler { it.lockToKey(false) }
+        groove.resendClips()
+        com.thorbox.app.ui.Info.toast(if (on) "KEY LOCK ON" else "KEY LOCK OFF",
+            if (on) "Everything stays in ${lockKey().label()}: samples key-matched, synth notes snapped" else "Tracks keep their own keys again")
+    }
+    /** Pick the project key (and with KEY LOCK on, everything moves to it). */
+    fun setProjectKey(root: com.thorbox.model.PitchClass, mode: com.thorbox.model.ScaleMode) =
+        groove.setScale(groove.scale.value.copy(root = root, mode = mode, followSample = false))
+    /** Every sampler track that exists (one controller per track). */
+    fun forEachSampler(f: (com.thorbox.app.sampler.SamplerController) -> Unit) {
+        for (t in tracks.value.indices) if (trackKind(t) == com.thorbox.model.TrackKind.SAMPLER) f(samplerFor(t))
+    }
     private val noteRefs = IntArray(128)
     /** The key the keyboard and sequencer lock to: the sample's detected key (if following), else the chosen key. */
     fun lockKey(): MusicalKey {
@@ -442,7 +471,7 @@ class AppState(private val app: Application) {
     /** REC + play: pad pitch changes write a lane (step values, like a sampler's pitch automation). */
     private fun recordPadPitch() {
         val t = samplerTrack.intValue
-        groove.auto.touch(com.thorbox.app.groove.Automation.padPitchKey(t, sel()), groove.autoArmed(), groove.transport[0], groove.loopLen(t),
+        groove.auto.touch(com.thorbox.app.groove.Automation.padPitchKey(t, sel()), groove.autoArmed(), groove.loopTick, groove.loopLen(t),
             sampler.pads.value[sel()].pitch.toFloat())
     }
     fun resetPitch() { if (sampler.pitchAll.value) sampler.setTranspose(0) else sampler.updatePad(sel()) { it.copy(pitch = 0, fine = 0) } }
@@ -476,7 +505,7 @@ class AppState(private val app: Application) {
         val new = knob.set(_patch.value, n.coerceIn(0f, 1f))
         if (new != _patch.value) { _patch.value = new; pushPatch(new) }
         val t = synthTrack.intValue
-        groove.auto.touch(com.thorbox.app.groove.Automation.synthKey(t, page.ordinal, i), groove.autoArmed(), groove.transport[0], groove.loopLen(t), knob.get(new))
+        groove.auto.touch(com.thorbox.app.groove.Automation.synthKey(t, page.ordinal, i), groove.autoArmed(), groove.loopTick, groove.loopLen(t), knob.get(new))
     }
 
     /** Automation playback: move knob [i] of [page] on synth track [t] (the editor follows if it's showing that track). */
@@ -568,10 +597,12 @@ class AppState(private val app: Application) {
             runCatching { com.thorbox.model.PitchClass.valueOf(sc.root) }.getOrDefault(com.thorbox.model.PitchClass.C),
             runCatching { com.thorbox.model.ScaleMode.valueOf(sc.mode) }.getOrDefault(com.thorbox.model.ScaleMode.MINOR), sc.followSample)
         keyLock.value = sc.keyLock
+        lockAll.value = sc.lockAll
         groove.restore(groove0, scale0, p.clips,
             p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },
             p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.byName(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
             p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } }, p.duck)
+        groove.restorePatterns(p.patterns, p.currentPattern, p.song, p.songMode, p.songLoop)
 
         val f = p.focus
         fun pick(want: Int, kind: com.thorbox.model.TrackKind) = if (fixed.getOrNull(want)?.kind == kind) want else fixed.indexOfFirst { it.kind == kind }

@@ -149,7 +149,8 @@ private fun ScaleChips(state: AppState) {
     val sample by state.sample.collectAsState()          // subscribe, so the chips update when a new sample loads
     val k = state.lockKey()
     val follow = s.followSample && sample?.key != null
-    HwButton("AUTO", Modifier.fillMaxHeight(), active = s.followSample, accent = Tb.Key, minHeight = 40.dp, fontSize = 11, hPad = 8.dp) {
+    val locked = state.lockAll.value
+    HwButton("AUTO", Modifier.fillMaxHeight(), active = s.followSample, enabled = !locked, accent = Tb.Key, minHeight = 40.dp, fontSize = 11, hPad = 8.dp) {
         g.setScale(s.copy(followSample = !s.followSample, root = k.root, mode = k.mode))
     }
     HwButton(NOTE_NAMES[k.root.ordinal], Modifier.fillMaxHeight(), enabled = !follow, minHeight = 40.dp, fontSize = 13, hPad = 8.dp) {
@@ -158,8 +159,9 @@ private fun ScaleChips(state: AppState) {
     HwButton(Scales.label(k.mode), Modifier.fillMaxHeight(), enabled = !follow, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) {
         g.setScale(s.copy(mode = ScaleMode.entries[(s.mode.ordinal + 1) % ScaleMode.entries.size], followSample = false))
     }
-    HwButton(if (state.keyLock.value) "LOCK" else "FREE", Modifier.fillMaxHeight(), active = state.keyLock.value, accent = Tb.Key, minHeight = 40.dp, fontSize = 11, hPad = 8.dp) {
-        state.releaseAllKeys(); state.keyLock.value = !state.keyLock.value
+    HwButton(if (locked) "KEY LOCK" else if (state.keyLock.value) "LOCK" else "FREE", Modifier.fillMaxHeight(), active = locked || state.keyLock.value,
+        accent = if (locked) Tb.Warn else Tb.Key, minHeight = 40.dp, fontSize = 11, hPad = 8.dp) {
+        if (locked) state.setLockAll(false) else { state.releaseAllKeys(); state.keyLock.value = !state.keyLock.value }
     }
 }
 

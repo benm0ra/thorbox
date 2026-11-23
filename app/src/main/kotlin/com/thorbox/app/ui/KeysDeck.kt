@@ -87,7 +87,9 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
             }
             HwButton("CHORD", active = chord, accent = Tb.EncGreen, minHeight = 44.dp, fontSize = 12) { state.chordMode.value = !chord }
             HwButton(if (lock) key.label().uppercase() else "CHROM", active = lock, accent = Tb.Key, minHeight = 44.dp, fontSize = 12) {
-                state.releaseAllKeys(); state.keyLock.value = !lock
+                // KEY LOCK holds the keys in scale: say so instead of going chromatic
+                if (state.lockAll.value) Info.toast("KEY LOCK", "The project is locked to ${key.label()} (SONG page or tap the key)")
+                else { state.releaseAllKeys(); state.keyLock.value = !lock }
             }
         }
 

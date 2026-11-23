@@ -80,6 +80,12 @@ object NativeEngine {
     fun setPattern(track: Int, lengthTicks: Int, ticks: IntArray, lengths: IntArray, notes: IntArray, velocities: FloatArray,
                    probabilities: FloatArray, flags: IntArray, lockIds: IntArray, lockVals: FloatArray) =
         nativeSetPattern(track, lengthTicks, ticks, lengths, notes, velocities, probabilities, flags, lockIds, lockVals)
+    /** Like [setPattern], but staged: it plays from the next [commitScene] boundary. */
+    fun queuePattern(track: Int, lengthTicks: Int, ticks: IntArray, lengths: IntArray, notes: IntArray, velocities: FloatArray,
+                     probabilities: FloatArray, flags: IntArray, lockIds: IntArray, lockVals: FloatArray) =
+        nativeQueuePattern(track, lengthTicks, ticks, lengths, notes, velocities, probabilities, flags, lockIds, lockVals)
+    /** Swap every staged pattern in on the next multiple of [loopTicks] from the current scene's start (0 = now); [tag] shows up in transport[17] once it has. -1 cancels. */
+    fun commitScene(loopTicks: Int, tag: Int) = nativeCommitScene(loopTicks, tag)
 
     // ---- Sampler pads & chopping ----
     /** Sampler pads are global: track * PADS_PER_TRACK + pad. Pad 16 of each track is its chop-preview voice. */
@@ -282,6 +288,9 @@ object NativeEngine {
     private external fun nativeSetMetronome(on: Boolean): Boolean
     private external fun nativeSetPattern(track: Int, lengthTicks: Int, ticks: IntArray, lens: IntArray, notes: IntArray, vels: FloatArray, probs: FloatArray,
                                           flags: IntArray, lockIds: IntArray, lockVals: FloatArray): Boolean
+    private external fun nativeQueuePattern(track: Int, lengthTicks: Int, ticks: IntArray, lens: IntArray, notes: IntArray, vels: FloatArray, probs: FloatArray,
+                                            flags: IntArray, lockIds: IntArray, lockVals: FloatArray): Boolean
+    private external fun nativeCommitScene(loopTicks: Int, tag: Int): Boolean
     private external fun nativeSetPadRegion(pad: Int, start: Int, end: Int): Boolean
     private external fun nativeSetPadGain(pad: Int, g: Float): Boolean
     private external fun nativeGetWave(sampleId: Int, out: FloatArray): Boolean

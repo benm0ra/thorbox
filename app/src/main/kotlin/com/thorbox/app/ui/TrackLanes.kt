@@ -75,7 +75,7 @@ fun TrackLanes(state: AppState, track: Int, modifier: Modifier = Modifier, heigh
                     drawPath(path, laneColor(key), style = Stroke(2.dp.toPx()))
                 }
                 if (g.transport[1] != 0.0) {
-                    val x = size.width * ((g.transport[0] % len) / len).toFloat()
+                    val x = size.width * ((g.loopTick % len) / len).toFloat()
                     drawLine(if (rec) Tb.Warn else Tb.Text, Offset(x, 0f), Offset(x, size.height), 1.5.dp.toPx())
                 }
             }

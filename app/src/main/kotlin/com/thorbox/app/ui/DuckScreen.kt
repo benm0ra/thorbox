@@ -374,7 +374,7 @@ private fun nextKeyIn(state: AppState, d: DuckSettings, beatPos: Double, bpm: Fl
     val clip = state.groove.clips.value.getOrNull(d.source) ?: return -1f
     val len = clip.lengthTicks.toDouble()
     if (len <= 0.0) return -1f
-    val pos = (beatPos * com.thorbox.model.PPQN) % len
+    val pos = state.groove.loopTick % len
     var best = Double.MAX_VALUE
     val drumKey = d.sourceSlot >= 0 && state.trackKind(d.source) == TrackKind.DRUMS
     for (e in clip.notes) {

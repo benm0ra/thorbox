@@ -146,7 +146,7 @@ class DrumController(private val app: AppState, val track: Int = 2) {
         if (page.intValue == PAGE_DUST) {
             setBus(i, n)
             val g = app.groove
-            g.auto.touch(com.thorbox.app.groove.Automation.drumKey(track, 0, PAGE_DUST, i), g.autoArmed(), g.transport[0], g.loopLen(track), knobValue(i))
+            g.auto.touch(com.thorbox.app.groove.Automation.drumKey(track, 0, PAGE_DUST, i), g.autoArmed(), g.loopTick, g.loopLen(track), knobValue(i))
             return
         }
         val k = knobs(page.intValue).getOrNull(i) ?: return
@@ -154,7 +154,7 @@ class DrumController(private val app: AppState, val track: Int = 2) {
         // Record it (REC + play), except MODEL: swapping the drum model mid-loop isn't a sweep.
         if (!(page.intValue == 1 && i == 0)) {
             val g = app.groove
-            g.auto.touch(com.thorbox.app.groove.Automation.drumKey(track, selected.intValue, page.intValue, i), g.autoArmed(), g.transport[0], g.loopLen(track), knobValue(i))
+            g.auto.touch(com.thorbox.app.groove.Automation.drumKey(track, selected.intValue, page.intValue, i), g.autoArmed(), g.loopTick, g.loopLen(track), knobValue(i))
         }
     }
     /** Automation playback: set a knob on any sound, whatever page / sound is on screen. */

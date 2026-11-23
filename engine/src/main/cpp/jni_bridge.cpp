@@ -222,23 +222,23 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetMetronome)(JNIEnv*, jobject, jboolean
 
 // Builds an immutable pattern from parallel arrays, fully validated, then hands it to the engine.
 // jFlags[i] = ratchet | condEvery << 4 | condPhase << 8. jLockIds / jLockVals: 2 per event (-1 = none).
-JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPattern)(JNIEnv* env, jobject, jint track, jint lengthTicks,
+static seq::Pattern* buildPattern(JNIEnv* env, jint track, jint lengthTicks,
         jintArray jTicks, jintArray jLens, jintArray jNotes, jfloatArray jVels, jfloatArray jProbs,
         jintArray jFlags, jintArray jLockIds, jfloatArray jLockVals) {
-    if (!gEngine || track < 0 || track >= seq::kTracks) return JNI_FALSE;
-    if (lengthTicks < 240 || lengthTicks > 16 * 4 * seq::kPpqn) return JNI_FALSE;   // 1 step … 16 bars
-    if (!jTicks || !jLens || !jNotes || !jVels || !jProbs || !jFlags || !jLockIds || !jLockVals) return JNI_FALSE;
+    if (track < 0 || track >= seq::kTracks) return nullptr;
+    if (lengthTicks < 240 || lengthTicks > 16 * 4 * seq::kPpqn) return nullptr;   // 1 step … 16 bars
+    if (!jTicks || !jLens || !jNotes || !jVels || !jProbs || !jFlags || !jLockIds || !jLockVals) return nullptr;
     const jsize n = env->GetArrayLength(jTicks);
     if (n < 0 || n > seq::kMaxEvents || env->GetArrayLength(jLens) != n || env->GetArrayLength(jNotes) != n ||
         env->GetArrayLength(jVels) != n || env->GetArrayLength(jProbs) != n || env->GetArrayLength(jFlags) != n ||
-        env->GetArrayLength(jLockIds) != 2 * n || env->GetArrayLength(jLockVals) != 2 * n) return JNI_FALSE;
+        env->GetArrayLength(jLockIds) != 2 * n || env->GetArrayLength(jLockVals) != 2 * n) return nullptr;
     auto* p = new (std::nothrow) seq::Pattern();
-    if (!p) return JNI_FALSE;
+    if (!p) return nullptr;
     std::unique_ptr<jint[]> t(new (std::nothrow) jint[n + 1]), l(new (std::nothrow) jint[n + 1]), no(new (std::nothrow) jint[n + 1]);
     std::unique_ptr<jfloat[]> v(new (std::nothrow) jfloat[n + 1]), pr(new (std::nothrow) jfloat[n + 1]);
     std::unique_ptr<jint[]> fl(new (std::nothrow) jint[n + 1]), li(new (std::nothrow) jint[2 * n + 1]);
     std::unique_ptr<jfloat[]> lv(new (std::nothrow) jfloat[2 * n + 1]);
-    if (!t || !l || !no || !v || !pr || !fl || !li || !lv) { delete p; return JNI_FALSE; }
+    if (!t || !l || !no || !v || !pr || !fl || !li || !lv) { delete p; return nullptr; }
     env->GetIntArrayRegion(jFlags, 0, n, fl.get()); env->GetIntArrayRegion(jLockIds, 0, 2 * n, li.get());
     env->GetFloatArrayRegion(jLockVals, 0, 2 * n, lv.get());
     env->GetIntArrayRegion(jTicks, 0, n, t.get()); env->GetIntArrayRegion(jLens, 0, n, l.get());
@@ -247,7 +247,7 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPattern)(JNIEnv* env, jobject, jint t
     p->lengthTicks = lengthTicks;
     int c = 0;
     for (jsize i = 0; i < n; ++i) {
-        const int maxNote = track == 0 ? 15 : 127;
+        const int maxNote = 127;                          // (sampler pads are 0…15; the engine ignores the rest)
         if (t[i] < 0 || t[i] >= lengthTicks || l[i] < 1 || l[i] > lengthTicks) continue;   // drop invalid events
         if (no[i] < 0 || no[i] > maxNote || !finite(v[i]) || !finite(pr[i])) continue;
         seq::Event e{t[i], l[i], (int16_t)no[i], std::clamp(v[i], 0.f, 1.f), std::clamp(pr[i], 0.f, 1.f)};
@@ -256,15 +256,34 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPattern)(JNIEnv* env, jobject, jint t
         e.condPhase = (int8_t)std::clamp((fl[i] >> 8) & 0xF, 0, e.condEvery - 1);
         for (int k = 0; k < seq::kLocks; ++k) {
             const int id = li[2 * i + k]; const float val = lv[2 * i + k];
-            // Locks are only valid for the synth track, with a known param id and an in-range finite value.
-            if (track == 1 && id >= 0 && id < synth::kParamCount && finite(val) && val >= synth::kRanges[id].lo && val <= synth::kRanges[id].hi) {
+            // Locks: a known synth param id and an in-range finite value (applied on synth tracks only).
+            if (id >= 0 && id < synth::kParamCount && finite(val) && val >= synth::kRanges[id].lo && val <= synth::kRanges[id].hi) {
                 e.lockId[k] = (int8_t)id; e.lockVal[k] = val;
             }
         }
         p->events[c++] = e;
     }
     p->count = c;
-    return gEngine->setPattern(track, p);      // takes ownership
+    return p;
+}
+
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPattern)(JNIEnv* env, jobject, jint track, jint lengthTicks,
+        jintArray jTicks, jintArray jLens, jintArray jNotes, jfloatArray jVels, jfloatArray jProbs,
+        jintArray jFlags, jintArray jLockIds, jfloatArray jLockVals) {
+    if (!gEngine) return JNI_FALSE;
+    seq::Pattern* p = buildPattern(env, track, lengthTicks, jTicks, jLens, jNotes, jVels, jProbs, jFlags, jLockIds, jLockVals);
+    return p && gEngine->setPattern(track, p);      // takes ownership
+}
+// The same pattern, staged for the next scene change (an empty pattern is sent as no events).
+JNIEXPORT jboolean JNICALL JNI_FN(nativeQueuePattern)(JNIEnv* env, jobject, jint track, jint lengthTicks,
+        jintArray jTicks, jintArray jLens, jintArray jNotes, jfloatArray jVels, jfloatArray jProbs,
+        jintArray jFlags, jintArray jLockIds, jfloatArray jLockVals) {
+    if (!gEngine) return JNI_FALSE;
+    seq::Pattern* p = buildPattern(env, track, lengthTicks, jTicks, jLens, jNotes, jVels, jProbs, jFlags, jLockIds, jLockVals);
+    return p && gEngine->queuePattern(track, p);
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeCommitScene)(JNIEnv*, jobject, jint loopTicks, jint tag) {
+    return gEngine && gEngine->commitScene(loopTicks, tag);
 }
 
 JNIEXPORT jboolean JNICALL JNI_FN(nativeRepeatOn)(JNIEnv*, jobject, jint track, jint note, jint rate, jfloat vel) {

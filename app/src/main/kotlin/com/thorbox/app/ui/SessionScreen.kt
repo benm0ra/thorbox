@@ -54,6 +54,7 @@ fun TopScreen(state: AppState) {
             HwButton("SYNTH", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SYNTH, accent = TopView.SYNTH.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SYNTH) }
             HwButton("DRUMS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DRUM, accent = TopView.DRUM.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
             HwButton("STEPS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SEQ, accent = TopView.SEQ.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
+            HwButton("SONG", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SONG, accent = Tb.Tempo, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SONG) }
             HwButton("MIXER", Modifier.fillMaxWidth().weight(1f), active = view == TopView.MIX, accent = TopView.MIX.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
             HwButton("DUCK", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DUCK, accent = Tb.Key, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DUCK) }
             HwButton("VISUAL", Modifier.fillMaxWidth().weight(1f), active = view == TopView.VIZ, accent = TopView.VIZ.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) {
@@ -75,6 +76,7 @@ fun TopScreen(state: AppState) {
                 TopView.SYNTH -> SynthScreen(state)
                 TopView.DRUM -> DrumScreen(state)
                 TopView.SEQ -> SeqScreen(state)
+                TopView.SONG -> SongScreen(state)
                 TopView.MIX -> MixScreen(state)
                 TopView.DUCK -> DuckScreen(state)
                 TopView.VIZ -> VizScreen(state)
@@ -90,6 +92,7 @@ fun TopScreen(state: AppState) {
     NavBadge(state, 0)
     if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
+    if (state.showKeySheet.value) KeySheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
     if (state.showSettings.value) SettingsSheet(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls

@@ -285,7 +285,7 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             val clip = g.clips.value.getOrNull(drums.track)
             val len = clip?.lengthTicks?.toDouble() ?: 0.0
             if (clip != null && len > 0.0) {
-                val pos = g.transport[0] % len
+                val pos = g.loopTick % len
                 val tps = g.groove.value.bpm * com.thorbox.model.PPQN / 60.0
                 for (e in clip.notes) {
                     if (e.note !in voices.indices) continue

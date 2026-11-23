@@ -308,7 +308,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
         return ProjectFile(
             name = name,
             transport = TransportDto(gv.bpm, gv.swing, gv.swing16, gv.quantize, gv.repeatRate.name, gv.metronome),
-            scale = ScaleDto(sc.root.name, sc.mode.name, sc.followSample, app.keyLock.value),
+            scale = ScaleDto(sc.root.name, sc.mode.name, sc.followSample, app.keyLock.value, app.lockAll.value),
             masterDb = g.masterDb.floatValue,
             tracks = tracks,
             clips = g.clips.value,
@@ -318,6 +318,8 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
             synths = synths, kits = kits, samplers = samplers,
             focus = FocusDto(app.samplerTrack.intValue, app.synthTrack.intValue, app.drumTrack.intValue, g.seqTrack.intValue),
             duck = g.duck.value,
+            patterns = g.patternSlots(), currentPattern = g.patternIdx.intValue,
+            song = g.song.value, songMode = g.songMode.value, songLoop = g.songLoop.value,
         )
     }
 

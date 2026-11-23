@@ -95,7 +95,7 @@ val Section.color: Color get() = Tb.palette.sections.getOrNull(ordinal) ?: Tb.Pa
 
 val TopView.section: Section get() = when (this) {
     TopView.SAMPLER -> Section.SAMPLE; TopView.SYNTH -> Section.SYNTH; TopView.DRUM -> Section.DRUMS
-    TopView.SEQ -> Section.STEPS; TopView.MIX, TopView.DUCK -> Section.MIXER; TopView.VIZ -> Section.VISUAL
+    TopView.SEQ, TopView.SONG -> Section.STEPS; TopView.MIX, TopView.DUCK -> Section.MIXER; TopView.VIZ -> Section.VISUAL
 }
 val Deck.section: Section get() = when (this) {
     Deck.PADS -> Section.SAMPLE; Deck.KEYS, Deck.STRUM -> Section.SYNTH; Deck.DRUMS -> Section.DRUMS

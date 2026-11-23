@@ -273,6 +273,24 @@ class InputRouter(private val state: AppState) {
             return true
         }
 
+        if (ctx == PlayCtx.SONG) {
+            val cur = state.songCursor
+            when (e.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (first) cur.intValue = (cur.intValue + 15) % 16
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) cur.intValue = (cur.intValue + 1) % 16
+                KeyEvent.KEYCODE_DPAD_UP -> if (first) cur.intValue = (cur.intValue + 12) % 16
+                KeyEvent.KEYCODE_DPAD_DOWN -> if (first) cur.intValue = (cur.intValue + 4) % 16
+                KeyEvent.KEYCODE_BUTTON_A -> if (first) g.selectPattern(cur.intValue)
+                KeyEvent.KEYCODE_BUTTON_X -> if (first) g.addSongStep(g.patternIdx.intValue)
+                KeyEvent.KEYCODE_BUTTON_Y -> if (first) g.setSongMode(!g.songMode.value)
+                KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) { val to = g.firstEmptyPattern(); if (to >= 0) g.copyPattern(g.patternIdx.intValue, to) }
+                KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) state.setLockAll(!state.lockAll.value)
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> Unit
+                else -> return false
+            }
+            return true
+        }
+
         if (ctx == PlayCtx.DUCK) {
             val presets = com.thorbox.model.DuckPresets.all
             when (e.keyCode) {

@@ -28,6 +28,10 @@ data class ScaleSetting(val root: PitchClass = PitchClass.C, val mode: ScaleMode
  * to the engine. Main-thread only. Every edit pushes a fresh immutable pattern snapshot.
  */
 class GrooveController(private val app: AppState) {
+    companion object {
+        const val PATTERNS = 16
+        const val BAR = 4 * com.thorbox.model.PPQN
+    }
     /** True when [track]'s pattern has something to undo. */
     fun hasUndo(track: Int) = undo.getOrNull(track)?.isNotEmpty() == true
     // ---- transport / groove ----
@@ -92,6 +96,8 @@ class GrooveController(private val app: AppState) {
 
     // ---- live readouts (read in draw lambdas) ----
     val transport = DoubleArray(20)
+    /** Where we are in the current pattern (ticks since it started: a pattern change restarts it at 0). */
+    val loopTick: Double get() = (transport[0] - transport[16]).coerceAtLeast(0.0)
     private val meterBuf = FloatArray(NativeEngine.METERS)
     /** Displayed peaks with falloff: [2k, 2k+1] track k L/R, [16, 17] master. */
     val meters = FloatArray(2 * com.thorbox.model.TRACK_COUNT + 2)
@@ -176,24 +182,193 @@ class GrooveController(private val app: AppState) {
         dirty[track] = true
     }
 
-    private fun sendClip(track: Int) {
-        val c = clips.value[track]
+    private fun sendClip(track: Int) = sendClipData(track, clips.value[track], queue = false)
+
+    /** Build [c] for the engine and send it now, or ([queue]) stage it for the next scene change. */
+    private fun sendClipData(track: Int, c: Clip, queue: Boolean) {
         val feel = feels.value[track]
         val drums = app.trackKind(track) == com.thorbox.model.TrackKind.DRUMS
+        // KEY LOCK: synth notes are snapped into the locked key on the way out (the stored notes stay as written)
+        val snapKey = if (app.lockAll.value && app.trackKind(track) == com.thorbox.model.TrackKind.SYNTH) key() else null
         // The feel is applied here, on the way to the engine: stored notes stay on the grid.
         val ns = c.notes.take(512).map { e ->
             val (t, v) = feel.template.apply(e.tick, e.velocity, c.lengthTicks, feel.amount, e.tick + track * 977, if (drums) e.note else -1)
-            e.copy(tick = t, velocity = v)
+            e.copy(tick = t, velocity = v, note = if (snapKey != null) Scales.snap(e.note, snapKey) else e.note)
         }.sortedBy { it.tick }
         val n = ns.size
         val lockIds = IntArray(2 * n) { -1 }
         val lockVals = FloatArray(2 * n)
         for (i in 0 until n) ns[i].locks.take(2).forEachIndexed { k, l -> lockIds[2 * i + k] = l.param; lockVals[2 * i + k] = l.value }
-        NativeEngine.setPattern(track, c.lengthTicks,
-            IntArray(n) { ns[it].tick }, IntArray(n) { ns[it].lengthTicks.coerceIn(1, c.lengthTicks) },
-            IntArray(n) { ns[it].note }, FloatArray(n) { ns[it].velocity }, FloatArray(n) { ns[it].probability },
-            IntArray(n) { ns[it].ratchet.coerceIn(1, 4) or (ns[it].condEvery.coerceIn(1, 8) shl 4) or (ns[it].condPhase.coerceIn(0, 7) shl 8) },
-            lockIds, lockVals)
+        val ticks = IntArray(n) { ns[it].tick }; val lens = IntArray(n) { ns[it].lengthTicks.coerceIn(1, c.lengthTicks) }
+        val notes = IntArray(n) { ns[it].note }; val vels = FloatArray(n) { ns[it].velocity }; val probs = FloatArray(n) { ns[it].probability }
+        val flags = IntArray(n) { ns[it].ratchet.coerceIn(1, 4) or (ns[it].condEvery.coerceIn(1, 8) shl 4) or (ns[it].condPhase.coerceIn(0, 7) shl 8) }
+        if (queue) NativeEngine.queuePattern(track, c.lengthTicks, ticks, lens, notes, vels, probs, flags, lockIds, lockVals)
+        else NativeEngine.setPattern(track, c.lengthTicks, ticks, lens, notes, vels, probs, flags, lockIds, lockVals)
+    }
+
+    /** Re-send every track's pattern (the key changed, KEY LOCK went on / off). */
+    fun resendClips() { for (t in dirty.indices) dirty[t] = true }
+
+    // ================= PATTERNS + SONG =================
+    // 16 patterns per project, each a pattern for every track (an MPC "sequence"). [clips] is always the
+    // current one (that's what every editor edits); the others wait in [bank]. Changing pattern while
+    // playing is queued and happens exactly on the current pattern's loop boundary (the engine swaps
+    // them sample-accurately and reports the tag back in transport[17]); stopped, it's immediate.
+    // SONG plays a list of (pattern × repeats): each change is queued as soon as the previous lands.
+
+    val patternIdx = androidx.compose.runtime.mutableIntStateOf(0)
+    val queuedPattern = androidx.compose.runtime.mutableIntStateOf(-1)
+    private val bank = arrayOfNulls<List<Clip>>(PATTERNS)
+    val bankVersion = androidx.compose.runtime.mutableIntStateOf(0)
+    val patternNames = mutableStateOf(List(PATTERNS) { "" })
+    val song = mutableStateOf(listOf<com.thorbox.model.SongStep>())
+    val songMode = mutableStateOf(false)
+    val songLoop = mutableStateOf(true)
+    /** The song step playing now (-1 = not in a song). */
+    val songPos = androidx.compose.runtime.mutableIntStateOf(-1)
+    private var lastSceneTag = 0
+    private var songEndAt = -1.0           // loop off: stop when the last step's last repeat ends (loop ticks)
+
+    private fun emptyClips() = List(com.thorbox.model.TRACK_COUNT) { t ->
+        Clip(ClipId("t$t"), "T${t + 1}", color = t, lengthTicks = clips.value.getOrNull(t)?.lengthTicks ?: (16 * STEP_TICKS))
+    }
+    fun clipsOf(p: Int): List<Clip> = if (p == patternIdx.intValue) clips.value else bank.getOrNull(p) ?: emptyClips()
+    fun hasNotes(p: Int) = clipsOf(p).any { it.notes.isNotEmpty() }
+    /** Which tracks have notes in pattern [p] (for the pattern pads). */
+    fun tracksIn(p: Int): Int { var m = 0; clipsOf(p).forEachIndexed { t, c -> if (c.notes.isNotEmpty()) m = m or (1 shl t) }; return m }
+    /** A pattern's length: its longest track, in whole bars. */
+    fun patternTicks(p: Int): Int {
+        val longest = clipsOf(p).maxOfOrNull { it.lengthTicks } ?: BAR
+        return ((longest + BAR - 1) / BAR).coerceAtLeast(1) * BAR
+    }
+    fun patternName(p: Int) = patternNames.value.getOrNull(p)?.takeIf { it.isNotBlank() } ?: "PAT ${p + 1}"
+
+    /** Tag for the engine: the pattern, and (in a song) which step it is. */
+    private fun tagOf(p: Int, step: Int = -1) = if (step < 0) p else (step + 1) * 32 + p
+
+    /** Launch pattern [p]: queued for the end of this one while playing, immediate when stopped. Tap the queued one again to cancel. */
+    fun selectPattern(p: Int) {
+        if (p !in 0 until PATTERNS) return
+        if (queuedPattern.intValue == p) { NativeEngine.commitScene(0, -1); queuedPattern.intValue = -1; return }
+        if (p == patternIdx.intValue && queuedPattern.intValue < 0) return
+        songMode.value = false; songPos.intValue = -1; songEndAt = -1.0
+        if (!playing.value) { switchNow(p); return }
+        stageScene(p)
+        NativeEngine.commitScene(patternTicks(patternIdx.intValue), tagOf(p))
+        queuedPattern.intValue = p
+    }
+
+    private fun stageScene(p: Int) { val cs = clipsOf(p); for (t in cs.indices) sendClipData(t, cs[t], queue = true) }
+
+    /** Change pattern right now (stopped, or a project load): the editors and the engine both follow. */
+    private fun switchNow(p: Int, step: Int = -1) {
+        stageScene(p)
+        NativeEngine.commitScene(0, tagOf(p, step))
+        adopt(p)
+    }
+
+    /** Make [p] the current pattern (park the old one in the bank). */
+    private fun adopt(p: Int) {
+        if (p != patternIdx.intValue) {
+            bank[patternIdx.intValue] = clips.value
+            clips.value = bank[p] ?: emptyClips()
+            patternIdx.intValue = p
+            undo.forEach { it.clear() }; canUndo.value = false
+        }
+        queuedPattern.intValue = -1
+        bankVersion.intValue++
+        resendClips()                       // the freshest notes (an edit made while it was queued) go out at once
+    }
+
+    /** Called every frame: did the engine change scene? Then follow it, and in a song queue the next step. */
+    private fun followScene() {
+        val tag = transport[17].toInt()
+        if (tag != lastSceneTag) {
+            lastSceneTag = tag
+            val p = tag % 32; val step = tag / 32 - 1
+            adopt(p)
+            if (step >= 0 && songMode.value) { songPos.intValue = step; queueNextStep(step) }
+        }
+        // loop off: stop when the song's last step has played out
+        if (songEndAt > 0 && playing.value && loopTick >= songEndAt - 1) { songEndAt = -1.0; togglePlay() }
+    }
+
+    private fun queueNextStep(step: Int) {
+        val s = song.value
+        if (s.isEmpty()) return
+        val cur = s.getOrNull(step) ?: return
+        val playFor = patternTicks(cur.pattern) * cur.repeats.coerceIn(1, 16)
+        var next = step + 1
+        if (next >= s.size) {
+            if (!songLoop.value) { songEndAt = playFor.toDouble(); return }
+            next = 0
+        }
+        stageScene(s[next].pattern)
+        NativeEngine.commitScene(playFor, tagOf(s[next].pattern, next))
+        queuedPattern.intValue = s[next].pattern
+    }
+
+    /** SONG ▶: from step 1 (or [from]). */
+    fun playSong(from: Int = 0) {
+        val s = song.value
+        if (s.isEmpty()) return
+        if (playing.value) togglePlay()
+        songMode.value = true; songEndAt = -1.0
+        val i = from.coerceIn(0, s.size - 1)
+        switchNow(s[i].pattern, i)
+        lastSceneTag = -1                   // so the frame loop picks the tag up and queues the next step
+        togglePlay()
+    }
+    fun setSongMode(on: Boolean) {
+        if (on == songMode.value) return
+        if (playing.value) togglePlay()
+        songMode.value = on; songPos.intValue = -1; songEndAt = -1.0
+        if (queuedPattern.intValue >= 0) { NativeEngine.commitScene(0, -1); queuedPattern.intValue = -1 }
+    }
+
+    // ---- editing the bank ----
+    fun copyPattern(from: Int, to: Int) {
+        if (from == to || to !in 0 until PATTERNS) return
+        val src = clipsOf(from)
+        if (to == patternIdx.intValue) { clips.value = src; resendClips() } else bank[to] = src
+        val names = patternNames.value.toMutableList(); names[to] = ""; patternNames.value = names
+        bankVersion.intValue++
+    }
+    fun clearPattern(p: Int) {
+        val e = clipsOf(p).map { it.copy(notes = emptyList()) }
+        if (p == patternIdx.intValue) { for (t in clips.value.indices) update(t, saveUndo = true) { c -> c.copy(notes = emptyList()) } }
+        else bank[p] = e
+        bankVersion.intValue++
+    }
+    fun firstEmptyPattern(): Int = (0 until PATTERNS).firstOrNull { it != patternIdx.intValue && !hasNotes(it) } ?: -1
+
+    fun addSongStep(p: Int) { if (song.value.size < 64) song.value = song.value + com.thorbox.model.SongStep(p, 1) }
+    fun removeSongStep(i: Int) { song.value = song.value.filterIndexed { k, _ -> k != i } }
+    fun setRepeats(i: Int, r: Int) { song.value = song.value.mapIndexed { k, s -> if (k == i) s.copy(repeats = r.coerceIn(1, 16)) else s } }
+    fun moveSongStep(i: Int, d: Int) {
+        val l = song.value.toMutableList(); val j = i + d
+        if (i !in l.indices || j !in l.indices) return
+        val x = l[i]; l[i] = l[j]; l[j] = x; song.value = l
+    }
+    /** Total song length in bars. */
+    fun songBars(): Int = song.value.sumOf { patternTicks(it.pattern) / BAR * it.repeats }
+
+    /** For saving: all 16 patterns (the current one from the editors). */
+    fun patternSlots(): List<com.thorbox.model.PatternSlot> =
+        List(PATTERNS) { p -> com.thorbox.model.PatternSlot(patternNames.value[p], if (hasNotes(p) || p == patternIdx.intValue) clipsOf(p) else emptyList()) }
+
+    /** Loading: put the bank back ([current]'s clips are already in [clips]). */
+    fun restorePatterns(slots: List<com.thorbox.model.PatternSlot>, current: Int, songSteps: List<com.thorbox.model.SongStep>, mode: Boolean, loop: Boolean) {
+        for (p in 0 until PATTERNS) bank[p] = slots.getOrNull(p)?.clips?.takeIf { it.isNotEmpty() }?.let { cs ->
+            List(com.thorbox.model.TRACK_COUNT) { t -> cs.getOrNull(t) ?: emptyClips()[t] }
+        }
+        patternIdx.intValue = current.coerceIn(0, PATTERNS - 1)
+        bank[patternIdx.intValue] = null
+        patternNames.value = List(PATTERNS) { slots.getOrNull(it)?.name ?: "" }
+        song.value = songSteps.filter { it.pattern in 0 until PATTERNS }.map { it.copy(repeats = it.repeats.coerceIn(1, 16)) }
+        songMode.value = mode; songLoop.value = loop; songPos.intValue = -1; queuedPattern.intValue = -1; songEndAt = -1.0
+        NativeEngine.commitScene(0, tagOf(patternIdx.intValue)); lastSceneTag = tagOf(patternIdx.intValue)
+        bankVersion.intValue++
     }
 
     private fun pushChannel(i: Int) {
@@ -213,7 +388,20 @@ class GrooveController(private val app: AppState) {
 
     // ================= transport =================
 
-    fun togglePlay() { playing.value = !playing.value; NativeEngine.setPlaying(playing.value); if (!playing.value) openNotes.clear() }
+    private var startingSong = false
+    fun togglePlay() {
+        // SONG mode: ▶ plays the song from its first step
+        if (!playing.value && songMode.value && song.value.isNotEmpty() && !startingSong) {
+            startingSong = true; try { playSong(0) } finally { startingSong = false }; return
+        }
+        playing.value = !playing.value; NativeEngine.setPlaying(playing.value)
+        if (!playing.value) {
+            openNotes.clear()
+            // stopping drops a pending pattern change (nothing is half-queued next time)
+            if (queuedPattern.intValue >= 0) { NativeEngine.commitScene(0, -1); queuedPattern.intValue = -1 }
+            songPos.intValue = -1; songEndAt = -1.0
+        }
+    }
     fun toggleRecord() {
         recording.value = !recording.value
         NativeEngine.setRecording(recording.value)
@@ -428,7 +616,13 @@ class GrooveController(private val app: AppState) {
         canUndo.value = undo.any { it.isNotEmpty() }
     }
 
-    fun setScale(s: ScaleSetting) { val old = scale.value; scale.value = s; app.releaseAllKeys(); if (old != s) app.sampler.projectChanged() }
+    fun setScale(s: ScaleSetting) {
+        val old = scale.value; scale.value = s; app.releaseAllKeys()
+        if (old != s) {
+            app.forEachSampler { it.projectChanged() }           // every sampler track that's key-matched follows
+            if (app.lockAll.value) resendClips()                  // KEY LOCK: the synth notes re-snap to the new key
+        }
+    }
 
     // ================= synth: note grid (piano roll) =================
     // Track 1 only. Notes are identified by (tick, note): the grid never stacks two equal notes.
@@ -524,7 +718,7 @@ class GrooveController(private val app: AppState) {
         val k = track * 128 + note
         if (type == 1) {
             val g = groove.value
-            val q = Quantize.apply(tick, g.quantizeGrid, g.quantize, c.lengthTicks)
+            val q = Quantize.apply((tick - transport[16]).coerceAtLeast(0.0), g.quantizeGrid, g.quantize, c.lengthTicks)   // in the pattern's own time
             update(track) { cl ->
                 val kept = cl.notes.filterNot { it.note == note && kotlin.math.abs(it.tick - q) < 60 }   // replace, don't stack
                 cl.copy(notes = (kept + NoteEvent(tick = q, lengthTicks = STEP_TICKS / 2, note = note, velocity = vel)).sortedBy { it.tick })
@@ -585,14 +779,14 @@ class GrooveController(private val app: AppState) {
 
     fun fxDown(id: Int, x: Float, y: Float) {
         fxX[id] = x; fxY[id] = y
-        auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 1f + x)
-        auto.touch(Automation.fxYKey(id), autoArmed(), transport[0], fxLoopLen(), y)
+        auto.touch(Automation.fxKey(id), autoArmed(), loopTick, fxLoopLen(), 1f + x)
+        auto.touch(Automation.fxYKey(id), autoArmed(), loopTick, fxLoopLen(), y)
         fxHeld.intValue = fxHeld.intValue or (1 shl id); NativeEngine.fxOn(id, fxEffX(id), fxEffY(id))
     }
     fun fxMove(id: Int, x: Float, y: Float) {
         fxX[id] = x; fxY[id] = y; NativeEngine.fxMove(id, fxEffX(id), fxEffY(id))
-        auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 1f + x)
-        auto.touch(Automation.fxYKey(id), autoArmed(), transport[0], fxLoopLen(), y)
+        auto.touch(Automation.fxKey(id), autoArmed(), loopTick, fxLoopLen(), 1f + x)
+        auto.touch(Automation.fxYKey(id), autoArmed(), loopTick, fxLoopLen(), y)
     }
     /** Tilt offset (±0.5) applied to every held effect. */
     fun setTilt(dx: Float, dy: Float) {
@@ -602,7 +796,7 @@ class GrooveController(private val app: AppState) {
     }
     fun fxUp(id: Int) {
         fxHeld.intValue = fxHeld.intValue and (1 shl id).inv()
-        auto.touch(Automation.fxKey(id), autoArmed(), transport[0], fxLoopLen(), 0f)
+        auto.touch(Automation.fxKey(id), autoArmed(), loopTick, fxLoopLen(), 0f)
         if (fxLatched.intValue and (1 shl id) == 0) NativeEngine.fxOff(id)
     }
     /** Let go of every held (not latched) effect, e.g. when you leave the FX deck. */
@@ -633,9 +827,9 @@ class GrooveController(private val app: AppState) {
         if (new == old) return
         list[i] = new; channels.value = list; pushChannel(i)
         if (!fromAutomation) {
-            if (new.volumeDb != old.volumeDb) auto.touch(Automation.volKey(i), autoArmed(), transport[0], loopLen(i), new.volumeDb)
-            if (new.pan != old.pan) auto.touch(Automation.panKey(i), autoArmed(), transport[0], loopLen(i), new.pan)
-            if (new.scAmount != old.scAmount) auto.touch(Automation.scKey(i), autoArmed(), transport[0], loopLen(i), new.scAmount)
+            if (new.volumeDb != old.volumeDb) auto.touch(Automation.volKey(i), autoArmed(), loopTick, loopLen(i), new.volumeDb)
+            if (new.pan != old.pan) auto.touch(Automation.panKey(i), autoArmed(), loopTick, loopLen(i), new.pan)
+            if (new.scAmount != old.scAmount) auto.touch(Automation.scKey(i), autoArmed(), loopTick, loopLen(i), new.scAmount)
         }
     }
 
@@ -682,13 +876,13 @@ class GrooveController(private val app: AppState) {
     private fun runAutomation() {
         val playingNow = transport[1] != 0.0
         if (playingNow) {
-            auto.play(transport[0], { k -> laneLen(k) }, ::applyAutomation)
+            auto.play(loopTick, { k -> laneLen(k) }, ::applyAutomation)
         } else if (autoWasPlaying) { auto.resetPlayback(); releaseAutoFx() }
         autoWasPlaying = playingNow
     }
     fun setMaster(db: Float, fromAutomation: Boolean = false) {
         masterDb.floatValue = db.coerceIn(-60f, 6f); NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.floatValue)
-        if (!fromAutomation) auto.touch(Automation.MASTER, autoArmed(), transport[0], fxLoopLen(), masterDb.floatValue)
+        if (!fromAutomation) auto.touch(Automation.MASTER, autoArmed(), loopTick, fxLoopLen(), masterDb.floatValue)
     }
 
     // ================= per frame =================
@@ -697,12 +891,13 @@ class GrooveController(private val app: AppState) {
     fun stepPosition(track: Int): Int {
         if (transport[1] == 0.0) return -1
         val c = clips.value.getOrNull(track) ?: return -1
-        return ((transport[0] % c.lengthTicks) / STEP_TICKS).toInt()
+        return ((loopTick % c.lengthTicks) / STEP_TICKS).toInt()
     }
 
     fun onFrame(dt: Float) {
-        flushClips()
         NativeEngine.transport(transport)
+        followScene()
+        flushClips()
         val fall = Math.pow(0.05, dt.toDouble()).toFloat()          // ~0.5 s meter falloff
         NativeEngine.meters(meterBuf)
         for (i in meters.indices) meters[i] = maxOf(meterBuf[i], meters[i] * fall)

@@ -99,6 +99,10 @@ public:
     bool setRecording(bool on);
     bool setMetronome(bool on);
     bool setPattern(int track, seq::Pattern* owned);   // takes ownership (deleted on failure)
+    // Scenes (pattern changes on the beat): stage each track's next pattern (owned; nullptr = empty),
+    // then commit: they all swap in on the next multiple of loopTicks from the current scene's start.
+    bool queuePattern(int track, seq::Pattern* owned);
+    bool commitScene(int loopTicks, int tag);
     bool repeatOn(int track, int note, int rateTicks, float velocity);
     bool repeatOff(int track, int note);
     bool repeatVelocity(float v);
@@ -251,6 +255,9 @@ private:
     std::atomic<int32_t> mTelFlags{0};       // bit0 playing, bit1 recording, bit2 metronome
     std::atomic<uint32_t> mTelFx{0};
     std::atomic<float> mTelEchoTail{0.f}, mTelRevTail{0.f};
+    std::atomic<double> mTelOrigin{0.0}, mTelQueueAt{-1.0};
+    std::atomic<int> mTelScene{0}, mTelQueueTag{-1};
+    void freeRetired();
     std::atomic<uint32_t> mTelPads{0};       // bitmask of pads with a sounding voice
     std::atomic<int32_t> mTelPlayPad{-1};    // pad of the newest voice (for the chop playhead)
     std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f};

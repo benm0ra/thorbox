@@ -139,6 +139,8 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         assignAll()
         if (oldOriginal != 0 && oldOriginal != sampleId) NativeEngine.unloadSample(oldOriginal)
         if (r == null || regions.value.isEmpty()) rechop()
+        // KEY LOCK: a new sample lands already in the project key
+        if (r == null && app.lockAll.value && info?.key != null) { keyMatch.value = true; keyMatchByLock = true; rerender(); return }
         if (r != null && (r.keyMatch || r.stretch != StretchMode.OFF)) {
             keyMatch.value = r.keyMatch; stretch.value = r.stretch; fitBars.intValue = r.fitBars.coerceIn(1, 16); rerender()
         } else renderWarps()
@@ -307,7 +309,13 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         return ChopLogic.syncRatio(b, app.groove.groove.value.bpm)
     }
 
-    fun toggleKeyMatch() { keyMatch.value = !keyMatch.value; rerender() }
+    fun toggleKeyMatch() { keyMatch.value = !keyMatch.value; keyMatchByLock = false; rerender() }
+    /** KEY LOCK turned KEY MATCH on for this track (so turning the lock off puts it back). */
+    private var keyMatchByLock = false
+    fun lockToKey(on: Boolean) {
+        if (on && !keyMatch.value) { keyMatch.value = true; keyMatchByLock = true; rerender() }
+        else if (!on && keyMatchByLock) { keyMatch.value = false; keyMatchByLock = false; rerender() }
+    }
     fun toggleBpmSync() = setStretch(if (stretch.value == StretchMode.SYNC) StretchMode.OFF else StretchMode.SYNC)
     fun setStretch(m: StretchMode, bars: Int = fitBars.intValue) {
         stretch.value = m; fitBars.intValue = bars.coerceIn(1, 16); rerender()
