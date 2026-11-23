@@ -95,13 +95,14 @@ private fun DeckStatus(state: AppState, deck: Deck, modifier: Modifier = Modifie
         else -> state.samplerTrack.intValue
     }
     val tr = state.tracks.value.getOrNull(t)
+    val loaded by state.sample.collectAsState()                     // the sampler track's sample (state, so this updates)
     val color = if (tr != null) kindColor(tr.kind) else Tb.Key
     val detail = when (deck) {
         Deck.PADS -> {
             val sm = state.sampler
             val sel = sm.selected.intValue
             val pad = sm.pads.value[sel]
-            val name = sm.info?.name
+            val name = loaded?.name
             if (name == null) "no sample yet · SAMPLE → FOLDER or MIC"
             else buildString {
                 append(name); append("  ·  PAD ").append(sel + 1).append(' ')

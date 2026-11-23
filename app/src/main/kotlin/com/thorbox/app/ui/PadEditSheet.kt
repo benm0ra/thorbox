@@ -205,13 +205,17 @@ fun PadEditSheet(state: AppState, onClose: () -> Unit, modifier: Modifier = Modi
             }
             }
             // soft-key labels along the bottom of the LCD, the current page inverted
-            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // (a narrow LCD steps the labels down a size so PARAMS / FILTER aren't cut)
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val ls = if (maxWidth < 380.dp) 10 else 12
+            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.spacedBy(if (ls < 12) 4.dp else 6.dp)) {
                 PadPage.entries.forEachIndexed { i, p ->
                     val on = i == page.intValue
                     Box(Modifier.weight(1f).fillMaxHeight().background(if (on) LCD_INK else Color.Transparent).border(1.dp, LCD_INK),
-                        contentAlignment = Alignment.Center) { LcdText(p.label, color = if (on) LCD_BG else LCD_INK, size = 12, center = true) }
+                        contentAlignment = Alignment.Center) { LcdText(p.label, color = if (on) LCD_BG else LCD_INK, size = ls, center = true) }
                 }
-                Box(Modifier.weight(1f).fillMaxHeight().border(1.dp, LCD_INK), contentAlignment = Alignment.Center) { LcdText("EXIT", size = 12, center = true) }
+                Box(Modifier.weight(1f).fillMaxHeight().border(1.dp, LCD_INK), contentAlignment = Alignment.Center) { LcdText("EXIT", size = ls, center = true) }
+            }
             }
         }
         // ---- the soft keys under the LCD (F1…F6) ----

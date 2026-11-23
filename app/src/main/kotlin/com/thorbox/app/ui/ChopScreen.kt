@@ -388,22 +388,23 @@ private fun ChopControls(state: AppState) {
     // row, WARP · NORMALIZE · PLAY on the next, so nothing is pushed off the edge.
     val narrow = maxWidth < 720.dp
     val padColor = Tb.Pads[sm.selected.intValue % Tb.Pads.size]
-    @Composable fun pitchGroup() {
+    @Composable fun androidx.compose.foundation.layout.RowScope.pitchGroup() {
         // what PITCH − / + moves: the selected pad, or ALL pads (the track's TRANSPOSE, on top of each
         // pad's own pitch). ALL shows its amount whenever it isn't 0, so a transposed track is never a surprise.
         val all = sm.pitchAll.value
         val tr = sm.transpose.intValue
-        Row(Modifier.fillMaxHeight().clip(RoundedCornerShape(10.dp)).border(1.dp, Tb.Line, RoundedCornerShape(10.dp)).padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            HwButton("PAD ${sm.selected.intValue + 1}", Modifier.width(70.dp).fillMaxHeight(), active = !all, accent = padColor, fontSize = 12, hPad = 2.dp) { sm.pitchAll.value = false }
-            HwButton(if (tr == 0) "ALL" else String.format(Locale.US, "ALL %+d", tr), Modifier.width(70.dp).fillMaxHeight(), active = all,
+        // narrow: the PAD | ALL switch takes what's left of the row, so − / + always fit
+        Row((if (narrow) Modifier.weight(1f) else Modifier.width(146.dp)).fillMaxHeight().clip(RoundedCornerShape(10.dp))
+            .border(1.dp, Tb.Line, RoundedCornerShape(10.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            HwButton("PAD ${sm.selected.intValue + 1}", Modifier.weight(1f).fillMaxHeight(), active = !all, accent = padColor, fontSize = 12, hPad = 2.dp) { sm.pitchAll.value = false }
+            HwButton(if (tr == 0) "ALL" else String.format(Locale.US, "ALL %+d", tr), Modifier.weight(1f).fillMaxHeight(), active = all,
                 accent = Tb.Key, fontSize = 12, hPad = 2.dp) { sm.pitchAll.value = true }
         }
-        HwButton("−", Modifier.width(48.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
+        HwButton("−", Modifier.width(44.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
         Text(String.format(Locale.US, "%+d st", if (all) tr else pad.pitch), color = if (all) Tb.Key else Tb.Text, fontFamily = Tb.Mono,
             fontWeight = FontWeight.Black, fontSize = 15.sp,
-            modifier = Modifier.width(62.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        HwButton("+", Modifier.width(48.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
+            modifier = Modifier.width(58.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        HwButton("+", Modifier.width(44.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
     }
     @Composable fun RowScopeTools(scope: androidx.compose.foundation.layout.RowScope) = with(scope) {
         // WARP: pitch this chop without it speeding up (MPC-style); off = turntable pitch (faster + higher).
@@ -534,9 +535,11 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
                 val top = o.y + s.height * 0.42f; val bot = o.y + s.height - 18.dp.toPx()
                 val mid = (top + bot) / 2f; val half = (bot - top) / 2f
                 val bw = (s.width - 16.dp.toPx()) / b.size
+                drawLine(ink.copy(alpha = ink.alpha * 0.5f), Offset(o.x + 8.dp.toPx(), mid), Offset(o.x + s.width - 8.dp.toPx(), mid), 1f)
                 for (i in b.indices) {
-                    val h = maxOf(1f, b[i] * half)
-                    drawRect(ink, Offset(o.x + 8.dp.toPx() + i * bw + bw * 0.18f, mid - h), Size(bw * 0.64f, 2 * h))
+                    if (b[i] < 0.03f) continue                                    // silence: just the centre line
+                    val h = b[i] * half
+                    drawRoundRect(ink, Offset(o.x + 8.dp.toPx() + i * bw + bw * 0.18f, mid - h), Size(bw * 0.64f, 2 * h), CornerRadius(bw * 0.3f))
                 }
                 if (on) drawRoundRect(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f), o, s, r, style = Stroke(2.dp.toPx()))
             }
