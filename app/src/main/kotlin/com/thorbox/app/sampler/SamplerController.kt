@@ -63,6 +63,14 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     val keyMatch = mutableStateOf(false)
     val stretch = mutableStateOf(StretchMode.OFF)
     val fitBars = mutableIntStateOf(2)
+    /** ONE AT A TIME (default): playing a pad silences the pad before it. Off = pads layer (mute groups still apply). */
+    val chokeAll = mutableStateOf(true)
+    /** TRANSPOSE: semitones added to every pad on this track (on top of each pad's own pitch), −24 … +24. */
+    val transpose = mutableIntStateOf(0)
+    /** The PITCH − / + buttons (and the stick flick) move the selected pad (false) or every pad (true). */
+    val pitchAll = mutableStateOf(false)
+    /** A pad's pitch as it plays: its own plus the track's transpose. */
+    fun playPitch(s: PadSlot) = (s.pitch + transpose.intValue).coerceIn(-36, 36)
     /** Back-compat for projects / callers that think in "BPM SYNC on/off". */
     val bpmSync get() = stretch.value == StretchMode.SYNC
     val lazyRunning = mutableStateOf(false)
@@ -74,7 +82,8 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
 
     /** Saved chop/pad state to apply when a project's sample finishes loading (instead of auto-chopping). */
     class Restore(val regions: List<Region>, val pads: List<PadSlot>, val chopMode: ChopMode, val sensitivity: Float,
-                  val equalCount: Int, val keyMatch: Boolean, val stretch: StretchMode, val fitBars: Int)
+                  val equalCount: Int, val keyMatch: Boolean, val stretch: StretchMode, val fitBars: Int,
+                  val chokeAll: Boolean = true, val transpose: Int = 0)
     var pendingRestore: Restore? = null
     fun onRestoreFailed() { pendingRestore = null }
 
@@ -86,7 +95,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         info = null; peaks = null; sourceUri = null; pendingRestore = null
         regions.value = emptyList(); pads.value = List(ChopLogic.PADS) { PadSlot() }
         chopMode.value = ChopMode.AUTO; sensitivity.floatValue = 0.6f; equalCount.intValue = 16
-        keyMatch.value = false; stretch.value = StretchMode.OFF
+        keyMatch.value = false; stretch.value = StretchMode.OFF; chokeAll.value = true; transpose.intValue = 0
         assignAll()
     }
 
@@ -122,6 +131,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         if (r != null) {
             // Opening a project: put back its slices, pads and settings instead of auto-chopping.
             pads.value = List(ChopLogic.PADS) { r.pads.getOrElse(it) { PadSlot() } }
+            chokeAll.value = r.chokeAll; transpose.intValue = r.transpose.coerceIn(-24, 24)
             chopMode.value = if (r.chopMode == ChopMode.LAZY) ChopMode.AUTO else r.chopMode
             sensitivity.floatValue = r.sensitivity; equalCount.intValue = r.equalCount
             regions.value = r.regions.filter { it.start in 0 until frames && it.end in 1..frames && it.end > it.start }
@@ -168,14 +178,14 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     private fun renderWarp(p: Int) {
         val slot = pads.value[p]
         warpPending.entries.removeAll { it.value == p }          // only the newest render per pad counts
-        if (!slot.warp || (slot.pitch == 0 && slot.fine == 0) || playingId == 0) { dropWarp(p); assignPad(p); return }
+        if (!slot.warp || (playPitch(slot) == 0 && slot.fine == 0) || playingId == 0) { dropWarp(p); assignPad(p); return }
         val reg = regions.value.getOrNull(p) ?: run { dropWarp(p); assignPad(p); return }
         val scale = if (originalFrames > 0) playingFrames.toDouble() / originalFrames else 1.0
         val a = (reg.start * scale).toLong(); val b = (reg.end * scale).toLong().coerceAtMost(playingFrames)
         if (b - a < 256) { dropWarp(p); assignPad(p); return }
         val id = nextReq++
         warpPending[id] = p
-        NativeEngine.stretchSample(playingId, 1.0, slot.pitch + slot.fine / 100.0, id, a, b)
+        NativeEngine.stretchSample(playingId, 1.0, playPitch(slot) + slot.fine / 100.0, id, a, b)
     }
 
     private fun onWarpLoaded(p: Int, sampleId: Int, frames: Long) {
@@ -206,7 +216,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
             if (reg == null) NativeEngine.setPadRegion(gp(p), 0, 1)
             else NativeEngine.setPadRegion(gp(p), (reg.start * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt(),
                 (reg.end * scale).toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
-            NativeEngine.setPitch(gp(p), slot.pitch, slot.fine.toFloat())
+            NativeEngine.setPitch(gp(p), playPitch(slot), slot.fine.toFloat())
         }
     }
 
@@ -406,6 +416,22 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         NativeEngine.setPadParam(g, P.MUTE_B, s.muteB.toFloat())
         NativeEngine.setPadParam(g, P.POLY, if (s.poly) 1f else 0f)
         NativeEngine.setPadParam(g, P.VEL_SENS, s.velSens)
+        NativeEngine.setPadParam(g, P.CHOKE_ALL, if (chokeAll.value) 1f else 0f)
+    }
+
+    /** TRANSPOSE every pad by [st] semitones (turntable-style; WARP pads re-render, keeping their length). */
+    fun setTranspose(st: Int) {
+        val v = st.coerceIn(-24, 24)
+        if (v == transpose.intValue) return
+        transpose.intValue = v
+        for (p in 0 until ChopLogic.PADS) assignPad(p)
+        renderWarps()
+    }
+
+    /** ONE AT A TIME on/off for this track's 16 pads. */
+    fun setChokeAll(on: Boolean) {
+        chokeAll.value = on
+        pads.value.forEachIndexed { i, s -> pushPadModes(i, s) }
     }
 
     /**
@@ -490,7 +516,7 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         when (mode) {
             com.thorbox.app.levels.LevelMode.TUNE -> {
                 // each hit retriggers the (monophonic) pad, so repitching right before the hit is safe
-                NativeEngine.setPitch(gp(src), (slot.pitch + com.thorbox.app.levels.Levels.tune(k)).coerceIn(-36, 36), slot.fine.toFloat())
+                NativeEngine.setPitch(gp(src), (playPitch(slot) + com.thorbox.app.levels.Levels.tune(k)).coerceIn(-36, 36), slot.fine.toFloat())
                 if (!app.groove.liveDown(track, src, velocity)) NativeEngine.noteOn(gp(src), velocity)
             }
             else -> {

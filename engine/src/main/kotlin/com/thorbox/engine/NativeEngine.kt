@@ -107,7 +107,7 @@ object NativeEngine {
     object PadParam {
         const val PAN = 0; const val ATTACK_MS = 1; const val DECAY_MS = 2; const val RELEASE_MS = 3; const val CUTOFF = 4
         const val RESO = 5; const val REVERSE = 6; const val MUTE_GROUP = 7; const val MUTE_A = 8; const val MUTE_B = 9
-        const val POLY = 10; const val VEL_SENS = 11
+        const val POLY = 10; const val VEL_SENS = 11; const val CHOKE_ALL = 12
     }
     /** Peak and loudness (loudest 50 ms RMS) in dBFS for each region (start, end pairs) of a sample → out[2i], out[2i+1]. */
     fun regionLevels(sampleId: Int, regions: LongArray, out: FloatArray) = nativeRegionLevels(sampleId, regions, out)

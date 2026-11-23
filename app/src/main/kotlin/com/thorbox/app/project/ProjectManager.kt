@@ -299,7 +299,8 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
                                 it.cutoff, it.reso, it.reverse, it.muteGroup, it.muteA, it.muteB, it.poly, it.velSens)
                         },
                         chopMode = sm.chopMode.value.name, sensitivity = sm.sensitivity.floatValue, equalCount = sm.equalCount.intValue,
-                        keyMatch = sm.keyMatch.value, bpmSync = sm.bpmSync, stretch = sm.stretch.value.name, fitBars = sm.fitBars.intValue)
+                        keyMatch = sm.keyMatch.value, bpmSync = sm.bpmSync, stretch = sm.stretch.value.name, fitBars = sm.fitBars.intValue,
+                        chokeAll = sm.chokeAll.value, transpose = sm.transpose.intValue)
                 }
                 TrackKind.EMPTY -> Unit
             }

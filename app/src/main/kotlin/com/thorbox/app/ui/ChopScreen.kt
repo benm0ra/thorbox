@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -388,13 +389,21 @@ private fun ChopControls(state: AppState) {
     val narrow = maxWidth < 720.dp
     val padColor = Tb.Pads[sm.selected.intValue % Tb.Pads.size]
     @Composable fun pitchGroup() {
-        Text("PAD ${sm.selected.intValue + 1}", color = padColor, fontWeight = FontWeight.Black, fontSize = 15.sp,
-            modifier = Modifier.padding(horizontal = 8.dp))
-        Text("PITCH", style = Tb.Label, color = Tb.Muted)
-        HwButton("−", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
-        Text(String.format(Locale.US, "%+d st", pad.pitch), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp,
-            modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        HwButton("+", Modifier.width(52.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
+        // what PITCH − / + moves: the selected pad, or ALL pads (the track's TRANSPOSE, on top of each
+        // pad's own pitch). ALL shows its amount whenever it isn't 0, so a transposed track is never a surprise.
+        val all = sm.pitchAll.value
+        val tr = sm.transpose.intValue
+        Row(Modifier.fillMaxHeight().clip(RoundedCornerShape(10.dp)).border(1.dp, Tb.Line, RoundedCornerShape(10.dp)).padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            HwButton("PAD ${sm.selected.intValue + 1}", Modifier.width(70.dp).fillMaxHeight(), active = !all, accent = padColor, fontSize = 12, hPad = 2.dp) { sm.pitchAll.value = false }
+            HwButton(if (tr == 0) "ALL" else String.format(Locale.US, "ALL %+d", tr), Modifier.width(70.dp).fillMaxHeight(), active = all,
+                accent = Tb.Key, fontSize = 12, hPad = 2.dp) { sm.pitchAll.value = true }
+        }
+        HwButton("−", Modifier.width(48.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(-1) }
+        Text(String.format(Locale.US, "%+d st", if (all) tr else pad.pitch), color = if (all) Tb.Key else Tb.Text, fontFamily = Tb.Mono,
+            fontWeight = FontWeight.Black, fontSize = 15.sp,
+            modifier = Modifier.width(62.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        HwButton("+", Modifier.width(48.dp).fillMaxHeight(), fontSize = 18) { state.nudgeSemis(+1) }
     }
     @Composable fun RowScopeTools(scope: androidx.compose.foundation.layout.RowScope) = with(scope) {
         // WARP: pitch this chop without it speeding up (MPC-style); off = turntable pitch (faster + higher).
@@ -435,9 +444,37 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
     val fingers = remember { HashMap<Int, Int>() }
     val tel = state.telemetry
     val tm = rememberTextMeasurer(cacheSize = 64)
-    // same type and placement as the drum pads: label top-left (13 sp black), small detail along the bottom
-    val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 13.sp, fontWeight = FontWeight.Black) }
-    val hint = remember(Tb.palette) { TextStyle(color = Tb.Black.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    // same type and placement as the drum pads: label top-left (13 sp black), small detail along the bottom.
+    // Text colour follows the pad's fill (dark ink or light), so it reads in every theme.
+    val numInk = remember(Tb.palette) { TextStyle(color = Tb.palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Black) }
+    val numLight = remember(Tb.palette) { numInk.copy(color = if (Tb.palette.light) androidx.compose.ui.graphics.Color(0xFFFBF8F1) else Tb.palette.text) }
+    val smallInk = remember(Tb.palette) { TextStyle(color = Tb.palette.ink.copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = Tb.Mono) }
+    val smallLight = remember(Tb.palette) { smallInk.copy(color = numLight.color.copy(alpha = 0.75f)) }
+    val num = numInk; val hint = smallInk                             // 16 LEVELS keeps its look
+    // each pad's slice as 28 bars (peak per bar, 0…1), rebuilt only when the sample or the chops change
+    val peaks by state.peaks.collectAsState()
+    val regionsNow = sm.regions.value
+    val bars = remember(peaks, regionsNow) {
+        val pk = peaks; val frames = sm.originalFrames
+        Array(16) { k ->
+            val out = FloatArray(28)
+            val reg = regionsNow.getOrNull(k)
+            if (pk != null && reg != null && frames > 0) {
+                val cols = pk.size / 3
+                val c0 = (reg.start.toDouble() / frames * cols).toInt().coerceIn(0, cols - 1)
+                val c1 = (reg.end.toDouble() / frames * cols).toInt().coerceIn(c0 + 1, cols)
+                var mx = 1e-4f
+                for (b in 0 until 28) {
+                    val a0 = c0 + (c1 - c0) * b / 28; val a1 = maxOf(a0 + 1, c0 + (c1 - c0) * (b + 1) / 28)
+                    var m = 0f
+                    for (c in a0 until minOf(a1, cols)) m = maxOf(m, kotlin.math.abs(pk[3 * c]), kotlin.math.abs(pk[3 * c + 1]))
+                    out[b] = m; mx = maxOf(mx, m)
+                }
+                for (b in 0 until 28) out[b] = (out[b] / mx).coerceIn(0f, 1f)
+            }
+            out
+        }
+    }
 
     fun cellAt(x: Float, y: Float): Pair<Int, Float> {
         val cw = dims[0].coerceAtLeast(1) / 4f; val ch = dims[1].coerceAtLeast(1) / 4f
@@ -476,17 +513,51 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
         val count = sm.regions.value.size
         val lazy = sm.lazyRunning.value
         val cw = size.width / 4; val ch = size.height / 4; val gap = 4.dp.toPx(); val r = CornerRadius(10.dp.toPx())
+        val frames = sm.originalFrames
+        val sr = (sm.info?.sampleRate ?: 48000).toFloat()
+        val padsNow = sm.pads.value
         for (k in 0 until 16) {
             val col = k % 4; val rowTop = 3 - k / 4
             val o = Offset(col * cw + gap, rowTop * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
             val c = Tb.Pads[k % Tb.Pads.size]
             val on = active and (1 shl k) != 0
             val empty = k >= count
-            drawRoundRect(if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.62f), o, s, r)
+            val fill = if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.62f)
+            drawRoundRect(fill, o, s, r)
+            val lightText = !empty && Tb.on(c) != Tb.palette.ink
+            val nStyle = if (empty) num.copy(color = Tb.Dim) else if (lightText) numLight else numInk
+            val dStyle = if (lightText) smallLight else smallInk
+            if (!empty) {
+                // the slice's waveform along the lower part of the pad, in the text colour, brighter while it sounds
+                val ink = nStyle.color.copy(alpha = if (on) 0.55f else 0.28f)
+                val b = bars[k]
+                val top = o.y + s.height * 0.42f; val bot = o.y + s.height - 18.dp.toPx()
+                val mid = (top + bot) / 2f; val half = (bot - top) / 2f
+                val bw = (s.width - 16.dp.toPx()) / b.size
+                for (i in b.indices) {
+                    val h = maxOf(1f, b[i] * half)
+                    drawRect(ink, Offset(o.x + 8.dp.toPx() + i * bw + bw * 0.18f, mid - h), Size(bw * 0.64f, 2 * h))
+                }
+                if (on) drawRoundRect(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f), o, s, r, style = Stroke(2.dp.toPx()))
+            }
             if (k == sel) drawRoundRect(Tb.Text, o, s, r, style = Stroke(3.dp.toPx()))
-            drawTextSafe(tm, "${k + 1}", o + Offset(9.dp.toPx(), 7.dp.toPx()), if (empty) num.copy(color = Tb.Dim) else num)
-            val p = sm.pads.value[k].pitch
-            if (p != 0) drawTextSafe(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)
+            drawTextSafe(tm, "${k + 1}", o + Offset(9.dp.toPx(), 7.dp.toPx()), nStyle)
+            if (empty) continue
+            val slot = padsNow[k]
+            // top-right: how it plays (→ one shot · ▮ note on · ↻ loop), + a mute group
+            val mode = when (slot.mode) { PlayMode.ONE_SHOT -> "→"; PlayMode.GATE -> "▮"; PlayMode.LOOP -> "↻" } +
+                (if (slot.muteGroup > 0) " G${slot.muteGroup}" else "")
+            val ml = tm.measure(mode, dStyle)
+            drawText(ml, topLeft = Offset(o.x + s.width - ml.size.width - 8.dp.toPx(), o.y + 8.dp.toPx()))
+            // bottom: pitch (left) and the slice length (right)
+            val p = slot.pitch
+            if (p != 0) drawTextSafe(tm, String.format(Locale.US, "%+d st", p), o + Offset(8.dp.toPx(), s.height - 15.dp.toPx()), dStyle)
+            val reg = sm.regions.value.getOrNull(k)
+            if (reg != null && frames > 0 && s.width > 70.dp.toPx()) {
+                val secs = (reg.end - reg.start) / sr
+                val tl = tm.measure(if (secs < 10f) String.format(Locale.US, "%.2fs", secs) else String.format(Locale.US, "%.0fs", secs), dStyle)
+                drawText(tl, topLeft = Offset(o.x + s.width - tl.size.width - 8.dp.toPx(), o.y + s.height - 15.dp.toPx()))
+            }
         }
         val lm = state.levelMode.value
         if (lm != com.thorbox.app.levels.LevelMode.OFF) {

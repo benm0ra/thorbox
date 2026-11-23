@@ -67,6 +67,10 @@ data class ProjectFile(
     val bpmSync: Boolean = false,
     val stretch: String = "",
     val fitBars: Int = 2,
+    /** ONE AT A TIME: a pad cuts whatever else this track is playing (true, the default) or pads layer (false). */
+    val chokeAll: Boolean = true,
+    /** TRANSPOSE: semitones on every pad, on top of each pad's own pitch. */
+    val transpose: Int = 0,
 )
 @Serializable data class FocusDto(val samplerTrack: Int = 0, val synthTrack: Int = 1, val drumTrack: Int = 2, val seqTrack: Int = 0)
 

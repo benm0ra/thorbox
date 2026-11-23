@@ -58,7 +58,7 @@ import kotlin.math.sqrt
  *   PARAMS  tune · fine · level · pan · reverse · warp           (picture: the pad's slice, the way it plays)
  *   AMP     attack · decay · release · velocity → level           (picture: the envelope)
  *   FILTER  low-pass cutoff · resonance                            (picture: the response curve)
- *   MUTE    mute group · two mute targets                          (picture: the 16 pads; tap one to make it a target)
+ *   MUTE    1 AT A TIME (track) · mute group · two mute targets                          (picture: the 16 pads; tap one to make it a target)
  *   PLAY    one shot / note on / loop · voice overlap mono / poly  (picture: how a second hit behaves)
  *
  * Every field: tap its left half for −, right half for +, drag sideways to sweep, or NAV it (A grabs,
@@ -160,10 +160,13 @@ fun PadEditSheet(state: AppState, onClose: () -> Unit, modifier: Modifier = Modi
                             LcdHint("low-pass, per hit · OFF = untouched")
                         }
                         PadPage.MUTE -> {
+                            // track-wide: every pad on this sampler track
+                            LcdField("1 AT A TIME", if (sm.chokeAll.value) "ON" else "OFF", reset = { sm.setChokeAll(true) }) { _ -> sm.setChokeAll(!sm.chokeAll.value) }
                             LcdField("MUTE GROUP", if (pad.muteGroup == 0) "OFF" else "${pad.muteGroup}", reset = { edit { it.copy(muteGroup = 0) } }) { n -> edit { it.copy(muteGroup = (it.muteGroup + n).coerceIn(0, 16)) } }
                             LcdField("TARGET 1", if (pad.muteA < 0) "OFF" else "PAD ${pad.muteA + 1}", reset = { edit { it.copy(muteA = -1) } }) { n -> edit { it.copy(muteA = (it.muteA + n).coerceIn(-1, 15)) } }
                             LcdField("TARGET 2", if (pad.muteB < 0) "OFF" else "PAD ${pad.muteB + 1}", reset = { edit { it.copy(muteB = -1) } }) { n -> edit { it.copy(muteB = (it.muteB + n).coerceIn(-1, 15)) } }
-                            LcdHint("pads in one group cut each other off (open / closed hat); a target is cut when this pad plays")
+                            LcdHint(if (sm.chokeAll.value) "1 AT A TIME (all pads): any pad cuts the one before it. OFF = pads layer; groups and targets still cut"
+                                    else "pads layer · pads in one group cut each other (open / closed hat); a target is cut when this pad plays")
                         }
                         PadPage.PLAY -> {
                             LcdField("PLAY MODE", modeName(pad.mode), reset = { edit { it.copy(mode = PlayMode.ONE_SHOT) } }) { n ->
@@ -383,7 +386,8 @@ private fun MuteGrid(state: AppState, sel: Int, pad: PadSlot) {
             for (col in 0 until 4) {
                 val k = (3 - rowTop) * 4 + col
                 val me = k == sel
-                val grouped = !me && pad.muteGroup > 0 && pads[k].muteGroup == pad.muteGroup
+                // 1 AT A TIME cuts every other pad: draw them all hatched, like one big group
+                val grouped = !me && (sm.chokeAll.value || pad.muteGroup > 0 && pads[k].muteGroup == pad.muteGroup)
                 val target = !me && (pad.muteA == k || pad.muteB == k)
                 Box(
                     Modifier.weight(1f).fillMaxHeight().background(if (me) LCD_INK else Color.Transparent)

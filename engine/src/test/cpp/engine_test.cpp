@@ -81,6 +81,17 @@ int main() {
             CHECK(rms(ch, 0) < 1e-3 && rms(ch, 1) > 0.01, "mute group: pad 2 cuts pad 1 off (open/closed hat)");
             e.stopPads(-1); render(e, 4800);
             e.setPadParam(0, (int)PadParam::MuteGroup, 0); e.setPadParam(1, (int)PadParam::MuteGroup, 0);
+            // CHOKE ALL ("one at a time"): no groups needed, any pad cuts the one before it
+            e.setPadParam(0, (int)PadParam::ChokeAll, 1.f); e.setPadParam(1, (int)PadParam::ChokeAll, 1.f);
+            e.noteOn(0, 1.f); render(e, 2400); e.noteOn(1, 1.f); render(e, 2400);
+            auto ca = render(e, 4800);
+            CHECK(rms(ca, 0) < 1e-3 && rms(ca, 1) > 0.01, "choke all: pad 2 silences pad 1");
+            e.stopPads(-1); render(e, 4800);
+            e.setPadParam(0, (int)PadParam::ChokeAll, 0.f); e.setPadParam(1, (int)PadParam::ChokeAll, 0.f);
+            e.noteOn(0, 1.f); render(e, 2400); e.noteOn(1, 1.f); render(e, 2400);
+            auto lay = render(e, 4800);
+            CHECK(rms(lay, 0) > 0.01 && rms(lay, 1) > 0.01, "layered (choke off): both pads keep sounding");
+            e.stopPads(-1); render(e, 4800);
             e.setPadParam(0, (int)PadParam::Pan, 0.f);
             // 2400 frames at 48 kHz = exactly 11 cycles of 220 Hz, so two overlapping hits are in phase
             e.noteOn(0, 1.f); render(e, 2400); e.noteOn(0, 1.f); const double mono = rms(render(e, 4800), 0);

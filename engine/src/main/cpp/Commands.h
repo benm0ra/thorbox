@@ -49,6 +49,7 @@ enum class PadParam : int32_t {
     MuteTargetB = 9,
     Poly = 10,       // 0 mono (a retrigger cuts the last hit), 1 poly (hits overlap)
     VelSens = 11,    // 0 … 1: how much velocity sets the level (0 = every hit full)
+    ChokeAll = 12,   // 0/1: this pad cuts every other pad on its track (one sound at a time, the default)
 };
 
 // What instrument a track plays. Must match com.thorbox.engine.NativeEngine.TrackType.

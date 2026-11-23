@@ -158,6 +158,7 @@ private:
         int muteGroup = 0, muteA = -1, muteB = -1;
         bool poly = false;
         float velSens = 1.f;
+        bool chokeAll = false;                // cuts every other pad on the track
     };
     struct RegistryEntry {
         std::shared_ptr<SampleBuffer> buf;

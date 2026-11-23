@@ -413,14 +413,18 @@ class AppState(private val app: Application) {
 
     private fun sel() = sampler.selected.intValue
     fun setPitch(semis: Int, cents: Int = sampler.pads.value[sel()].fine) { sampler.updatePad(sel()) { it.copy(pitch = semis, fine = cents) }; recordPadPitch() }
-    fun nudgeSemis(delta: Int) { sampler.updatePad(sel()) { it.copy(pitch = it.pitch + delta) }; recordPadPitch() }
+    fun nudgeSemis(delta: Int) {
+        // ALL: the whole track moves (TRANSPOSE); otherwise the selected pad
+        if (sampler.pitchAll.value) { sampler.setTranspose(sampler.transpose.intValue + delta); return }
+        sampler.updatePad(sel()) { it.copy(pitch = it.pitch + delta) }; recordPadPitch()
+    }
     /** REC + play: pad pitch changes write a lane (step values, like a sampler's pitch automation). */
     private fun recordPadPitch() {
         val t = samplerTrack.intValue
         groove.auto.touch(com.thorbox.app.groove.Automation.padPitchKey(t, sel()), groove.autoArmed(), groove.transport[0], groove.loopLen(t),
             sampler.pads.value[sel()].pitch.toFloat())
     }
-    fun resetPitch() = sampler.updatePad(sel()) { it.copy(pitch = 0, fine = 0) }
+    fun resetPitch() { if (sampler.pitchAll.value) sampler.setTranspose(0) else sampler.updatePad(sel()) { it.copy(pitch = 0, fine = 0) } }
     fun setPlayMode(mode: PlayMode) = sampler.updatePad(sel()) { it.copy(mode = mode) }
     fun cyclePlayMode() = sampler.updatePad(sel()) { it.copy(mode = PlayMode.entries[(it.mode.ordinal + 1) % PlayMode.entries.size]) }
 
@@ -568,7 +572,7 @@ class AppState(private val app: Application) {
                         sensitivity = sd.sensitivity, equalCount = sd.equalCount, keyMatch = sd.keyMatch,
                         stretch = runCatching { com.thorbox.app.sampler.StretchMode.valueOf(sd.stretch) }
                             .getOrDefault(if (sd.bpmSync) com.thorbox.app.sampler.StretchMode.SYNC else com.thorbox.app.sampler.StretchMode.OFF),
-                        fitBars = sd.fitBars)
+                        fitBars = sd.fitBars, chokeAll = sd.chokeAll, transpose = sd.transpose)
                     load(Uri.fromFile(file), sd.sampleName ?: file.nameWithoutExtension, t)
                 }
                 else -> Unit

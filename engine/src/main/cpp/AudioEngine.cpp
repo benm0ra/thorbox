@@ -246,7 +246,7 @@ bool AudioEngine::setPadRegion(int pad, int64_t s, int64_t e) {
     return mCmds.push(c);
 }
 bool AudioEngine::setPadParam(int pad, int param, float v) {
-    if (pad < 0 || pad >= kMaxPads || param < 0 || param > (int)PadParam::VelSens || !std::isfinite(v)) return false;
+    if (pad < 0 || pad >= kMaxPads || param < 0 || param > (int)PadParam::ChokeAll || !std::isfinite(v)) return false;
     return mCmds.push({CmdType::SetPadParam, pad, param, v});
 }
 bool AudioEngine::stopPads(int track) {
@@ -617,6 +617,7 @@ void AudioEngine::handleCommand(const Command& c) {
                 case PadParam::MuteTargetB: p.muteB = std::clamp((int)std::lround(v), -1, kPreviewPad - 1); break;
                 case PadParam::Poly:        p.poly = v >= 0.5f; break;
                 case PadParam::VelSens:     p.velSens = std::clamp(v, 0.f, 1.f); break;
+                case PadParam::ChokeAll:    p.chokeAll = v >= 0.5f; break;
             }
             break;
         }
@@ -693,13 +694,14 @@ void AudioEngine::startPad(int pad, float vel, float sr) {
     // Mute group: every other pad on this track in the same group is cut (open / closed hat).
     // Mute targets: up to two specific pads this one cuts.
     const int track = pad / kPadsPerTrack, local = pad % kPadsPerTrack;
-    if (p.muteGroup > 0 || p.muteA >= 0 || p.muteB >= 0) {
+    // CHOKE ALL (the track's "one at a time" setting): every other pad on this track is cut.
+    if (p.muteGroup > 0 || p.muteA >= 0 || p.muteB >= 0 || p.chokeAll) {
         for (auto& v : mVoices) {
             if (!v.active() || v.releasing() || v.pad() == pad || v.pad() / kPadsPerTrack != track) continue;
             const int other = v.pad() % kPadsPerTrack;
             if (other == kPreviewPad) continue;
             const bool grouped = p.muteGroup > 0 && mPads[v.pad()].muteGroup == p.muteGroup;
-            if (grouped || other == p.muteA || other == p.muteB) v.release(10.f, sr);
+            if (p.chokeAll || grouped || other == p.muteA || other == p.muteB) v.release(10.f, sr);
         }
     }
     (void)local;
