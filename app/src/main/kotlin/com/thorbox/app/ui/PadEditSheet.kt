@@ -75,6 +75,9 @@ private val CASE_EDGE = Color(0xFF3A3A41)
 private val KEY = Color(0xFF55565E)
 private val KEY_TOP = Color(0xFF6A6B74)
 
+/** How wide a field's value is: narrower on small screens so the labels keep their room. */
+private val LocalLcdValueW = androidx.compose.runtime.compositionLocalOf { 96.dp }
+
 private enum class PadPage(val label: String) { PARAMS("PARAMS"), AMP("AMP"), FILTER("FILTER"), MUTE("MUTE"), PLAY("PLAY") }
 
 private val ATTACKS = floatArrayOf(0f, 1f, 2f, 5f, 10f, 20f, 30f, 50f, 75f, 100f, 150f, 200f, 300f, 500f, 750f, 1000f, 1500f, 2000f, 3000f, 5000f)
@@ -124,15 +127,17 @@ fun PadEditSheet(state: AppState, onClose: () -> Unit, modifier: Modifier = Modi
         ) {
             // title bar, inverted: page · ◀ PAD nn ▶ · play mode
             Row(Modifier.fillMaxWidth().height(28.dp).background(LCD_INK).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                LcdText("PAD EDIT · ${PadPage.entries[page.intValue].label}", color = LCD_BG, size = 14, modifier = Modifier.weight(1f))
+                LcdText(PadPage.entries[page.intValue].label, color = LCD_BG, size = 14, modifier = Modifier.weight(1f))
                 LcdText("◀", color = LCD_BG, size = 16, modifier = Modifier.width(34.dp).fillMaxHeight()
                     .navClickable(label = "PREVIOUS PAD") { sm.selected.intValue = (sel + 15) % 16 }, center = true)
                 LcdText(String.format(Locale.US, "PAD %02d", sel + 1), color = LCD_BG, size = 15, center = true, modifier = Modifier.width(76.dp))
                 LcdText("▶", color = LCD_BG, size = 16, modifier = Modifier.width(34.dp).fillMaxHeight()
                     .navClickable(label = "NEXT PAD") { sm.selected.intValue = (sel + 1) % 16 }, center = true)
             }
-            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1.25f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val narrow = maxWidth < 440.dp
+            val fields: @Composable (Modifier) -> Unit = { fm ->
+                Column(fm, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     when (PadPage.entries[page.intValue]) {
                         PadPage.PARAMS -> {
                             LcdField("TUNE", String.format(Locale.US, "%+d st", pad.pitch), reset = { edit { it.copy(pitch = 0) } }) { n -> edit { it.copy(pitch = it.pitch + n) } }
@@ -174,8 +179,10 @@ fun PadEditSheet(state: AppState, onClose: () -> Unit, modifier: Modifier = Modi
                         }
                     }
                 }
-                // the picture for this page
-                Box(Modifier.weight(1f).fillMaxHeight().border(1.dp, LCD_DIM).padding(6.dp)) {
+            }
+            // the picture for this page
+            val picture: @Composable (Modifier) -> Unit = { pm ->
+                Box(pm.border(1.dp, LCD_DIM).padding(6.dp)) {
                     when (PadPage.entries[page.intValue]) {
                         PadPage.PARAMS -> SlicePicture(state, sel, pad, peaks)
                         PadPage.AMP -> EnvPicture(pad)
@@ -184,6 +191,15 @@ fun PadEditSheet(state: AppState, onClose: () -> Unit, modifier: Modifier = Modi
                         PadPage.PLAY -> PlayPicture(pad)
                     }
                 }
+            }
+            if (!narrow) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                fields(Modifier.weight(1.25f).fillMaxHeight()); picture(Modifier.weight(1f).fillMaxHeight())
+            } else androidx.compose.runtime.CompositionLocalProvider(LocalLcdValueW provides 76.dp) {
+                // narrow: the fields on top, the picture under them (the MUTE grid keeps a usable size)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    fields(Modifier.fillMaxWidth().weight(1.3f)); picture(Modifier.fillMaxWidth().weight(1f))
+                }
+            }
             }
             // soft-key labels along the bottom of the LCD, the current page inverted
             Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -248,7 +264,7 @@ private fun LcdField(label: String, value: String, reset: () -> Unit, step: (Int
     ) {
         LcdText(label, size = 13, modifier = Modifier.weight(1f))
         LcdText("◀", color = LCD_DIM, size = 12)
-        LcdText(value, size = 15, center = true, modifier = Modifier.width(96.dp))
+        LcdText(value, size = 15, center = true, modifier = Modifier.width(LocalLcdValueW.current))
         LcdText("▶", color = LCD_DIM, size = 12)
     }
 }

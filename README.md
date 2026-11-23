@@ -8,6 +8,23 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 > Status: **alpha**: 8-track groovebox with sampler, synth and drum synth, projects with autosave, and a field recorder. Unofficial: not affiliated with AYN or Akai Professional (see NOTICE).
 > License: **GPL-3.0-or-later**.
 
+📖 **[User manual (PDF)](docs/Clamshell-Beats-Manual.pdf)**: every screen, button and feature, with screenshots. Its source is [docs/MANUAL.md](docs/MANUAL.md); `python3 tools/build-manual.py --shots <ci-shots folder>` rebuilds it.
+
+## New in this round
+
+- **Sampler**
+  - **Faster loading:** MP3/FLAC/OGG/M4A decode as fast as the phone's decoder allows (the old loop capped it at ~10–15× realtime), and key/tempo detection on long songs listens to excerpts (a 4-minute song ~2.5× faster, 10 minutes ~7×). Long files load their first 10 minutes; WAV/AIFF are read directly; a **loading card** shows each step with an estimate and **CANCEL**.
+  - **A waveform that tells you things:** each slice in its pad's colour, RMS body inside a peak outline, clip marks, a time ruler, a beat/bar grid from the detected BPM, length · rate · channels · peak, the selected slice's start → end, and the playhead's time.
+  - **■ STOP** lights while anything on the sampler sounds and cuts it all (R3 on the controller).
+  - **PAD EDIT**, styled like a hardware sampler's backlit LCD with F1–F6 soft keys: tune, fine, level, pan, reverse, warp · attack, decay, release, velocity → level · low-pass cutoff + resonance · **mute groups** (choke: open/closed hat) and two **mute targets** · ONE SHOT / NOTE ON / LOOP and MONO / POLY. Each page has a picture of what it does. Saved with the project.
+  - **Pattern lane under the waveform:** tap a step to put the selected pad there, long-press to clear; **SEQ CHOPS** writes the chops in their original order and timing as a starting point; **● REC** records live.
+  - **Note repeat fixed:** in NAV mode L1 only switched screens; now L1 hold = note repeat, L1 tap = top screen. RPT on the decks latches with a tap. 16 LEVELS repeats too.
+  - **Field recorder:** MIC input (it used the raw source at −52 dBFS), ▶ PLAY the take, KEEP → PADS lays it on a sampler track.
+- **Synth:** half the screen is now **a cat in shades making biscuits** on something that suits the sound family (pillow, waterbed, speaker, turntable, keyboard, guitar, slime), and she reads the patch: her tail is the waveform, detune brings a twin, the cutoff is the room's light, resonance buzzes her whiskers, attack/release set her kneading, the LFO flies a moth, octave sets her size, a pitch drop makes her hop, poly notes bring kittens, drive grows a mohawk, noise makes her fur crackle. Turning a knob captions what it does to her.
+- **BIG DAWG, redrawn:** a real right-handed kit seen from the crowd (kick front and centre, rack tom on the kick, snare between his knees, hi-hat with his foot on the pedal, crash, floor tom and ride), one shell finish per kit, a rug; proper elbows (two-bone IK) and short bulldog arms; a hoodie, jeans and sneakers. The bodega corner reacts to the kit: shutter rattle and a glowing piece on the kick, brick flash and flapping posters on the snare, dust and the OPEN sign on the hats, a crash lighting the corner, BODEGA neon following the level, a pumping boombox and a rippling puddle.
+- **UI:** small text is centred everywhere (it sat low and clipped in small chips), drum rows show full names, drum pads share one text size, the characters sit on the left of both instrument screens.
+- **Engine:** per-pad sound (pan, envelope, SVF filter, reverse, choke, poly, velocity), StopPads, and [min, max, rms] waveform data; host tests cover all of it.
+
 ## What works now
 
 - **8 tracks, any instrument on any track:** chop a jazz loop on one sampler track, a drum break on another, and add an 808 and a lead synth. **MIXER → + TRACK** adds a sampler, synth or drum-synth track. Each strip has fader, pan, mute, solo, meters and **PUMP** (sidechain compression from any other track).
@@ -76,7 +93,7 @@ Animations read state only in the draw phase and reuse all buffers. A 120 Hz fra
 - **DICE / MUTATE.** DICE rolls a brand-new playable sound within the selected family. MUTATE nudges the current one. ↶ undoes either.
 - **808 voice.** The PITCH page has a pitch envelope (the boom) and per-oscillator octaves. The VOICE page has glide, mono legato (slides), drive and noise.
 - **Drum synth (DRM).** Its own track and mixer strip, with 8 sounds built from 10 models (kick, snare, clap, hat, tom, rim, cowbell, cymbal, zap, shaker) and 12 factory kits. You get a step grid, DICE BEAT, kit save/load and per-sound dice.
-- **BIG DAWG, the drummer.** A bulldog in a fitted cap and a gold chain who plays exactly the kit that's loaded. Only the pieces your voices use are on stage (a cowbell voice adds a cowbell, ZAP a sparking pad, SHAKE a shaker). Drum size follows tune, glow and ripple follow decay, level sets the flash, drive roughens the ripple, and the hi-hat opens as far as the voice that hit it. Every piece flashes in its slot's colour.
+- **BIG DAWG, the drummer.** A bulldog in a fitted cap, a hoodie and a gold chain, on a bodega corner, who plays exactly the kit that's loaded on a real right-handed kit. Only the pieces your voices use are on stage (a cowbell voice adds a cowbell, ZAP a sparking pad, SHAKE a shaker). Drum size follows tune, glow and ripple follow decay, level sets the flash, drive roughens the ripple, and the hi-hat opens as far as the voice that hit it. Every piece flashes in its slot's colour.
 - **Punch-in FX.** Every FX pad has a live glyph that shows what the effect is doing. **TILT** (FX deck) lets you lean the Thor to steer held effects, and shake it to dice.
 
 ## Controls
@@ -108,7 +125,7 @@ mode the app opens in.
 
 | | Buttons |
 |---|---|
-| **SAMPLE** | D-pad pad cursor (4×4) · A / R1 hold = play · L-stick flick ←/→ ±1 st, ↑/↓ ±12 st · X play mode · Y reset pitch |
+| **SAMPLE** | D-pad pad cursor (4×4) · A / R1 hold = play · L-stick flick ←/→ ±1 st, ↑/↓ ±12 st · X play mode · Y reset pitch · L3 PAD EDIT · R3 stop the sound |
 | **SYNTH** | sticks = the four encoders · D-pad ←/→ page, ↑/↓ octave · A / R1 hold = root (or chord) · X chord mode · Y reset page · L3 next preset · R3 DICE |
 | **DRUMS** | D-pad ←/→ step, ↑/↓ sound · A toggle step · R1 hold = play the sound · sticks = encoders · X dice beat · Y undo · L3 next kit · R3 dice kit |
 | **STEPS** | D-pad ←/→ step, ↑/↓ edit the lane · A toggle step · X dice · Y undo |
@@ -125,7 +142,8 @@ screen with the cursor says what it's on and what the buttons do right now.
 | **A** | press · hold for pads, keys and momentary buttons · held 0.5 s = the long-press action |
 | **A on a knob / slider / fader** | grab it: ◀▶ fine, ▲▼ coarse, X back to default, A or B let go (the R-stick turns it too) |
 | **A on a grid** | enter it (pads, drum pads, keys, FX tiles, step grids): the D-pad walks the cells, A plays / toggles, X latches an FX, B steps out |
-| **L1 / R1** | top / bottom screen |
+| **L1 tap / R1** | top / bottom screen |
+| **L1 hold** | note repeat while you play pads or keys with A |
 | **L2 / R2** | previous / next top view |
 | **X / Y** | previous / next bottom deck |
 | **B** | let go / step out → close the top sheet → leave NAV |

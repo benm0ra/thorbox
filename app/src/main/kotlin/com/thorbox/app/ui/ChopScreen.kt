@@ -62,14 +62,15 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun ChopScreen(state: AppState) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+    val libW = if (maxWidth < 640.dp) 132.dp else 170.dp        // narrow screens: the waveform gets the room
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        LibraryPanel(state, Modifier.width(170.dp).fillMaxHeight().glass(state, 14.dp).clip(RoundedCornerShape(14.dp)))
+        LibraryPanel(state, Modifier.width(libW).fillMaxHeight().glass(state, 14.dp).clip(RoundedCornerShape(14.dp)))
         Box(Modifier.weight(1f).fillMaxHeight()) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 MatchBar(state)
                 SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
-                ChopPattern(state, Modifier.fillMaxWidth().height(42.dp))
-                GrooveStrip(state, state.samplerTrack.intValue, showLabel = false)
+                ChopPattern(state, Modifier.fillMaxWidth().height(40.dp))
                 ChopControls(state)
             }
             // a load in progress: the loading card over the sample side (CANCEL is reachable by touch and NAV)
@@ -77,6 +78,7 @@ fun ChopScreen(state: AppState) {
             // PAD EDIT (the selected pad's sound / mute group / play mode), over the chop side
             if (state.showPadEdit.value) PadEditSheet(state, onClose = { state.showPadEdit.value = false }, modifier = Modifier.fillMaxSize())
         }
+    }
     }
 }
 
@@ -203,7 +205,7 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                 // Everything but the playhead is built here, once per (peaks, slices, selection, size, theme):
                 // the 120 Hz playhead only re-draws.
                 val w = size.width; val h = size.height
-                val rulerH = 18.dp.toPx()
+                val rulerH = 24.dp.toPx()
                 val wh = h - rulerH
                 val mid = wh / 2f; val amp = wh * 0.44f
                 val p = peaks
@@ -306,12 +308,12 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                         if (x + lay.size.width < w) drawText(lay, topLeft = Offset(x + 2.dp.toPx(), wh + 1f))
                     }
                     // readouts: the sample (top-right, under the tabs), the selected slice (bottom-left)
-                    infoText?.let { t ->
+                    if (wh > 120.dp.toPx()) infoText?.let { t ->
                         val o = Offset(w - t.size.width - chipPad * 3, 20.dp.toPx())
                         drawRoundRect(Tb.Void.copy(alpha = 0.7f), o - Offset(chipPad, 2f), Size(t.size.width + 2 * chipPad, t.size.height + 4f), chipR)
                         drawText(t, topLeft = o)
                     }
-                    sliceText?.let { t ->
+                    if (wh > 84.dp.toPx()) sliceText?.let { t ->
                         val c = Tb.Pads[selected % Tb.Pads.size]
                         val o = Offset(chipPad * 2, wh - t.size.height - 6.dp.toPx())
                         drawRoundRect(Tb.Void.copy(alpha = 0.7f), o - Offset(chipPad, 2f), Size(t.size.width + 2 * chipPad, t.size.height + 4f), chipR)
@@ -323,10 +325,12 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                         val x = ph * w
                         drawLine(Tb.Text.copy(alpha = 0.18f), Offset(x, 0f), Offset(x, wh), phW * 4f)     // glow
                         drawLine(Tb.Text, Offset(x, 0f), Offset(x, wh), phW)
-                        val t = tm.measure(fmtTime(ph * secs, 0.1), infoStyle)
-                        val lx = (x + 4.dp.toPx()).coerceAtMost(w - t.size.width - 4f)
-                        drawRoundRect(Tb.Text, Offset(lx - 3f, wh - t.size.height - 26.dp.toPx()), Size(t.size.width + 6f, t.size.height + 2f), chipR)
-                        drawText(t, color = Tb.Black, topLeft = Offset(lx, wh - t.size.height - 25.dp.toPx()))
+                        if (wh > 64.dp.toPx()) {                     // its time, just under the number tabs
+                            val t = tm.measure(fmtTime(ph * secs, 0.1), infoStyle)
+                            val lx = (x + 4.dp.toPx()).coerceAtMost(w - t.size.width - 4f)
+                            drawRoundRect(Tb.Text, Offset(lx - 3f, 19.dp.toPx()), Size(t.size.width + 6f, t.size.height + 2f), chipR)
+                            drawText(t, color = Tb.Black, topLeft = Offset(lx, 20.dp.toPx()))
+                        }
                     }
                 }
             }
@@ -357,20 +361,20 @@ private fun ChopControls(state: AppState) {
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().glass(state, 12.dp).padding(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
     Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        HwButton("AUTO", Modifier.fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12) { sm.setChopMode(ChopMode.AUTO) }
+        HwButton("AUTO", Modifier.weight(1.1f).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
         if (mode == ChopMode.AUTO)
-            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(70.dp).fillMaxHeight(), pxPerUnit = 300f,
+            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(60.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })
         listOf(4, 8, 16).forEach { n ->
-            HwButton("÷$n", Modifier.weight(1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12) { sm.setEqualCount(n) }
+            HwButton("÷$n", Modifier.weight(1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12, hPad = 2.dp) { sm.setEqualCount(n) }
         }
-        HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12) {
+        HwButton(if (sm.lazyRunning.value) "TAP-CHOP ●" else "TAP-CHOP", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12, hPad = 3.dp) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
-        HoldButton("▶", false, Tb.Good, Modifier.width(52.dp).fillMaxHeight()) { sm.togglePreview(it) }
+        HoldButton("▶", false, Tb.Good, Modifier.width(46.dp).fillMaxHeight()) { sm.togglePreview(it) }
         // STOP: lights while anything on this sampler is sounding (one-shots, loops, the preview); cuts it all
         val sounding by remember { androidx.compose.runtime.derivedStateOf { state.playhead.floatValue >= 0f } }
-        HwButton("■", Modifier.width(52.dp).fillMaxHeight(), active = sounding, accent = Tb.Warn, fontSize = 16) { sm.stopAll() }
+        HwButton("■", Modifier.width(46.dp).fillMaxHeight(), active = sounding, accent = Tb.Warn, fontSize = 16, hPad = 2.dp) { sm.stopAll() }
     }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     // Wide (the Thor's top screen): one row. Narrow (single-screen phones / emulator): pitch on one
@@ -533,8 +537,7 @@ private fun ChopPattern(state: AppState, modifier: Modifier) {
         if (!had) { sm.padDown(pad, 0.8f); sm.padUp(pad) }          // hear what you placed
     }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-        HwButton("● REC", Modifier.width(66.dp).fillMaxHeight(), active = g.recording.value, accent = Tb.Warn, minHeight = 36.dp, fontSize = 11, hPad = 4.dp) { g.toggleRecord() }
-        HwButton("SEQ CHOPS", Modifier.width(92.dp).fillMaxHeight(), enabled = sm.regions.value.isNotEmpty(), accent = Tb.Tempo, minHeight = 36.dp, fontSize = 11, hPad = 4.dp) {
+        HwButton("SEQ CHOPS", Modifier.width(78.dp).fillMaxHeight(), enabled = sm.regions.value.isNotEmpty(), accent = Tb.Tempo, minHeight = 36.dp, fontSize = 10, hPad = 3.dp) {
             val (t, d) = sm.sequenceChops(); Info.toast(t, d)
         }
         val navGrid = NavGrid(steps, 1,
@@ -588,6 +591,11 @@ private fun ChopPattern(state: AppState, modifier: Modifier) {
                 drawRoundRect(Tb.Text, Offset(c * cw + 1f, 1f), Size(cw - 2f, h - 2f), r, style = Stroke(2.dp.toPx()))
             }
         }
-        HwButton("CLEAR", Modifier.width(60.dp).fillMaxHeight(), minHeight = 36.dp, fontSize = 11, hPad = 4.dp) { g.clear(track) }
+        HwButton("●", Modifier.width(40.dp).fillMaxHeight(), active = g.recording.value, accent = Tb.Warn, minHeight = 36.dp, fontSize = 13, hPad = 2.dp) { g.toggleRecord() }
+        HwButton("✕", Modifier.width(40.dp).fillMaxHeight(), minHeight = 36.dp, fontSize = 12, hPad = 2.dp) { g.clear(track) }
+        // swing lives here now (the groove row made way for the waveform): drag it, double-tap = 50 %
+        val sw = g.groove.value.swing
+        DragValue("SWING", "${(sw * 100).roundToInt()}%", Tb.Tempo, Modifier.width(64.dp).fillMaxHeight(), pxPerUnit = 600f,
+            onDelta = { g.setSwing(g.groove.value.swing + it * 0.25f) }, onReset = { g.setSwing(0.5f) }, compact = false)
     }
 }
