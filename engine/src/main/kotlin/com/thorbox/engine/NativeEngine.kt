@@ -31,6 +31,8 @@ object NativeEngine {
             val requestId: Int, val sampleId: Int, val frames: Long, val sampleRate: Int, val channels: Int,
             val keyRoot: Int, val keyMinor: Boolean, val keyConfidence: Float,
             val bpm: Float, val bpmConfidence: Float,
+            /** Only the first 10 minutes were loaded; [sourceSeconds] is the file's full length (0 = unknown). */
+            val truncated: Boolean = false, val sourceSeconds: Double = 0.0,
         ) : Event
         /** [reason] is a [LoadError] code. */
         data class LoadFailed(val requestId: Int, val reason: Int = LoadError.UNKNOWN) : Event
@@ -136,14 +138,16 @@ object NativeEngine {
     /** Why a sample didn't load (mirrors DecodeError in Decoder.h). */
     object LoadError {
         const val UNKNOWN = 0; const val FORMAT = 1; const val TOO_LONG = 2; const val RATE = 3
-        const val DEPTH = 4; const val EMPTY = 5; const val READ = 6
+        const val DEPTH = 4; const val EMPTY = 5; const val READ = 6; const val CANCELLED = 7; const val MEMORY = 8
         fun describe(code: Int): String = when (code) {
             FORMAT -> "format not supported (use WAV, AIFF, MP3, FLAC, OGG or M4A)"
-            TOO_LONG -> "longer than 10 minutes"
+            TOO_LONG -> "file too large (over 1 GB)"
             RATE -> "sample rate not supported"
             DEPTH -> "bit depth or channel layout not supported"
             EMPTY -> "no audio in the file"
             READ -> "file can't be read"
+            CANCELLED -> "cancelled"
+            MEMORY -> "not enough memory for a file this long"
             else -> "decode failed"
         }
     }
@@ -178,6 +182,13 @@ object NativeEngine {
 
     /** Takes ownership of [fd] (a detached ParcelFileDescriptor). The result arrives via [pollEvent]. */
     fun loadSample(fd: Int, requestId: Int) = nativeLoadSampleFd(fd, requestId)
+
+    /** The load being decoded right now. [stage]: 0 idle · 1 decoding · 2 finding key & tempo. [fraction] 0..1, or < 0 if unknown. */
+    data class LoadProgress(val requestId: Int, val stage: Int, val fraction: Float)
+    private val progBuf = FloatArray(3)
+    fun loadProgress(): LoadProgress { nativeLoadProgress(progBuf); return LoadProgress(progBuf[0].toInt(), progBuf[1].toInt(), progBuf[2]) }
+    /** Stop decoding [requestId]; it then fails with [LoadError.CANCELLED]. */
+    fun cancelLoad(requestId: Int) = nativeCancelLoad(requestId)
     fun assignSample(pad: Int, sampleId: Int) = nativeAssignSample(pad, sampleId)
     fun unloadSample(sampleId: Int) = nativeUnloadSample(sampleId)
 
@@ -198,7 +209,7 @@ object NativeEngine {
         return Stats(a[1].toInt(), a[2].toInt(), a[3].toInt(), a[4], a[5].toInt(), a[6] == 1.0, a[7] == 1.0)
     }
 
-    private val evBuf = DoubleArray(10)
+    private val evBuf = DoubleArray(12)
     fun pollEvent(): Event? = when (nativePollEvent(evBuf)) {
         1 -> evBuf.let {
             Event.SampleLoaded(
@@ -206,6 +217,7 @@ object NativeEngine {
                 sampleRate = it[3].toInt(), channels = it[4].toInt(),
                 keyRoot = it[5].toInt(), keyMinor = it[6].toInt() == 1, keyConfidence = it[7].toFloat(),
                 bpm = it[8].toFloat(), bpmConfidence = it[9].toFloat(),
+                truncated = it[10] != 0.0, sourceSeconds = it[11],
             )
         }
         2 -> Event.LoadFailed(evBuf[0].toInt(), evBuf[1].toInt())
@@ -223,6 +235,8 @@ object NativeEngine {
     private external fun nativeAssignSample(pad: Int, sampleId: Int): Boolean
     private external fun nativeUnloadSample(sampleId: Int)
     private external fun nativePollEvent(out: DoubleArray): Int
+    private external fun nativeLoadProgress(out: FloatArray)
+    private external fun nativeCancelLoad(requestId: Int)
     private external fun nativeGetPeaks(sampleId: Int, out: FloatArray): Boolean
     private external fun nativePlayhead(): Float
     private external fun nativePeakLevel(): Float

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Decoder.h"
+#include <algorithm>
+#include <new>
 #include "PcmFile.h"
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaExtractor.h>
@@ -31,7 +33,9 @@ void appendPcm(const uint8_t* src, size_t bytes, int32_t enc, int srcCh, int dst
     if (enc != kPcm8 && enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return;  // unknown: skip
     const int bps = enc == kPcm8 ? 1 : enc == kPcm16 ? 2 : enc == kPcm24Packed ? 3 : 4;
     const size_t frames = bytes / (size_t)(bps * srcCh);
-    dst.reserve(dst.size() + frames * dstCh);
+    // No reserve() here: reserving exactly "size + this buffer" on every codec buffer defeats the
+    // vector's doubling and copies the whole sample each time (O(n²): a 10-minute MP3 took ~40 s).
+    // The caller reserves the expected length once up front.
     for (size_t f = 0; f < frames; ++f) {
         for (int c = 0; c < dstCh; ++c) {
             const uint8_t* p = src + (f * srcCh + c) * bps;
@@ -50,7 +54,7 @@ void appendPcm(const uint8_t* src, size_t bytes, int32_t enc, int srcCh, int dst
 }
 } // namespace
 
-std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
+std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut, DecodeProgress* prog) {
     auto fail = [&](const char* why) -> std::unique_ptr<SampleBuffer> { if (errOut) *errOut = why; LOGE("%s", why); return nullptr; };
     FdGuard fdg{fd};
     struct stat st{};
@@ -63,11 +67,14 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
         madvise(m, (size_t)st.st_size, MADV_SEQUENTIAL);
         const char* why = nullptr;
         bool tryPlatform = false;
-        auto pcmOut = pcm::decode(static_cast<const uint8_t*>(m), (size_t)st.st_size, kMaxSeconds, &why, &tryPlatform);
+        bool cut = false; double total = 0;
+        const std::function<bool(float)>* rep = prog && prog->report ? &prog->report : nullptr;
+        auto pcmOut = pcm::decode(static_cast<const uint8_t*>(m), (size_t)st.st_size, kMaxSeconds, &why, &tryPlatform, &cut, &total, rep);
+        if (prog) { prog->truncated = cut; prog->sourceSeconds = total; }
         munmap(m, (size_t)st.st_size);
         if (pcmOut) {
-            __android_log_print(ANDROID_LOG_INFO, "ThorboxDecoder", "read WAV/AIFF directly: %d Hz, %d ch, %lld frames",
-                                pcmOut->sampleRate, pcmOut->channels, (long long)pcmOut->frames);
+            __android_log_print(ANDROID_LOG_INFO, "ThorboxDecoder", "read WAV/AIFF directly: %d Hz, %d ch, %lld frames%s",
+                                pcmOut->sampleRate, pcmOut->channels, (long long)pcmOut->frames, cut ? " (first 10 min)" : "");
             return pcmOut;
         }
         if (!tryPlatform) return fail(why ? why : "unreadable WAV/AIFF");
@@ -93,6 +100,9 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
     int32_t sr = 0, ch = 0;
     AMediaFormat_getInt32(fmt.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);
     AMediaFormat_getInt32(fmt.p, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &ch);
+    int64_t durUs = 0;
+    AMediaFormat_getInt64(fmt.p, AMEDIAFORMAT_KEY_DURATION, &durUs);
+    if (prog && durUs > 0) prog->sourceSeconds = durUs / 1e6;
     // Ask for float output. Decoders that can't do it ignore this and report the real encoding.
     AMediaFormat_setInt32(fmt.p, AMEDIAFORMAT_KEY_PCM_ENCODING, kPcmFloat);
 
@@ -109,8 +119,18 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
     }
 
     auto out = std::make_unique<SampleBuffer>();
+    // Reserve the whole (capped) length once, so the decode never copies the sample as it grows.
+    if (durUs > 0 && sr > 0 && ch > 0) {
+        const double secs = std::min<double>(durUs / 1e6, (double)kMaxSeconds) + 0.5;
+        const size_t want = (size_t)(secs * sr) * (size_t)(ch > 2 ? 2 : ch);
+        if (want < (size_t)kMaxSeconds * kMaxRate * 2) {
+            try { out->data.reserve(want); } catch (const std::bad_alloc&) { return fail("not enough memory for this file"); }
+        }
+    }
+    const int64_t capUs = kMaxSeconds * 1000000LL;
     bool inEos = false, outEos = false;
     int idleSpins = 0;
+    int reportEvery = 0;
     while (!outEos) {
         if (!inEos) {
             ssize_t ib = AMediaCodec_dequeueInputBuffer(codec.p, 2000);
@@ -118,6 +138,16 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
                 size_t cap = 0;
                 uint8_t* buf = AMediaCodec_getInputBuffer(codec.p, (size_t)ib, &cap);
                 ssize_t n = AMediaExtractor_readSampleData(ex.p, buf, cap);
+                const int64_t t = AMediaExtractor_getSampleTime(ex.p);
+                if (n >= 0 && t > capUs) {                        // past 10 minutes: keep what we have
+                    n = -1;
+                    if (prog) prog->truncated = true;
+                }
+                if (prog && prog->report && ++reportEvery >= 32) {
+                    reportEvery = 0;
+                    const float frac = durUs > 0 ? (float)std::min(1.0, (double)t / (double)std::min(durUs, capUs)) : -1.f;
+                    if (!prog->report(frac)) return fail("cancelled");
+                }
                 if (n < 0) {
                     AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
                     inEos = true;
@@ -138,12 +168,19 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
                 const bool inBounds = p && info.offset >= 0 &&
                     (size_t)info.offset + (size_t)info.size <= sz;
                 const bool fmtOk = ch >= 1 && ch <= kMaxChannels;
-                if (inBounds && fmtOk) appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data);
+                if (inBounds && fmtOk) {
+                    try { appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data); }
+                    catch (const std::bad_alloc&) { AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false); return fail("not enough memory for this file"); }
+                }
             }
             if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) outEos = true;
             AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false);
-            if (sr > 0 && ch > 0 && (int64_t)out->data.size() / (ch > 2 ? 2 : ch) > kMaxSeconds * sr)
-                return fail("file longer than 10 minutes");
+            if (sr > 0 && ch > 0 && (int64_t)out->data.size() / (ch > 2 ? 2 : ch) > kMaxSeconds * sr) {
+                // the length wasn't known up front: stop here, keep the first 10 minutes
+                out->data.resize((size_t)(kMaxSeconds * sr) * (size_t)(ch > 2 ? 2 : ch));
+                if (prog) prog->truncated = true;
+                break;
+            }
         } else if (ob == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
             FmtGuard of{AMediaCodec_getOutputFormat(codec.p)};
             AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);

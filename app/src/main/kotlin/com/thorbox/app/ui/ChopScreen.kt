@@ -62,11 +62,15 @@ import kotlin.math.roundToInt
 fun ChopScreen(state: AppState) {
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         LibraryPanel(state, Modifier.width(170.dp).fillMaxHeight().glass(state, 14.dp).clip(RoundedCornerShape(14.dp)))
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            MatchBar(state)
-            SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
-            GrooveStrip(state, state.samplerTrack.intValue, showLabel = false)
-            ChopControls(state)
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                MatchBar(state)
+                SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
+                GrooveStrip(state, state.samplerTrack.intValue, showLabel = false)
+                ChopControls(state)
+            }
+            // a load in progress: the loading card over the sample side (CANCEL is reachable by touch and NAV)
+            state.loadJob.value?.let { LoadingCard(state, it, Modifier.align(Alignment.Center)) }
         }
     }
 }
@@ -83,7 +87,7 @@ private fun MatchBar(state: AppState) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (LocalWide.current) SectionTag(state, Section.SAMPLE)
             Column(Modifier.weight(1f)) {
-                Text(loading?.let { "Loading $it…" } ?: s?.name?.substringBeforeLast('.') ?: "Pick a sample",
+                Text(loading?.let { "Loading ${it.substringBeforeLast('.')}…" } ?: s?.name?.substringBeforeLast('.') ?: "Pick a sample",
                     color = Tb.Text, fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(error ?: s?.let { "${metaLine(it)} · ${sm.regions.value.size} slices" } ?: "it lands on 16 pads, already chopped",
                     color = if (error != null) Tb.Warn else Tb.Muted, fontSize = 11.sp, maxLines = 1)

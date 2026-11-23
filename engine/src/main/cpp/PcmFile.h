@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <memory>
 
 namespace pcm {
@@ -167,8 +168,12 @@ inline bool probe(const uint8_t* b, size_t n, Layout& L) {
 
 // Parses [b, b+n). Returns null with [err] set when the file is a WAV/AIFF we can't use
 // (and [unsupported] = true when it's a different format the platform decoder should try).
+// Longer than [maxSeconds]: the first maxSeconds are kept and [truncated] is set ([totalSeconds] = full length).
+// [progress] (optional) gets 0..1 now and then; returning false cancels (err = "cancelled").
 inline std::unique_ptr<SampleBuffer> decode(const uint8_t* b, size_t n, int64_t maxSeconds,
-                                            const char** err, bool* unsupported) {
+                                            const char** err, bool* unsupported,
+                                            bool* truncated = nullptr, double* totalSeconds = nullptr,
+                                            const std::function<bool(float)>* progress = nullptr) {
     auto fail = [&](const char* why, bool tryPlatform) -> std::unique_ptr<SampleBuffer> {
         if (err) *err = why;
         if (unsupported) *unsupported = tryPlatform;
@@ -182,7 +187,12 @@ inline std::unique_ptr<SampleBuffer> decode(const uint8_t* b, size_t n, int64_t 
     const size_t frameBytes = (size_t)L.channels * (L.bits / 8);
     int64_t frames = (int64_t)(L.bytes / frameBytes);
     if (frames <= 0) return fail("decoded no audio", false);
-    if (frames > maxSeconds * L.sampleRate) return fail("file longer than 10 minutes", false);
+    if (totalSeconds) *totalSeconds = (double)frames / L.sampleRate;
+    if (truncated) *truncated = false;
+    if (frames > maxSeconds * L.sampleRate) {              // keep the first maxSeconds (a whole album still loads)
+        frames = maxSeconds * L.sampleRate;
+        if (truncated) *truncated = true;
+    }
     const int outCh = L.channels > 2 ? 2 : L.channels;
     auto out = std::make_unique<SampleBuffer>();
     out->sampleRate = L.sampleRate;
@@ -192,6 +202,7 @@ inline std::unique_ptr<SampleBuffer> decode(const uint8_t* b, size_t n, int64_t 
     float* o = out->data.data();
     const int bps = L.bits / 8;
     for (int64_t f = 0; f < frames; ++f) {
+        if (progress && (f & 0xFFFF) == 0 && !(*progress)((float)f / (float)frames)) return fail("cancelled", false);
         const uint8_t* p = L.data + (size_t)f * frameBytes;
         for (int c = 0; c < outCh; ++c) *o++ = detail::sample(p + c * bps, L);
     }

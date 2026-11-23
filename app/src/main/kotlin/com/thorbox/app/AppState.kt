@@ -57,6 +57,19 @@ enum class ScreenRole { SESSION, DECK }
 enum class TopView { SAMPLER, SYNTH, DRUM, SEQ, MIX, VIZ }
 
 /**
+ * A sample load in progress (for the loading card). [opened] = the file was opened and handed to the
+ * engine; the engine's own progress ([NativeEngine.loadProgress]) says decoding / key & tempo.
+ */
+data class LoadJob(val requestId: Int, val name: String, val sizeBytes: Long, val startedMs: Long, val track: Int, val opened: Boolean = false)
+
+/** m:ss (or h:mm:ss) for a length in seconds. */
+fun clock(seconds: Double): String {
+    val t = seconds.coerceAtLeast(0.0).toLong()
+    return if (t >= 3600) String.format(java.util.Locale.US, "%d:%02d:%02d", t / 3600, t / 60 % 60, t % 60)
+    else String.format(java.util.Locale.US, "%d:%02d", t / 60, t % 60)
+}
+
+/**
  * Live synth state for animations, refreshed every vsync into preallocated arrays.
  * Composables read [frame] inside their draw lambdas, so a new frame only re-draws them and
  * never recomposes: the animation is free of allocation and composition.
@@ -227,6 +240,18 @@ class AppState(private val app: Application) {
     val sample = _sample.asStateFlow()
     private val _loadingName = MutableStateFlow<String?>(null)
     val loadingName = _loadingName.asStateFlow()
+
+    /** The sample load in progress (the newest one), for the loading card: see [LoadJob]. */
+    val loadJob = mutableStateOf<LoadJob?>(null)
+    /** Stop the current load (the engine drops it; nothing changes on the pads). */
+    fun cancelLoad() {
+        val j = loadJob.value ?: return
+        NativeEngine.cancelLoad(j.requestId)
+        pendingNames.remove(j.requestId); pendingTargets.remove(j.requestId); pendingSources.remove(j.requestId)
+        latestForTrack.entries.removeAll { it.value == j.requestId }
+        loadJob.value = null; _loadingName.value = null
+        com.thorbox.app.ui.Info.toast("LOAD CANCELLED", j.name)
+    }
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
     private val _peaks = MutableStateFlow<FloatArray?>(null)
@@ -805,11 +830,11 @@ class AppState(private val app: Application) {
     }
     fun load(item: LibraryItem) {
         if (item.sizeBytes > MAX_FILE_BYTES) { _error.value = "${item.name} is larger than 1 GB"; return }
-        load(item.uri, item.name)
+        load(item.uri, item.name, sizeBytes = item.sizeBytes)
     }
 
     /** Load [uri] onto sampler track [track] (default: the one you're on). Several tracks can load at once. */
-    fun load(uri: Uri, name: String, track: Int = samplerTrack.intValue) {
+    fun load(uri: Uri, name: String, track: Int = samplerTrack.intValue, sizeBytes: Long = 0L) {
         val id = nextRequestId++
         latestRequest = id
         pendingNames[id] = name
@@ -818,14 +843,19 @@ class AppState(private val app: Application) {
         latestForTrack[track] = id
         _loadingName.value = name
         _error.value = null
+        loadJob.value = LoadJob(id, name, sizeBytes, android.os.SystemClock.uptimeMillis(), track)
         scope.launch {
+            var size = sizeBytes
             val fd = withContext(Dispatchers.IO) {
-                runCatching { app.contentResolver.openFileDescriptor(uri, "r")?.detachFd() }
-                    .onFailure { Log.w(TAG, "can't open $name: $it") }.getOrNull()
+                runCatching {
+                    app.contentResolver.openFileDescriptor(uri, "r")?.let { pfd -> if (size <= 0) size = pfd.statSize; pfd.detachFd() }
+                }.onFailure { Log.w(TAG, "can't open $name: $it") }.getOrNull()
             }
+            loadJob.value?.let { if (it.requestId == id) loadJob.value = it.copy(sizeBytes = size, opened = fd != null) }
             if (fd == null) {
                 pendingNames.remove(id); pendingTargets.remove(id); pendingSources.remove(id)
                 if (id == latestRequest) { _loadingName.value = null; _error.value = "Can't open $name" }
+                if (loadJob.value?.requestId == id) loadJob.value = null
                 samplerFor(track).onRestoreFailed()
                 return@launch
             }
@@ -858,7 +888,19 @@ class AppState(private val app: Application) {
                 target.info = info; target.peaks = null
                 if (target === sampler) { _sample.value = info; _peaks.value = null }
                 if (e.requestId == latestRequest) _loadingName.value = null
+                if (loadJob.value?.requestId == e.requestId) loadJob.value = null
                 target.onOriginalLoaded(e.sampleId, e.frames)      // auto-chop onto all 16 pads
+                // say what landed (and if a long file was cut to its first 10 minutes)
+                val secs = e.frames.toDouble() / e.sampleRate.coerceAtLeast(1)
+                val what = buildString {
+                    append(clock(secs))
+                    info.key?.let { append(" · ").append(it.label()) }
+                    info.bpm?.let { append(" · ").append(String.format(java.util.Locale.US, "%.0f BPM", it)) }
+                    append(" · 16 pads")
+                }
+                com.thorbox.app.ui.Info.toast(if (e.truncated) "LOADED THE FIRST ${clock(secs)}" else "LOADED",
+                    if (e.truncated) "$name is ${clock(e.sourceSeconds)} long: the first ${clock(secs)} is on the pads (the sampler holds up to 10 minutes)"
+                    else "$name · $what")
                 val sid = e.sampleId
                 scope.launch {
                     val pk = withContext(Dispatchers.Default) { NativeEngine.peaks(sid, 2048) }
@@ -876,6 +918,8 @@ class AppState(private val app: Application) {
                 val name = pendingNames.remove(e.requestId)
                 pendingSources.remove(e.requestId)
                 pendingTargets.remove(e.requestId)?.let { samplerFor(it).onRestoreFailed() }
+                if (loadJob.value?.requestId == e.requestId) loadJob.value = null
+                if (e.reason == NativeEngine.LoadError.CANCELLED) return            // you pressed CANCEL: nothing to report
                 if (e.requestId == latestRequest) { _loadingName.value = null; _error.value = "Couldn't load ${name ?: "file"}: ${NativeEngine.LoadError.describe(e.reason)}" }
                 Log.w(TAG, "load failed: ${name ?: "?"}: reason=${e.reason} (${NativeEngine.LoadError.describe(e.reason)})")
             }

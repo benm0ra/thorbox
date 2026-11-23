@@ -4,6 +4,7 @@
 //       ../../main/cpp/AudioEngine.cpp ../../main/cpp/Analysis.cpp bench.cpp -o bench && ./bench
 // Reports µs per 192-frame callback and the share of the real-time budget (4 ms at 48 kHz).
 #include "AudioEngine.h"
+#include "Decoder.h"
 #include "Synth.h"
 #include "Sequencer.h"
 #include "MasterFx.h"
@@ -13,7 +14,7 @@
 #include <cmath>
 #include <cstdio>
 #include <vector>
-std::unique_ptr<SampleBuffer> decodeAudioFd(int, const char**) { return nullptr; }
+std::unique_ptr<SampleBuffer> decodeAudioFd(int, const char**, DecodeProgress*) { return nullptr; }
 
 using clk = std::chrono::steady_clock;
 static double usPer(auto&& fn, int iters) {

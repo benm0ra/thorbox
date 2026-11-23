@@ -130,7 +130,7 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
             root == null -> Text("Your samples folder shows up here.", color = Tb.Muted, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
             scanning && files.isEmpty() -> Text("Scanning…", color = Tb.Muted, modifier = Modifier.padding(12.dp))
-            files.isEmpty() -> Text("No wav / mp3 files in that folder", color = Tb.Muted, modifier = Modifier.padding(12.dp))
+            files.isEmpty() -> Text("No audio files in that folder (WAV, AIFF, MP3, FLAC, OGG, M4A)", color = Tb.Muted, modifier = Modifier.padding(12.dp))
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(files, key = { it.uri.toString() }) { item ->
                     val isCurrent = current?.name == item.name || loading == item.name
@@ -145,6 +145,8 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
                             fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (item.folder.isNotEmpty())
                             Text(item.folder, color = Tb.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        // this row is loading: a thin progress line under it
+                        state.loadJob.value?.takeIf { it.name == item.name }?.let { LoadLine(state, it, Modifier.fillMaxWidth().padding(top = 3.dp).height(3.dp)) }
                     }
                 }
             }

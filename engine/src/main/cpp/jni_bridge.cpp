@@ -118,11 +118,20 @@ JNIEXPORT void JNICALL JNI_FN(nativeUnloadSample)(JNIEnv*, jobject, jint sampleI
     if (gEngine && sampleId > 0) gEngine->unloadSample(sampleId);
 }
 JNIEXPORT jint JNICALL JNI_FN(nativePollEvent)(JNIEnv* env, jobject, jdoubleArray out) {
-    if (!gEngine || !out || env->GetArrayLength(out) < 10) return 0;
-    double tmp[10] = {0};
+    if (!gEngine || !out || env->GetArrayLength(out) < 12) return 0;
+    double tmp[12] = {0};
     const int type = gEngine->pollEvent(tmp);
-    if (type) env->SetDoubleArrayRegion(out, 0, 10, tmp);
+    if (type) env->SetDoubleArrayRegion(out, 0, 12, tmp);
     return type;
+}
+JNIEXPORT void JNICALL JNI_FN(nativeLoadProgress)(JNIEnv* env, jobject, jfloatArray out) {
+    if (!gEngine || !out || env->GetArrayLength(out) < 3) return;
+    float tmp[3];
+    gEngine->loadProgress(tmp);
+    env->SetFloatArrayRegion(out, 0, 3, tmp);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeCancelLoad)(JNIEnv*, jobject, jint requestId) {
+    if (gEngine && requestId > 0) gEngine->cancelLoad(requestId);
 }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeGetPeaks)(JNIEnv* env, jobject, jint sampleId, jfloatArray out) {
     if (!gEngine || !out) return JNI_FALSE;

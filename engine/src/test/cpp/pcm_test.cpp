@@ -123,6 +123,16 @@ int main() {
         auto s = dec(b);
         CHECK(s && s->frames == 10, "a data size past end of file is clamped"); }
 
+    {   Bytes b = wav(1, 16, false, 44100 * 3);           // 3 s file, 1 s cap: keep the first second
+        bool cut = false; double total = 0; const char* e = nullptr; bool plat = false;
+        auto s = pcm::decode(b.data(), b.size(), 1, &e, &plat, &cut, &total);
+        CHECK(s && s->frames == 44100 && cut && std::fabs(total - 3.0) < 1e-6, "a file over the cap keeps its start and reports its full length"); }
+    {   Bytes b = wav(2, 16, false, 300000);
+        int calls = 0;
+        std::function<bool(float)> stop = [&](float) { return ++calls < 2; };
+        const char* e = nullptr; bool plat = true;
+        auto s = pcm::decode(b.data(), b.size(), 600, &e, &plat, nullptr, nullptr, &stop);
+        CHECK(!s && !plat && e && std::string(e) == "cancelled", "CANCEL stops a direct read"); }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;
 }

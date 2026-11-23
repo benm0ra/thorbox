@@ -324,7 +324,14 @@ void AudioEngine::workerLoop() {
                 analyse = false;                            // the UI derives key/BPM from the original
             }
         } else {
-            decoded = decodeAudioFd(job.fd, &err);          // closes fd
+            mProgFrac.store(0.f); mProgStage.store(1); mProgReq.store(job.requestId);
+            DecodeProgress prog;
+            const int req = job.requestId;
+            prog.report = [this, req](float f) { mProgFrac.store(f, std::memory_order_relaxed); return mCancelReq.load(std::memory_order_relaxed) != req; };
+            decoded = decodeAudioFd(job.fd, &err, &prog);   // closes fd
+            res.truncated = prog.truncated;
+            res.sourceSeconds = prog.sourceSeconds;
+            if (decoded && analyse) { mProgStage.store(2); mProgFrac.store(-1.f); }
         }
         if (decoded) {
             if (analyse) res.analysis = analyzeAudio(decoded->data.data(), decoded->frames, decoded->channels, decoded->sampleRate);
@@ -341,6 +348,7 @@ void AudioEngine::workerLoop() {
             mRegistry[id] = RegistryEntry{std::shared_ptr<SampleBuffer>(std::move(decoded)), 0, false};
         }
         else res.error = decodeErrorCode(err);
+        if (job.srcSample <= 0 && mProgReq.load() == job.requestId) { mProgStage.store(0); mProgReq.store(0); mProgFrac.store(-1.f); }
         std::lock_guard<std::mutex> l(mResultMtx);
         mResults.push_back(res);
     }
@@ -408,6 +416,8 @@ int AudioEngine::pollEvent(double* out) {
     out[7] = r.analysis.keyConfidence;
     out[8] = r.analysis.bpm;
     out[9] = r.analysis.bpmConfidence;
+    out[10] = r.truncated ? 1.0 : 0.0;
+    out[11] = r.sourceSeconds;
     return r.sampleId != 0 ? 1 : 2;
 }
 

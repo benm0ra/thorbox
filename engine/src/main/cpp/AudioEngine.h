@@ -30,6 +30,8 @@ struct WorkerResult {
     int32_t sampleRate = 0;
     int32_t channels = 0;
     int32_t error = 0;        // DecodeError when sampleId == 0
+    bool truncated = false;   // only the first 10 minutes were kept
+    double sourceSeconds = 0; // the file's full length, when known
     AnalysisResult analysis;
 };
 
@@ -111,6 +113,14 @@ public:
 
     // ---- Sample management (main thread) ----
     void loadSampleAsync(int fd, int requestId);      // takes ownership of fd
+    /** The load in progress: [requestId, stage (0 idle · 1 decoding · 2 analysing), fraction 0..1 or -1]. */
+    void loadProgress(float* out3) const {
+        out3[0] = (float)mProgReq.load(std::memory_order_relaxed);
+        out3[1] = (float)mProgStage.load(std::memory_order_relaxed);
+        out3[2] = mProgFrac.load(std::memory_order_relaxed);
+    }
+    /** Stop decoding [requestId] (it then fails with kErrCancelled). */
+    void cancelLoad(int requestId) { mCancelReq.store(requestId, std::memory_order_relaxed); }
     // Renders a time-stretched / pitch-shifted copy of a loaded sample on the worker. The result
     // arrives through pollEvent like a load (new sample id); the source stays loaded.
     void stretchSampleAsync(int sampleId, double tempo, double semitones, int requestId, int64_t cropStart = 0, int64_t cropEnd = 0);
@@ -255,6 +265,8 @@ private:
 
     // Worker
     std::thread mWorker;
+    std::atomic<int> mProgReq{0}, mProgStage{0}, mCancelReq{0};
+    std::atomic<float> mProgFrac{-1.f};
     std::mutex mJobMtx;
     std::condition_variable mJobCv;
     std::deque<Job> mJobs;

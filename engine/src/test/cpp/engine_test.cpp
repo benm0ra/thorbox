@@ -8,9 +8,19 @@
 #include <vector>
 #include <chrono>
 #include <thread>
-// Decoder stub: fd 7777 "decodes" to 1 s of a 220 Hz tone (mono, 48 kHz); anything else fails.
+// Decoder stub: fd 7777 "decodes" to 1 s of a 220 Hz tone (mono, 48 kHz); 7779 is the same, cut from
+// a "30-minute" file; 7778 decodes until cancelled; anything else fails.
 // Lets the test drive the real worker → registry → pollEvent → assign → play path.
-std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** err) {
+std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** err, DecodeProgress* prog) {
+    if (fd == 7778) {
+        for (int i = 0; i < 4000; ++i) {
+            if (prog && prog->report && !prog->report(0.0001f * i)) { if (err) *err = "cancelled"; return nullptr; }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (err) *err = "never cancelled";
+        return nullptr;
+    }
+    if (fd == 7779 && prog) { prog->truncated = true; prog->sourceSeconds = 1800; fd = 7777; }
     if (fd != 7777) { if (err) *err = "stub"; return nullptr; }
     auto b = std::make_unique<SampleBuffer>();
     b->sampleRate = 48000; b->channels = 1; b->frames = 48000;
@@ -42,7 +52,7 @@ static seq::Pattern* synthLoop() {
 }
 
 int main() {
-    double tr[20], ev[10], rec[4];
+    double tr[20], ev[12], rec[4];
     float m[26];
     {   // Sample load path: worker decode → registry → event → assign to a pad → stretch job → event.
         AudioEngine e;
@@ -69,6 +79,20 @@ int main() {
         double fv[12] = {};
         CHECK(waitEvent(e, fv) && gLastType == 2 && (int)fv[0] == 43 && (int)fv[1] == kErrFormat,
               "a file that won't decode reports a failure + its reason, not a crash");
+        e.loadSampleAsync(7779, 45);
+        double tv[12] = {};
+        CHECK(waitEvent(e, tv) && gLastType == 1 && (int)tv[0] == 45 && tv[10] == 1.0 && tv[11] == 1800.0,
+              "a file over 10 minutes loads (its first 10) and says so, with its full length");
+        e.loadSampleAsync(7778, 46);
+        float pr[3] = {};
+        bool sawDecoding = false;
+        for (int i = 0; i < 400 && !sawDecoding; ++i) { e.loadProgress(pr); sawDecoding = (int)pr[0] == 46 && (int)pr[1] == 1; std::this_thread::sleep_for(std::chrono::milliseconds(2)); }
+        e.cancelLoad(46);
+        double xv[12] = {};
+        CHECK(sawDecoding && waitEvent(e, xv) && gLastType == 2 && (int)xv[0] == 46 && (int)xv[1] == kErrCancelled,
+              "load progress names the request while decoding, and CANCEL stops it");
+        e.loadProgress(pr);
+        CHECK((int)pr[0] == 0 && (int)pr[1] == 0, "progress goes back to idle after the load ends");
     }
     {
         AudioEngine e;
