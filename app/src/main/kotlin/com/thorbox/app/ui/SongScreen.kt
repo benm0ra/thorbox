@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import com.thorbox.app.groove.GrooveController
 import com.thorbox.model.PitchClass
 import com.thorbox.model.ScaleMode

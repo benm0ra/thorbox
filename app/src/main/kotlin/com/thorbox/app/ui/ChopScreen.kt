@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import com.thorbox.app.input.navClickable
 import com.thorbox.app.sampler.StretchMode
 import com.thorbox.app.sampler.ChopLogic
 import com.thorbox.app.sampler.ChopMode
