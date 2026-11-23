@@ -136,11 +136,13 @@ fun SynthScreen(state: AppState) {
                 if (side) Row(Modifier.fillMaxSize()) {
                     vizHalf(Modifier.weight(1f).fillMaxHeight())
                     Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(Tb.Line))
-                    BiscuitCat(state, family, synthCategoryColor(family), Modifier.weight(1f).fillMaxHeight())
+                    BiscuitCat(state, family, synthCategoryColor(family), patch,
+                        catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxHeight())
                 } else Column(Modifier.fillMaxSize()) {
                     vizHalf(Modifier.weight(1f).fillMaxWidth())
                     Box(Modifier.height(1.dp).fillMaxWidth().padding(horizontal = 12.dp).background(Tb.Line))
-                    BiscuitCat(state, family, synthCategoryColor(family), Modifier.weight(1f).fillMaxWidth())
+                    BiscuitCat(state, family, synthCategoryColor(family), patch,
+                        catHint(knobs[lastTouched.intValue.coerceIn(0, 3)].label, patch), overlay, Modifier.weight(1f).fillMaxWidth())
                 }
             }
         }

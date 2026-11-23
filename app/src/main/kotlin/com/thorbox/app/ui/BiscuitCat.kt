@@ -4,40 +4,56 @@ package com.thorbox.app.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
 import com.thorbox.app.SynthTelemetry
+import com.thorbox.model.LfoTarget
 import com.thorbox.model.SynthCategory
+import com.thorbox.model.SynthPatch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.ln
+import kotlin.math.log10
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.sign
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /*
- * THE CAT: a ginger tabby in shades (gold hoop in one ear), side-on and crouched, making biscuits with both front
- * paws in turn, on whatever suits the sound family of the current patch:
+ * THE CAT: a ginger tabby in shades (gold hoop in one ear), side-on and crouched, making biscuits
+ * with both front paws in turn, on whatever suits the sound family of the current patch:
  *
  *   PAD    a fat pillow          (slow, deep presses; the pillow puffs back up)
  *   808    a waterbed            (every press sends ripples; the sub makes the whole thing slosh)
@@ -47,11 +63,26 @@ import kotlin.math.sin
  *   PLUCK  an acoustic guitar    (strings shimmer while notes ring)
  *   WEIRD  a glowing slime blob  (wobbles, sinks under her paws, shifts colour with the LFO)
  *
- * She kneads one paw per beat while the transport runs (left on the beat, right on the off-beat),
- * lazily when it's stopped; presses go deeper the louder the synth is. Her tail swishes with the
- * LFO, her ears twitch on each new note, her brows pop over the shades on loud notes, and she purrs
- * (little lines at her sides) while anything sounds. All original artwork; draws every frame
- * without allocation (two reused Paths, plain floats). Stage: 240 × 200 virtual units.
+ * And the patch itself plays out on her, so you can read the synth by watching the cat:
+ *
+ *   OSC     SHAPE 1/2 + MIX   her tail IS the waveform (smooth curl for sine … crenellated for square)
+ *           DETUNE            her out-of-phase twin drifts beside her; MIX sets how solid the twin is
+ *   FILTER  CUTOFF (live)     how bright the room is: a closed filter is a dim room, wide open sparkles;
+ *                             the filter envelope and key tracking flash it, a cutoff LFO flickers it
+ *           RESO              her whiskers buzz and glow
+ *   AMP     ATTACK / RELEASE  how slowly she presses down / lifts up; her purr follows the volume
+ *   LFO     a moth flies on the LFO (wings beat at its rate, roams by its depth); its TARGET shows too:
+ *           pitch bobs her head, cutoff flickers the light, amp pulses the purr, shape wiggles the tail
+ *   PITCH   OCT 1/2           low = a big chonk, high = kitten-sized
+ *           P.ENV / P.DECAY   she hops on every note, as high and as long as the pitch drop
+ *   VOICE   MONO off          every extra note held brings a kitten to knead with her (up to three)
+ *           GLIDE             she slides into her presses (speed lines)
+ *           DRIVE             she grows a mohawk
+ *           NOISE             her fur crackles with static
+ * Plus: little notes float up when she hears one, her ears twitch, her brows pop on loud notes.
+ *
+ * Turning a knob puts a caption under her saying what that knob does to her ([catHint]).
+ * All original artwork; draws every frame without allocation. Stage: 240 × 200 virtual units.
  */
 
 private class CatState {
@@ -59,6 +90,18 @@ private class CatState {
     val path2 = Path()
     var lastNote = -1
     var twitchAt = -10f
+    var hopAt = -10f
+    var lastT = 0f
+    var kittens = 0f
+    val noteAt = FloatArray(6) { -10f }
+    val noteY = FloatArray(6)
+    var noteNext = 0
+    val twin = Paint()
+    var twinTint = 0
+    // the look for this frame, read by cat() (set once per frame from the patch + telemetry)
+    var tailShape = 0.666f; var tailAmp = 3.5f; var tailPhase = 0f
+    var whisker = 0f; var mohawk = 0f; var static = 0f; var glide = 0f; var headLfo = 0f; var purr = 1f
+    var accent = Color.White
 }
 
 // her colours (her own, the same on every theme)
@@ -72,6 +115,7 @@ private val HOOP = Color(0xFFE6B93C)
 private val OUT = Color(0xFF7A4018)
 private val FUR_SHADOW = Color(0xFF9C5A28)
 private val CREAM_SHADOW = Color(0xFFD9CBB9)
+private val KITTEN_FUR = longArrayOf(0xFFE9A15A, 0xFF9AA0AA, 0xFFF0E2CC)
 
 /** What she kneads, per sound family. */
 fun kneadObjectName(c: SynthCategory) = when (c) {
@@ -84,53 +128,230 @@ fun kneadObjectName(c: SynthCategory) = when (c) {
     SynthCategory.WEIRD -> "SLIME"
 }
 
+/** What a knob does to the cat, for the caption while you turn it (labels as in SynthParams). */
+fun catHint(label: String, patch: SynthPatch): String = when (label) {
+    "SHAPE 1", "SHAPE 2" -> "her tail takes the waveform's shape"
+    "DETUNE" -> "detune: her out-of-step twin drifts beside her"
+    "MIX" -> "mix: tail blends the two shapes · twin gets solid"
+    "CUTOFF" -> "cutoff: how bright her room is"
+    "RESO" -> "resonance: her whiskers buzz"
+    "ENV AMT" -> "envelope amount: each note flashes the lights"
+    "KEY TRK" -> "key tracking: high notes light the room up"
+    "ATTACK" -> if (patch.ampEnv.attackMs > 0f) "attack: how slowly she presses down" else "attack"
+    "DECAY", "SUSTAIN" -> "her purr follows the volume"
+    "RELEASE" -> "release: how slowly she lifts her paws"
+    "RATE" -> "the moth's wings beat at the LFO rate"
+    "DEPTH" -> "depth: how far the moth roams"
+    "WAVE" -> "the moth flies the LFO's wave"
+    "TARGET" -> when (patch.lfo.target) {
+        LfoTarget.PITCH -> "LFO → pitch: her head bobs"
+        LfoTarget.CUTOFF -> "LFO → cutoff: the lights flicker"
+        LfoTarget.AMP -> "LFO → volume: her purr pulses"
+        LfoTarget.SHAPE -> "LFO → shape: her tail wiggles"
+    }
+    "P.ENV" -> "pitch drop: she hops on every note"
+    "P.DECAY" -> "pitch decay: how long each hop lasts"
+    "OCT 1", "OCT 2" -> "octave: low = big chonk, high = kitten"
+    "GLIDE" -> "glide: she slides into each press"
+    "MONO" -> if (patch.voice.mono) "mono: she plays alone" else "poly: every extra note brings a kitten"
+    "DRIVE" -> "drive grows her mohawk"
+    "NOISE" -> "noise: her fur crackles with static"
+    else -> ""
+}
+
 @Composable
-fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, modifier: Modifier = Modifier) {
+fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: SynthPatch,
+               hint: String, hintAlpha: Float, modifier: Modifier = Modifier) {
     val cs = remember { CatState() }
     val tel = state.telemetry
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
             tel.frame.longValue                                    // redraw every frame, never recompose
             val now = tel.timeSec
+            val dt = (now - cs.lastT).coerceIn(0f, 0.1f); cs.lastT = now
             val playing = state.groove.transport[1] != 0.0
             val beat = if (playing) ((state.groove.transport[0] / com.thorbox.model.PPQN) % 1.0).toFloat() else (now * 0.75f) % 1f
             val amp = tel.ampLevel.coerceIn(0f, 1f)
-            if (tel.newestNote != cs.lastNote) { if (tel.activeVoices > 0) cs.twitchAt = now; cs.lastNote = tel.newestNote }
+            val voices = tel.activeVoices
+            val lfo = tel.lfoValue
+            val v = patch.voice
+            val depthL = patch.lfo.depth
+            if (tel.newestNote != cs.lastNote) {
+                if (voices > 0) {
+                    cs.twitchAt = now; cs.hopAt = now
+                    cs.noteAt[cs.noteNext] = now; cs.noteY[cs.noteNext] = ((tel.newestNote - 60) * 0.5f).coerceIn(-14f, 14f)
+                    cs.noteNext = (cs.noteNext + 1) % cs.noteAt.size
+                }
+                cs.lastNote = tel.newestNote
+            }
+
+            // ---- the patch → her look, this frame ----
+            val mix = patch.oscMix
+            cs.accent = accent
+            cs.tailShape = patch.osc1.shape + (patch.osc2.shape - patch.osc1.shape) * mix
+            cs.tailAmp = 3.5f * (if (patch.lfo.target == LfoTarget.SHAPE) 1f + lfo * depthL * 1.5f else 1f)
+            cs.tailPhase = now * (0.6f + 1.4f * amp)
+            cs.whisker = patch.resonance
+            cs.mohawk = v.drive
+            cs.static = v.noise
+            cs.glide = (v.glideMs / 400f).coerceIn(0f, 1f)
+            cs.headLfo = if (patch.lfo.target == LfoTarget.PITCH) lfo * depthL * 4f else 0f
+            cs.purr = if (patch.lfo.target == LfoTarget.AMP) 0.4f + 0.6f * (0.5f + 0.5f * lfo * depthL) else 1f
+            // the room's light: the LIVE cutoff (envelope, key tracking and a cutoff LFO all move it)
+            val hz = if (voices > 0 && tel.cutoffHz > 1f) tel.cutoffHz else patch.cutoffHz
+            var bright = (ln(hz / 60f) / ln(14000f / 60f)).coerceIn(0f, 1f)
+            if (patch.lfo.target == LfoTarget.CUTOFF) bright = (bright + lfo * depthL * 0.15f).coerceIn(0f, 1f)
+            // size from the octave: low = chonk, high = kitten
+            val oct = patch.osc1.octave + (patch.osc2.octave - patch.osc1.octave) * mix
+            val size = 1.13f.pow(-oct).coerceIn(0.78f, 1.25f)
+            // the hop on a pitch drop
+            val hopH = (abs(v.pitchEnvSemis) * 0.7f).coerceAtMost(16f)
+            val hopT = (v.pitchEnvDecayMs / 1000f * 3f).coerceIn(0.15f, 0.6f)
+            val hu = (now - cs.hopAt) / hopT
+            val hop = if (hopH > 1f && hu in 0f..1f) -hopH * 4f * hu * (1f - hu) else 0f
+            // kittens: one per extra note held, poly only; they pop in and wander off
+            val target = if (v.mono) 0f else (voices - 1).coerceIn(0, 3).toFloat()
+            cs.kittens += (target - cs.kittens) * min(1f, dt * (if (target > cs.kittens) 10f else 2.5f))
 
             val sc = min(size.width / 240f, size.height / 200f)
             val ox = (size.width - 240f * sc) / 2f; val oy = (size.height - 200f * sc) / 2f
             withTransform({ translate(ox, oy); scale(sc, sc, Offset.Zero) }) {
                 // a soft spotlight in the family colour, and the floor she's on
-                drawCircle(accent.copy(alpha = 0.10f + 0.10f * amp), 110f, Offset(120f, 110f))
-                drawCircle(accent.copy(alpha = 0.08f), 70f, Offset(120f, 100f))
+                drawCircle(accent.copy(alpha = (0.06f + 0.10f * amp) * (0.4f + 0.6f * bright)), 110f, Offset(120f, 110f))
+                drawCircle(accent.copy(alpha = 0.08f * (0.4f + 0.6f * bright)), 70f, Offset(120f, 100f))
                 drawOval(Color.Black.copy(alpha = 0.35f), Offset(20f, 182f), Size(200f, 16f))
 
-                // press amount per paw: 1 = fully down, 0 = lifted; left on the beat, right on the off-beat
-                val dl = press(beat); val dr = press((beat + 0.5f) % 1f)
+                // press amount per paw: 1 = fully down, 0 = lifted; near paw on the beat, far on the off-beat.
+                // ATTACK sets how slowly she pushes down, RELEASE how slowly she lifts.
+                val atk = (log10(1f + patch.ampEnv.attackMs) / 3.4f).coerceIn(0f, 1f)
+                val rel = (log10(1f + patch.ampEnv.releaseMs) / 3.6f).coerceIn(0f, 1f)
+                val dl = press(beat, atk, rel); val dr = press((beat + 0.5f) % 1f, atk, rel)
                 val depth = 0.6f + 0.6f * amp
-                val pl = 82f; val pr = 108f                                // near paw, far paw (where they land)
+                val pl = 120f + (82f - 120f) * size; val pr = 120f + (108f - 120f) * size
                 when (family) {
                     SynthCategory.PAD -> pillow(cs, dl * depth, dr * depth, pl, pr, now, amp, accent)
                     SynthCategory.SUB808 -> waterbed(beat, dl * depth, dr * depth, pl, pr, now, amp, accent, cs)
                     SynthCategory.BASS -> speaker(dl * depth, dr * depth, now, amp, accent)
                     SynthCategory.LEAD -> turntable(dl, dr, beat, now, amp, accent)
                     SynthCategory.KEYS -> keyboard(tel, dl, dr, pl, pr, accent)
-                    SynthCategory.PLUCK -> guitar(cs, now, amp, accent, tel.activeVoices)
-                    SynthCategory.WEIRD -> slime(cs, dl * depth, dr * depth, pl, pr, now, amp, tel.lfoValue, accent)
+                    SynthCategory.PLUCK -> guitar(cs, now, amp, accent, voices)
+                    SynthCategory.WEIRD -> slime(cs, dl * depth, dr * depth, pl, pr, now, amp, lfo, accent)
                 }
                 val sink = when (family) { SynthCategory.PAD -> 7f; SynthCategory.WEIRD -> 9f; SynthCategory.SUB808 -> 4f; else -> 2f }
-                cat(cs, now, beat, playing, amp, tel.lfoValue, dl, dr, sink * depth, pl, pr)
+
+                // DETUNE: her twin, a tinted ghost drifting in and out of step beside her
+                val det = patch.osc2.detuneCents
+                if (abs(det) > 2f) {
+                    val drift = sign(det) * (3f + abs(det) * 0.16f) * (0.55f + 0.45f * sin(now * (0.8f + abs(det) * 0.05f)))
+                    if (cs.twinTint != accent.toArgb()) { cs.twinTint = accent.toArgb(); cs.twin.colorFilter = ColorFilter.tint(accent, BlendMode.Modulate) }
+                    cs.twin.alpha = (0.18f + 0.35f * mix).coerceAtMost(0.5f)
+                    val lag = (abs(det) / 400f).coerceAtMost(0.2f)
+                    drawIntoCanvas { it.saveLayer(Rect(0f, 0f, 240f, 200f), cs.twin) }
+                    withTransform({ translate(drift, hop * 0.8f); scale(size, size, Offset(120f, 142f)) }) {
+                        cat(cs, now - lag, (beat + 1f - lag) % 1f, playing, amp, lfo, press((beat + 1f - lag) % 1f, atk, rel),
+                            press((beat + 1.5f - lag) % 1f, atk, rel), sink * depth, 82f, 108f)
+                    }
+                    drawIntoCanvas { it.restore() }
+                }
+                withTransform({ translate(0f, hop); scale(size, size, Offset(120f, 142f)) }) {
+                    cat(cs, now, beat, playing, amp, lfo, dl, dr, sink * depth, 82f, 108f)
+                }
+                // POLY: kittens kneading along the front edge
+                for (k in 0 until 3) {
+                    val pop = (cs.kittens - k).coerceIn(0f, 1f)
+                    if (pop > 0.02f) kitten(cs, 150f + k * 26f, 152f + (k % 2) * 4f, pop, now, beat + k * 0.31f, Color(KITTEN_FUR[k]))
+                }
+                // LFO: the moth
+                if (depthL > 0.03f) moth(now, lfo, tel.lfoPhase, patch.lfo.rateHz, depthL, accent, bright)
+                // notes she heard, floating up
+                for (i in cs.noteAt.indices) {
+                    val u = (now - cs.noteAt[i]) / 1.6f
+                    if (u in 0f..1f) musicNote(70f + sin(u * 6f + i) * 5f + i * 3f, 40f - cs.noteY[i] - u * 34f, accent.copy(alpha = (1f - u) * 0.9f))
+                }
+                // the room's light over everything: dim when the filter's closed, sparkles when it's wide open
+                if (bright < 0.98f) drawRect(Color(0xFF07060C).copy(alpha = 0.5f * (1f - bright).pow(1.3f)), Offset(-200f, -200f), Size(640f, 600f))
+                if (bright > 0.72f) {
+                    val k = (bright - 0.72f) / 0.28f
+                    for (i in 0 until 5) {
+                        val tw = 0.5f + 0.5f * sin(now * (2.3f + i) + i * 1.7f)
+                        sparkle(24f + i * 46f, 16f + (i * 37 % 4) * 10f, 2.5f + 2f * tw, Color.White.copy(alpha = k * tw * 0.8f))
+                    }
+                }
             }
         }
         Text("${family.label} · ${kneadObjectName(family)}", color = accent.copy(alpha = 0.85f), fontSize = 10.sp,
             fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 2.dp))
+        if (hint.isNotEmpty()) Text(hint, color = Tb.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1,
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 4.dp).alpha(hintAlpha))
     }
 }
 
-/** 1 at the press (phase 0), 0 lifted (phase 0.5); a quick press and a slower lift, like a real knead. */
-private fun press(ph: Float): Float {
-    val c = 0.5f + 0.5f * cos(2f * PI.toFloat() * ph)
-    return c.pow(0.7f)
+/**
+ * How far a paw is pressed (1 = down, 0 = up) through one knead cycle; the press lands at phase 0.
+ * [atk] 0…1 stretches the push down (slow attack = slow push), [rel] 0…1 the lift (long release = slow lift).
+ */
+private fun press(ph: Float, atk: Float, rel: Float): Float {
+    val down = 0.08f + 0.32f * atk                    // fraction of the cycle spent pushing down
+    val up = 0.12f + 0.36f * rel                      // fraction spent lifting
+    val x = when {
+        ph < up -> 1f - ph / up                       // just landed: lifting off
+        ph > 1f - down -> (ph - (1f - down)) / down   // coming down
+        else -> 0f
+    }
+    return x * x * (3f - 2f * x)
+}
+
+private fun DrawScope.sparkle(x: Float, y: Float, r: Float, c: Color) {
+    drawLine(c, Offset(x - r, y), Offset(x + r, y), 1.2f, cap = StrokeCap.Round)
+    drawLine(c, Offset(x, y - r), Offset(x, y + r), 1.2f, cap = StrokeCap.Round)
+}
+
+/** A little ♪: head, stem, flag. */
+private fun DrawScope.musicNote(x: Float, y: Float, c: Color) {
+    drawOval(c, Offset(x - 3.4f, y - 2.2f), Size(6.8f, 4.6f))
+    drawLine(c, Offset(x + 3f, y), Offset(x + 3f, y - 11f), 1.3f)
+    drawLine(c, Offset(x + 3f, y - 11f), Offset(x + 7f, y - 7f), 1.6f, cap = StrokeCap.Round)
+}
+
+/** The LFO moth: flies the LFO (x = its value, a figure-8 on its phase), wings beat at its rate, glows in the dark. */
+private fun DrawScope.moth(now: Float, lfo: Float, phase: Float, rate: Float, depth: Float, accent: Color, bright: Float) {
+    val roam = 18f + 62f * sqrt(depth)
+    val x = 132f + lfo * roam
+    val y = 34f + sin(phase * 4f * PI.toFloat()) * 8f
+    val flap = abs(sin(now * PI.toFloat() * rate.coerceIn(0.3f, 14f)))
+    drawCircle(accent.copy(alpha = 0.10f + 0.25f * (1f - bright)), 12f, Offset(x, y))
+    for (sd in floatArrayOf(-1f, 1f)) {
+        val w = 3f + 6f * flap
+        drawOval(Color(0xFFEDE3C8), Offset(if (sd < 0) x - w - 1f else x + 1f, y - 6f), Size(w, 7f))
+        drawOval(Color(0xFFD9CCA8), Offset(if (sd < 0) x - w * 0.8f - 1f else x + 1f, y), Size(w * 0.8f, 5f))
+    }
+    drawOval(Color(0xFF6B5A44), Offset(x - 1.4f, y - 5f), Size(2.8f, 10f))
+    drawLine(Color(0xFF6B5A44), Offset(x, y - 5f), Offset(x - 3f, y - 9f), 0.7f)
+    drawLine(Color(0xFF6B5A44), Offset(x, y - 5f), Offset(x + 3f, y - 9f), 0.7f)
+}
+
+/** A kitten: round, big-eyed, no shades yet; it bobs on its own little knead. [pop] scales it in. */
+private fun DrawScope.kitten(cs: CatState, x: Float, y: Float, pop: Float, now: Float, beat: Float, fur: Color) {
+    val dark = lerp2(fur, Color.Black, 0.3f)
+    val b = 1.5f * abs(sin(PI.toFloat() * (beat % 1f)))
+    withTransform({ scale(pop, pop, Offset(x, y + 14f)) }) {
+        drawOval(dark, Offset(x - 1f, y + 2f), Size(20f, 13f))                                      // body
+        drawOval(fur, Offset(x, y + 3f), Size(18f, 11f))
+        drawLine(fur, Offset(x + 17f, y + 8f), Offset(x + 22f, y - 1f + sin(now * 3f + x) * 2f), 2.6f, cap = StrokeCap.Round)   // tail
+        val p = cs.path2
+        for (sd in floatArrayOf(-1f, 1f)) {                                                        // ears
+            p.reset(); p.moveTo(x + 4f + sd * 4f, y - 6f + b); p.lineTo(x + 4f + sd * 7f, y - 14f + b); p.lineTo(x + 4f + sd * 1f, y - 9f + b); p.close()
+            drawPath(p, fur)
+        }
+        drawCircle(dark, 7.5f, Offset(x + 4f, y - 3f + b))                                          // head
+        drawCircle(fur, 6.8f, Offset(x + 4f, y - 3f + b))
+        for (sd in floatArrayOf(-1f, 1f)) {                                                        // big eyes
+            drawCircle(Color(0xFF1A1A22), 1.9f, Offset(x + 4f + sd * 2.8f, y - 4f + b))
+            drawCircle(Color.White, 0.7f, Offset(x + 4.5f + sd * 2.8f, y - 4.6f + b))
+        }
+        drawCircle(BEAN, 0.9f, Offset(x + 4f, y - 1.4f + b))
+        drawOval(CREAM, Offset(x - 1f, y + 11f - b * 0.6f), Size(6f, 3.5f))                          // kneading paw
+    }
 }
 
 // ----------------------------------------------------------------------------- the cat
@@ -144,12 +365,28 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     val p = cs.path
 
     // ---- tail: up and over, swishing with the LFO ----
+    // her tail IS the oscillator's waveform, travelling along it (sine curls … square crenellates)
     val wag = lfo * 10f + sin(now * 1.3f) * 4f
-    p.reset(); p.moveTo(190f, 120f)
-    p.cubicTo(222f, 116f, 230f, 80f + wag * 0.5f, 210f + wag * 0.3f, 60f + wag)
-    drawPath(p, OUT, style = Stroke(11f, cap = StrokeCap.Round))
-    drawPath(p, FUR, style = Stroke(8f, cap = StrokeCap.Round))
-    drawCircle(FUR_DARK, 4.2f, Offset(210f + wag * 0.3f, 60f + wag))
+    val x3 = 210f + wag * 0.3f; val y3 = 60f + wag
+    p.reset()
+    val n = 28
+    var tipX = 190f; var tipY = 120f
+    for (i in 0..n) {
+        val t = i / n.toFloat(); val u = 1f - t
+        val bx = u * u * u * 190f + 3f * u * u * t * 222f + 3f * u * t * t * 230f + t * t * t * x3
+        val by = u * u * u * 120f + 3f * u * u * t * 116f + 3f * u * t * t * (80f + wag * 0.5f) + t * t * t * y3
+        // tangent → normal
+        val tx = 3f * u * u * (222f - 190f) + 6f * u * t * (230f - 222f) + 3f * t * t * (x3 - 230f)
+        val ty = 3f * u * u * (116f - 120f) + 6f * u * t * (80f + wag * 0.5f - 116f) + 3f * t * t * (y3 - 80f - wag * 0.5f)
+        val tl = sqrt(tx * tx + ty * ty).coerceAtLeast(0.001f)
+        val off = cs.tailAmp * sqrt(t) * wave(cs.tailShape, t * 2.5f - cs.tailPhase)
+        val x = bx - ty / tl * off; val y = by + tx / tl * off
+        if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+        tipX = x; tipY = y
+    }
+    drawPath(p, OUT, style = Stroke(11f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(p, FUR, style = Stroke(8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawCircle(FUR_DARK, 4.2f, Offset(tipX, tipY))
 
     // ---- far front leg, in shadow behind her chest ----
     val liftF = 10f * (1f - df).pow(1.5f)
@@ -159,6 +396,19 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     drawOval(CREAM_SHADOW, Offset(pfx - 2f - 8f - 2f * df, pfy - 5f), Size(16f + 4f * df, 10f))
 
     // ---- body: back, haunch, belly ----
+    // DRIVE: a mohawk along her back (drawn first, so the body hides the roots)
+    if (cs.mohawk > 0.04f) {
+        val h = 2f + cs.mohawk * 13f
+        val col = lerp2(FUR_DARK, cs.accent, cs.mohawk)
+        for (k in 0 until 7) {
+            val t = 0.12f + k * 0.08f; val u = 1f - t
+            val bx = u * u * u * 90f + 3f * u * u * t * 110f + 3f * u * t * t * 166f + t * t * t * 192f
+            val by = u * u * u * 98f + 3f * u * u * t * 80f + 3f * u * t * t * 78f + t * t * t * 94f
+            val hk = h * (0.7f + 0.3f * sin(k * 1.7f)) + sin(now * 9f + k) * cs.mohawk
+            p.reset(); p.moveTo(bx - 5f, by + 3f); p.lineTo(bx + 3f, by - hk); p.lineTo(bx + 5f, by + 3f); p.close()
+            drawPath(p, col)
+        }
+    }
     val body = cs.path2                                                                         // kept: the stripes clip to it
     body.reset()
     body.moveTo(90f, 98f)
@@ -182,10 +432,23 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
         }
     }
     drawPath(body, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+    // NOISE: static crackling off her fur
+    if (cs.static > 0.03f) {
+        val frame = (now * 14f).toInt()
+        val count = (2 + cs.static * 10f).toInt()
+        for (i in 0 until count) {
+            val hsh = ((frame * 73 + i * 151) * 2654435761L).toInt() ushr 8
+            val t = (hsh and 1023) / 1023f; val u = 1f - t
+            val bx = u * u * u * 90f + 3f * u * u * t * 110f + 3f * u * t * t * 166f + t * t * t * 192f
+            val by = u * u * u * 98f + 3f * u * u * t * 80f + 3f * u * t * t * 78f + t * t * t * 94f - 3f
+            val c = (if (i % 2 == 0) Color.White else cs.accent).copy(alpha = 0.5f + 0.5f * cs.static)
+            drawLine(c, Offset(bx, by), Offset(bx + 2f, by - 4f), 1f); drawLine(c, Offset(bx + 2f, by - 4f), Offset(bx - 1f, by - 6f), 1f)
+        }
+    }
     // purr: little lines off her chest while anything sounds
     if (amp > 0.02f || playing) {
         val j = sin(now * 60f) * 1f
-        for (k in 0 until 2) drawLine(FUR_LIGHT.copy(alpha = 0.55f - k * 0.2f), Offset(78f - k * 6f + j, 112f + k * 6f), Offset(74f - k * 6f + j, 108f + k * 6f), 1.6f, cap = StrokeCap.Round)
+        for (k in 0 until 2) drawLine(FUR_LIGHT.copy(alpha = (0.55f - k * 0.2f) * cs.purr), Offset(78f - k * 6f + j, 112f + k * 6f), Offset(74f - k * 6f + j, 108f + k * 6f), 1.6f, cap = StrokeCap.Round)
     }
 
     // ---- near front leg + paw ----
@@ -200,9 +463,13 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     drawOval(OUT, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f), style = Stroke(1f))
     for (t in -1..1) drawLine(OUT.copy(alpha = 0.6f), Offset(pnx - 2f + t * (3f + sp * 0.5f), pny + 1f), Offset(pnx - 2f + t * (3.5f + sp * 0.7f), pny + 5f), 1f, cap = StrokeCap.Round)
     if (dn < 0.3f) drawCircle(BEAN, 2.4f, Offset(pnx - 2f, pny + 1f))                         // a bean shows on the lift
+    if (cs.glide > 0.02f && dn in 0.05f..0.95f) for (k in 0 until 3) {                          // GLIDE: she slides into it
+        val len = 6f + 14f * cs.glide
+        drawLine(CREAM.copy(alpha = 0.5f * cs.glide), Offset(pnx + 10f, pny - 4f + k * 3f), Offset(pnx + 10f + len - k * 3f, pny - 4f + k * 3f), 1f, cap = StrokeCap.Round)
+    }
 
     // ---- head, three-quarter, on her shoulders ----
-    val hx = 84f; val hy = 76f + rock * 0.5f + bob
+    val hx = 84f; val hy = 76f + rock * 0.5f + bob + cs.headLfo
     val tw = now - cs.twitchAt
     val twitch = if (tw in 0f..0.3f) sin(tw * 40f) * 9f * (1f - tw / 0.3f) else 0f
     rotate(twitch * 0.6f, Offset(hx + 18f, hy - 20f)) {                                        // far ear (gold hoop)
@@ -242,9 +509,13 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     p.moveTo(mx, hy + 11f); p.quadraticTo(mx - 3f, hy + 14f, mx - 6f, hy + 11f)
     p.moveTo(mx, hy + 11f); p.quadraticTo(mx + 4f, hy + 15f, mx + 8f, hy + 10f)
     drawPath(p, OUT, style = Stroke(1.2f, cap = StrokeCap.Round))
-    for (k in -1..1) {                                                                          // whiskers: short and soft
-        drawLine(CREAM.copy(alpha = 0.8f), Offset(mx - 12f, hy + 10f + k * 2f), Offset(mx - 30f, hy + 7f + k * 5f), 0.8f)
-        drawLine(CREAM.copy(alpha = 0.8f), Offset(mx + 12f, hy + 10f + k * 2f), Offset(mx + 28f, hy + 7f + k * 5f), 0.8f)
+    // whiskers: short and soft; RESONANCE makes them buzz and glow
+    val buzz = cs.whisker * cs.whisker * 2.2f
+    val wc = lerp2(CREAM, cs.accent, cs.whisker).copy(alpha = 0.8f)
+    for (k in -1..1) {
+        val j = sin(now * 95f + k * 2f) * buzz
+        drawLine(wc, Offset(mx - 12f, hy + 10f + k * 2f), Offset(mx - 30f, hy + 7f + k * 5f + j), 0.8f + cs.whisker * 0.5f)
+        drawLine(wc, Offset(mx + 12f, hy + 10f + k * 2f), Offset(mx + 28f, hy + 7f + k * 5f - j), 0.8f + cs.whisker * 0.5f)
     }
     // brows pop over the shades on loud notes
     val brow = 2.5f * amp + (if (tw in 0f..0.25f) 1.5f else 0f)
@@ -454,3 +725,19 @@ private fun lerp2(a: Color, b: Color, t: Float): Color {
     val k = t.coerceIn(0f, 1f)
     return Color(a.red + (b.red - a.red) * k, a.green + (b.green - a.green) * k, a.blue + (b.blue - a.blue) * k, a.alpha + (b.alpha - a.alpha) * k)
 }
+
+/** The oscillator's shape morph, as the tail draws it: 0 sine · ⅓ triangle · ⅔ saw · 1 square, blended between. */
+private fun wave(shape: Float, ph: Float): Float {
+    val f = ph - kotlin.math.floor(ph)
+    val sine = sin(2f * PI.toFloat() * f)
+    val tri = triangle(f)
+    val saw = 2f * f - 1f
+    val sq = if (f < 0.5f) 1f else -1f
+    val s = shape.coerceIn(0f, 1f) * 3f
+    return when {
+        s < 1f -> sine + (tri - sine) * s
+        s < 2f -> tri + (saw - tri) * (s - 1f)
+        else -> saw + (sq - saw) * (s - 2f)
+    }
+}
+private fun triangle(f: Float) = if (f < 0.25f) 4f * f else if (f < 0.75f) 2f - 4f * f else 4f * f - 4f
