@@ -9,7 +9,8 @@ SRC=engine/src/main/cpp
 T=engine/src/test/cpp
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT
-FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -I"$SRC" -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+FLAGS=(-std=c++20 -fno-exceptions -fno-rtti -O1 -g -Wall -Wextra -Werror -I"$SRC" -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+# -fno-exceptions/-fno-rtti match the NDK build, so code that only compiles with exceptions fails here too.
 
 run() {   # name, then compiler args
     local name=$1; shift

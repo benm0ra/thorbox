@@ -124,7 +124,7 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut, DecodeP
         const double secs = std::min<double>(durUs / 1e6, (double)kMaxSeconds) + 0.5;
         const size_t want = (size_t)(secs * sr) * (size_t)(ch > 2 ? 2 : ch);
         if (want < (size_t)kMaxSeconds * kMaxRate * 2) {
-            try { out->data.reserve(want); } catch (const std::bad_alloc&) { return fail("not enough memory for this file"); }
+            out->data.reserve(want);   // bounded above by the 10-minute cap
         }
     }
     const int64_t capUs = kMaxSeconds * 1000000LL;
@@ -169,8 +169,7 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut, DecodeP
                     (size_t)info.offset + (size_t)info.size <= sz;
                 const bool fmtOk = ch >= 1 && ch <= kMaxChannels;
                 if (inBounds && fmtOk) {
-                    try { appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data); }
-                    catch (const std::bad_alloc&) { AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false); return fail("not enough memory for this file"); }
+                    appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data);
                 }
             }
             if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) outEos = true;
