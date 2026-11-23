@@ -115,7 +115,7 @@ fun SynthScreen(state: AppState) {
                         ScopeBand(state, Tb.enc(knobs[lastTouched.intValue.coerceIn(0, 3)].color), overlay,
                             Modifier.align(Alignment.BottomStart).fillMaxWidth().height(34.dp).padding(horizontal = 12.dp, vertical = 4.dp))
                         Crossfade(targetState = page, animationSpec = tween(160), label = "page") { pg ->
-                            val m = Modifier.fillMaxSize().padding(start = 10.dp, end = 6.dp, top = 2.dp, bottom = 38.dp)
+                            val m = Modifier.fillMaxSize().padding(start = 14.dp, end = 16.dp, top = 6.dp, bottom = 38.dp)
                             when (pg) {
                                 SynthPage.OSC -> OscViz(patch, state.telemetry, m)
                                 SynthPage.FILTER -> FilterViz(patch, state.telemetry, m)

@@ -395,25 +395,30 @@ fun Modifier.navTarget(
 /**
  * The cursor: a hairline frame and bold corner brackets in the text colour over a dark halo, so it
  * reads on every theme, on lit buttons and on glass. Grabbed = solid frame; inside a grid = the
- * brackets stay and the grid shows its own cell. Drawn inside the control's bounds so no clip hides it.
+ * brackets stay and the grid shows its own cell. Drawn inside the control's bounds so no clip hides it,
+ * except on small targets (under 30 dp), where it sits just outside so the label stays readable.
  */
 fun androidx.compose.ui.graphics.drawscope.DrawScope.drawNavRing(cornerDp: Float, grabbed: Boolean = false, entered: Boolean = false) {
     val ink = com.thorbox.app.ui.Tb.Text
     val halo = com.thorbox.app.ui.Tb.Void
     val w = 2.5.dp.toPx()
-    val inset = w * 1.5f
+    // Small targets (a strip's name, a chip, a text label): the frame goes just OUTSIDE the bounds with a
+    // thinner halo. Drawn inside, the halo alone is ~6 dp wide and covered the text it was pointing at.
+    val small = minOf(size.width, size.height) < 30.dp.toPx()
+    val inset = if (small) -w * 1.2f else w * 1.5f
+    val haloW = if (small) w * 1.5f else w * 2.6f
     val o = Offset(inset, inset)
     val sz = Size(size.width - 2 * inset, size.height - 2 * inset)
     if (sz.width <= 0f || sz.height <= 0f) return
     if (cornerDp == NavTarget.ROUND) {
         val r = minOf(sz.width, sz.height) / 2f
-        drawCircle(halo, r, center, style = Stroke(w * 2.6f))
+        drawCircle(halo, r, center, style = Stroke(haloW))
         drawCircle(ink, r, center, style = Stroke(if (grabbed) w * 1.4f else w))
         if (grabbed) drawCircle(ink.copy(alpha = 0.18f), r, center)
         return
     }
     val cr = CornerRadius(cornerDp.dp.toPx())
-    drawRoundRect(halo, o, sz, cr, style = Stroke(w * 2.6f))
+    drawRoundRect(halo, o, sz, cr, style = Stroke(haloW))
     drawRoundRect(ink.copy(alpha = if (grabbed) 1f else 0.55f), o, sz, cr, style = Stroke(if (grabbed) w * 1.4f else w * 0.6f))
     // corner brackets
     val L = minOf(14.dp.toPx(), sz.width / 3f, sz.height / 3f)

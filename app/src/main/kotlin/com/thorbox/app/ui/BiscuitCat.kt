@@ -164,6 +164,12 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                hint: String, hintAlpha: Float, modifier: Modifier = Modifier) {
     val cs = remember { CatState() }
     val tel = state.telemetry
+    // the closed-filter shade, in stage units: full in the middle, gone by the rim (alpha set per frame)
+    val dimPool = remember {
+        androidx.compose.ui.graphics.Brush.radialGradient(
+            0f to Color(0xFF07060C), 0.55f to Color(0xFF07060C).copy(alpha = 0.85f), 1f to Color(0x0007060C),
+            center = Offset(120f, 108f), radius = 124f)
+    }
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
             tel.frame.longValue                                    // redraw every frame, never recompose
@@ -268,8 +274,13 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                     val u = (now - cs.noteAt[i]) / 1.6f
                     if (u in 0f..1f) musicNote(70f + sin(u * 6f + i) * 5f + i * 3f, 40f - cs.noteY[i] - u * 34f, accent.copy(alpha = (1f - u) * 0.9f))
                 }
-                // the room's light over everything: dim when the filter's closed, sparkles when it's wide open
-                if (bright < 0.98f) drawRect(Color(0xFF07060C).copy(alpha = 0.5f * (1f - bright).pow(1.3f)), Offset(-200f, -200f), Size(640f, 600f))
+                // the room's light: a soft pool of shade around her when the filter's closed (it fades out
+                // before the panel's edges, so no slab and nothing spills onto the waveform next door; lighter
+                // on light themes), sparkles when it's wide open
+                if (bright < 0.98f) {
+                    val dim = 0.5f * (1f - bright).pow(1.3f) * (if (Tb.palette.light) 0.55f else 1f)
+                    drawCircle(dimPool, 124f, Offset(120f, 108f), alpha = dim.coerceIn(0f, 1f))
+                }
                 if (bright > 0.72f) {
                     val k = (bright - 0.72f) / 0.28f
                     for (i in 0 until 5) {
@@ -279,7 +290,9 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                 }
             }
         }
-        Text("${family.label} · ${kneadObjectName(family)}", color = accent.copy(alpha = 0.85f), fontSize = 10.sp,
+        // light themes: the family colour pulled toward the text colour, so it reads on cream
+        val tagColor = if (Tb.palette.light) androidx.compose.ui.graphics.lerp(accent, Tb.Text, 0.45f) else accent.copy(alpha = 0.85f)
+        Text("${family.label} · ${kneadObjectName(family)}", color = tagColor, fontSize = 10.sp,
             fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 2.dp))
         if (hint.isNotEmpty()) Text(hint, color = Tb.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1,
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 4.dp).alpha(hintAlpha))
