@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.text.drawText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,7 +73,7 @@ fun MixScreen(state: AppState) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTag(state, Section.MIXER)
         val n = tracks.count { it.kind != com.thorbox.model.TrackKind.EMPTY }
-        Text("$n TRACK${if (n == 1) "" else "S"} · tap a name to open it · ⋯ for PUMP", style = Type.label, maxLines = 1,
+        Text("$n TRACK${if (n == 1) "" else "S"} · name = open · ⋯ = PUMP", style = Type.label, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(String.format(java.util.Locale.US, "MASTER %+.1f dB", g.masterDb.floatValue), style = Type.value, maxLines = 1)
     }
@@ -268,7 +271,7 @@ private fun Strip(
                 Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(13.dp)).background(Tb.Raised)
                     .navAdjustable("$name PAN", onReset = { onPan(0f) }) { d -> onPan((pan + d * 2f).coerceIn(-1f, 1f)) }
                     .pointerInput(Unit) {
-                        androidx.compose.foundation.gestures.detectHorizontalDragGestures { change, dx ->
+                        detectHorizontalDragGestures { change, dx ->
                             change.consume()
                             setPan.value((panNow.value + dx / size.width * 2f).coerceIn(-1f, 1f))
                         }
@@ -304,7 +307,7 @@ private fun Strip(
             Modifier.weight(1f).fillMaxWidth()
                 .navAdjustable("$name VOLUME", onReset = { onDb(0f) }) { d -> onDb(faderToDb((dbToFader(db) + d).coerceIn(0f, 1f))) }
                 .pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.detectVerticalDragGestures(
+                    detectVerticalDragGestures(
                         onDragStart = { faderPos[0] = dbToFader(dbNow.value) },
                     ) { change, dy ->
                         change.consume()
