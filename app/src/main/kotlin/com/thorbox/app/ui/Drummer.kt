@@ -82,9 +82,9 @@ private fun rank(p: Piece) = when (p) { Piece.SNARE, Piece.RIM -> 3; Piece.RACK_
 
 private class DrummerState {
     /** Your-left paw = Big Dawg's RIGHT hand (snare, toms, ride, cowbell). */
-    val left = Hand(188f, 170f)
+    val left = Hand(194f, 192f)
     /** Your-right paw = his LEFT hand (hats, crash, ZAP). */
-    val right = Hand(262f, 150f)
+    val right = Hand(262f, 172f)
     val pieceHit = FloatArray(Piece.entries.size) { -10f }
     val pieceSlot = IntArray(Piece.entries.size)
     val pieceVel = FloatArray(Piece.entries.size) { 1f }
@@ -178,11 +178,11 @@ private fun onLeftPaw(p: Piece) = when (p) {
 
 /** Where the stick TIP lands on each piece (stage units). */
 private fun strikeX(p: Piece): Float = when (p) {
-    Piece.SNARE -> 238f; Piece.RIM -> 222f; Piece.HIHAT -> 298f; Piece.RACK_TOM -> 210f; Piece.FLOOR_TOM -> 124f
+    Piece.SNARE -> 230f; Piece.RIM -> 214f; Piece.HIHAT -> 298f; Piece.RACK_TOM -> 210f; Piece.FLOOR_TOM -> 124f
     Piece.CYMBAL -> 284f; Piece.RIDE -> 112f; Piece.COWBELL -> 164f; Piece.ZAP -> 330f; else -> 200f
 }
 private fun strikeY(p: Piece): Float = when (p) {
-    Piece.SNARE -> 198f; Piece.RIM -> 202f; Piece.HIHAT -> 144f; Piece.RACK_TOM -> 176f; Piece.FLOOR_TOM -> 198f
+    Piece.SNARE -> 200f; Piece.RIM -> 204f; Piece.HIHAT -> 144f; Piece.RACK_TOM -> 168f; Piece.FLOOR_TOM -> 198f
     Piece.CYMBAL -> 96f; Piece.RIDE -> 120f; Piece.COWBELL -> 182f; Piece.ZAP -> 192f; else -> 140f
 }
 
@@ -207,6 +207,7 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
         tel.frame.longValue                                   // redraw every frame, never recompose
         val now = tel.timeSec
         val voices = drums.kit.value.voices
+        KitFinish.pick(drums.kit.value.name)
 
         // ---- what's in the kit right now ----
         toms[0] = -1; toms[1] = -1
@@ -291,7 +292,13 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             val sleepy = !playing && now - st.lastActivity > 8f
 
             // ---- the corner: brick wall + bodega with a graffiti'd gate, neon, boombox, hydrant ----
-            street(st, -ox / sc, (size.width - ox) / sc, -oy / sc, (size.height - oy) / sc, now, playing, beatPhase, kickK, tm, spray, neon)
+            // what the street hears: each part of the kit drives its own bit of the scene
+            val snareK = maxOf(env(now - st.pieceHit[Piece.SNARE.ordinal], 9f), env(now - st.pieceHit[Piece.CLAP.ordinal], 9f))
+            val hatK = env(now - st.pieceHit[Piece.HIHAT.ordinal], 10f)
+            val crashK = maxOf(envFor(now - st.pieceHit[Piece.CYMBAL.ordinal], 1.0f), 0.4f * envFor(now - st.pieceHit[Piece.RIDE.ordinal], 0.6f))
+            val level = state.level.floatValue.coerceIn(0f, 1f)
+            street(st, -ox / sc, (size.width - ox) / sc, -oy / sc, (size.height - oy) / sc, now, playing, beatPhase, kickK, tm, spray, neon,
+                snareK, hatK, crashK, level)
 
             // ---- cymbals + hats: beside and above him ----
             if (st.present[Piece.RIDE.ordinal]) rideStand(st, now)
@@ -313,11 +320,12 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
             // pawPos is where the stick tip is heading; reach() keeps the paw near the shoulder
             // and lets the stick cover the rest, so arms never sweep across the kit.
             val lt = pawPos(st.left, now, beatL); val rt = pawPos(st.right, now, beatR)
-            val shY = 140f + bodyY
-            val lp = reach(170f, shY, lt); val lx = lp.x; val ly = lp.y
-            val rp = reach(230f, shY, rt); val rx = rp.x; val ry = rp.y
-            arm(170f, shY, lx, ly, mirror = false)
-            arm(230f, shY, rx, ry, mirror = true)
+            // shoulders at the sides of his frame, below the jowls
+            val shY = 146f + bodyY
+            val lp = reach(166f, shY, lt); val lx = lp.x; val ly = lp.y
+            val rp = reach(234f, shY, rt); val rx = rp.x; val ry = rp.y
+            arm(166f, shY, lx, ly, mirror = false)
+            arm(234f, shY, rx, ry, mirror = true)
             head(st, now, bodyY + nod * 0.5f, sleepy, kickK)
 
             // ---- the drums, back to front ----
@@ -377,14 +385,17 @@ private fun DrawScope.ripple(st: DrummerState, p: Piece, cx: Float, cy: Float, r
  * is), chrome lugs with tension rods, top and bottom hoops, and a coated head that flexes (squash)
  * and lights on a hit.
  */
-private fun DrawScope.drumShell(cx: Float, top: Float, w: Float, h: Float, depth: Float, squash: Float, accent: Color, flash: Float) {
+private fun DrawScope.drumShell(cx: Float, top: Float, w: Float, h: Float, depth: Float, squash: Float, accent: Color, flash: Float, finish: Color = KitFinish.color) {
     val sh = h * (1f - 0.35f * squash)
-    val finish = lerp(Color(0xFF2A2430), accent, 0.62f)
     val l = cx - w / 2
     drawOval(lerp(finish, Color.Black, 0.35f), Offset(l, top + depth - sh / 2), Size(w, sh))   // bottom edge
     drawRect(finish, Offset(l, top), Size(w, depth))
     drawRect(Color.White.copy(alpha = 0.13f), Offset(cx - w * 0.30f, top), Size(w * 0.07f, depth))         // lacquer shine
     drawRect(Color.Black.copy(alpha = 0.18f), Offset(cx + w * 0.30f, top), Size(w * 0.20f, depth))         // shade
+    if (KitFinish.sparkle) for (i in 0 until (w * depth / 60f).toInt().coerceAtMost(40)) {                  // sparkle flake
+        val fx = l + ((i * 37 + (cx * 7).toInt()) % 100) / 100f * w; val fy = top + ((i * 53) % 97) / 97f * depth
+        drawCircle(Color.White.copy(alpha = 0.35f), 0.7f, Offset(fx, fy))
+    }
     // lugs: tension casings round the visible side (bigger towards the middle = they face you)
     val nl = if (w > 54f) 5 else 3
     for (i in 0 until nl) {
@@ -427,7 +438,7 @@ private fun DrawScope.snare(st: DrummerState, now: Float) {
     val s = sizeOf(v)
     val dt = now - st.pieceHit[Piece.SNARE.ordinal]
     val c = slotColor(st, Piece.SNARE)
-    val cx = 250f; val top = 200f; val w = 60f * s; val depth = 15f * s
+    val cx = 240f; val top = 202f; val w = 58f * s; val depth = 15f * s
     // snare stand: tripod + a basket whose three arms grip the bottom hoop
     tripod(cx, top + depth + 8f, 17f)
     drawLine(CHROME, Offset(cx - w * 0.42f, top + depth + 1f), Offset(cx, top + depth + 8f), 2f)
@@ -453,7 +464,7 @@ private fun DrawScope.rackTom(st: DrummerState, now: Float) {
     val s = sizeOf(v)
     val dt = now - st.pieceHit[Piece.RACK_TOM.ordinal]
     val c = slotColor(st, Piece.RACK_TOM)
-    val cx = 212f; val w = 44f * s; val depth = 24f * s; val top = 196f - depth
+    val cx = 212f; val w = 44f * s; val depth = 24f * s; val top = 188f - depth
     drawLine(CHROME_DARK, Offset(204f, 206f), Offset(204f, top + depth * 0.7f), 3.4f)            // tom arm
     drawLine(CHROME_DARK, Offset(204f, top + depth * 0.7f), Offset(cx - w * 0.2f, top + depth * 0.7f), 3f)
     drumShell(cx, top, w, 14f * s, depth, env(dt, 26f), c, envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.RACK_TOM.ordinal], v))
@@ -481,6 +492,24 @@ private fun DrawScope.floorTom(st: DrummerState, now: Float) {
 }
 
 /** Bass drum from the front: resonant head with the band name and a port, hoop, claws, spurs. */
+/**
+ * The kit's finish: one lacquer on every shell, as on a real kit (the pad colours only flash on the
+ * heads when they're hit). Each kit preset gets one of these, picked by its name.
+ */
+private object KitFinish {
+    private val colors = longArrayOf(0xFF1E1E26, 0xFF6E1A2A, 0xFFE4E0D6, 0xFFC08A4E, 0xFFC9B07A, 0xFF2C4C7A, 0xFF2E5E3E)
+    private val sparkles = booleanArrayOf(true, false, false, false, true, true, true)
+    var color = Color(colors[0]); private set
+    var sparkle = true; private set
+    private var forName: String? = null
+    fun pick(kitName: String) {
+        if (kitName == forName) return
+        forName = kitName
+        val i = (kitName.hashCode() and 0x7fffffff) % colors.size
+        color = Color(colors[i]); sparkle = sparkles[i]
+    }
+}
+
 private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: TextMeasurer, logo: TextStyle) {
     val v = st.pieceVoice[Piece.KICK.ordinal]
     val s = sizeOf(v)
@@ -498,7 +527,8 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: TextMeasu
     drawCircle(lerp(Color(0xFF15131A), c, 0.10f + 0.28f * glow), r, Offset(cx, cy))
     val flex = 1f - 0.03f * k
     drawCircle(Color.White.copy(alpha = 0.05f + 0.05f * k), r * 0.78f * flex, Offset(cx, cy), style = Stroke(1.2f))
-    drawCircle(lerp(Color(0xFF2A2430), c, 0.55f + 0.4f * glow), r - 3.5f, Offset(cx, cy), style = Stroke(7f))
+    drawCircle(KitFinish.color, r - 3.5f, Offset(cx, cy), style = Stroke(7f))                                // the hoop, in the kit's finish
+    if (glow > 0.03f) drawCircle(c.copy(alpha = 0.8f * glow), r - 3.5f, Offset(cx, cy), style = Stroke(3f))  // the hit, in the pad's colour
     drawCircle(CHROME, r, Offset(cx, cy), style = Stroke(1.6f))
     drawCircle(CHROME_DARK, r - 7.5f, Offset(cx, cy), style = Stroke(1.2f))
     for (i in 0 until 10) {                                    // claws + T-rods round the hoop
@@ -814,30 +844,44 @@ private fun pawPos(h: Hand, now: Float, groove: Float): Offset {
     return Offset(x, y)
 }
 
-private const val ARM_REACH = 70f      // shoulder → paw, max
-private const val STICK = 46f          // paw → tip, max
+// A bulldog's arms are short: compact limbs, full-length sticks. (Tuned against sketches of every reach:
+// rest, snare + hats, floor tom + crash, ride + ZAP, rack tom.)
+private const val UPPER_ARM = 31f
+private const val FOREARM = 29f
+private const val ARM_REACH = 58f      // shoulder → paw, max
+private const val STICK = 38f          // paw → tip
 
-/** Paw position for a stick-tip target: arm takes up to ARM_REACH, the stick the rest (up to STICK). */
+/** Paw position for a stick-tip target: the stick covers its length, the arm the rest (28 … ARM_REACH). */
 private fun reach(sx: Float, sy: Float, tip: Offset): Offset {
     val dx = tip.x - sx; val dy = tip.y - sy
     val d = sqrt(dx * dx + dy * dy)
     if (d < 1f) return tip
-    val use = (d - STICK).coerceIn(min(d, 40f), ARM_REACH)
+    val use = (d - STICK).coerceIn(min(d, 28f), ARM_REACH)
     return Offset(sx + dx / d * use, sy + dy / d * use)
 }
 
-/** Hoodie sleeve: upper arm + forearm, one tapered limb with a soft elbow and a ribbed cuff. Drawn behind the kit. */
+/**
+ * Hoodie sleeve with a real elbow: two-bone IK (fixed upper arm + forearm), and of the two possible
+ * elbows the one nearer a natural spot, out to the side and down from the shoulder (drummers keep
+ * their elbows out). The old version pushed the elbow sideways by a formula that, on a reaching arm,
+ * folded it up into the chest.
+ */
 private fun DrawScope.arm(sx: Float, sy: Float, hx: Float, hy: Float, mirror: Boolean) {
+    val out = if (mirror) 1f else -1f
     val dx = hx - sx; val dy = hy - sy
-    val len = max(1f, sqrt(dx * dx + dy * dy))
-    val bend = max(0f, 30f - len * 0.35f)
-    val side = if (mirror) 1f else -1f
-    val ex = sx + dx * 0.5f + (-dy / len) * bend * side
-    val ey = sy + dy * 0.5f + (dx / len) * bend * side + 6f       // elbows hang a little
+    val d = sqrt(dx * dx + dy * dy).coerceIn(8f, UPPER_ARM + FOREARM - 0.5f)
+    val cosA = ((UPPER_ARM * UPPER_ARM + d * d - FOREARM * FOREARM) / (2f * UPPER_ARM * d)).coerceIn(-1f, 1f)
+    val a = kotlin.math.acos(cosA); val b = kotlin.math.atan2(dy, dx)
+    val e1x = sx + UPPER_ARM * kotlin.math.cos(b + a); val e1y = sy + UPPER_ARM * sin(b + a)
+    val e2x = sx + UPPER_ARM * kotlin.math.cos(b - a); val e2y = sy + UPPER_ARM * sin(b - a)
+    val hx0 = sx + out * 24f; val hy0 = sy + 30f
+    val pick1 = (e1x - hx0) * (e1x - hx0) + (e1y - hy0) * (e1y - hy0) <= (e2x - hx0) * (e2x - hx0) + (e2y - hy0) * (e2y - hy0)
+    val ex = if (pick1) e1x else e2x; val ey = if (pick1) e1y else e2y
     drawLine(HOODIE_DARK, Offset(sx, sy), Offset(ex, ey), 18f, cap = StrokeCap.Round)
     drawLine(HOODIE_DARK, Offset(ex, ey), Offset(hx, hy), 15f, cap = StrokeCap.Round)
     drawLine(HOODIE, Offset(sx, sy), Offset(ex, ey), 15f, cap = StrokeCap.Round)
     drawLine(HOODIE, Offset(ex, ey), Offset(hx, hy), 12f, cap = StrokeCap.Round)
+    drawLine(HOODIE_LIGHT.copy(alpha = 0.35f), Offset(sx + out * 3f, sy + 2f), Offset(ex + out * 3f, ey), 3f, cap = StrokeCap.Round)   // sleeve highlight
     // cuff: the last few units before the paw, a darker ribbed band
     val fx = hx - ex; val fy = hy - ey; val fl = max(1f, sqrt(fx * fx + fy * fy))
     val cx0 = hx - fx / fl * 9f; val cy0 = hy - fy / fl * 9f
@@ -857,11 +901,14 @@ private fun DrawScope.paw(h: Hand, hx: Float, hy: Float, tip: Offset, now: Float
         // wind-up: the tip cocks back and up before a sequenced hit, then whips down onto the head
         val wind = if (h.antic > 0f) sin(PI.toFloat() * h.antic) else 0f
         val r = if (h.antic > 0f) (1f - h.antic * h.antic).coerceIn(0f, 1f) else raise
-        val restX = dir * (22f - 6f * wind); val restY = -18f - 16f * wind
+        val restX = dir * (27f - 9f * wind); val restY = -26f - 10f * wind
         val tipX = hx + ax + (restX - ax) * r
         val tipY = hy + ay + (restY - ay) * r
-        drawLine(STICK_DARK, Offset(hx, hy), Offset(tipX, tipY), 5.5f, cap = StrokeCap.Round)
-        drawLine(STICK_WOOD, Offset(hx, hy), Offset(tipX, tipY), 3.5f, cap = StrokeCap.Round)
+        // held, not balanced on the paw: the butt end pokes out behind the grip
+        val sl = max(1f, sqrt((tipX - hx) * (tipX - hx) + (tipY - hy) * (tipY - hy)))
+        val bx = hx - (tipX - hx) / sl * 7f; val by = hy - (tipY - hy) / sl * 7f
+        drawLine(STICK_DARK, Offset(bx, by), Offset(tipX, tipY), 5.5f, cap = StrokeCap.Round)
+        drawLine(STICK_WOOD, Offset(bx, by), Offset(tipX, tipY), 3.5f, cap = StrokeCap.Round)
         drawCircle(STICK_WOOD, 2.6f, Offset(tipX, tipY))
     }
     drawCircle(COAT_DARK, 8.5f, Offset(hx, hy))
@@ -877,7 +924,7 @@ private fun back(c: Color, k: Float = 0.38f) = lerp(c, Tb.Void, k)
 
 /**
  * The corner BIG DAWG plays on, at night: a brick wall with wheatpasted posters and a tag on your
- * left; a bodega on the right with a neon DELI · 24HR sign (it pulses on the beat) over a roll-down
+ * left; a bodega on the right with a neon BODEGA sign and a little OPEN sign (they pulse with the music) over a roll-down
  * gate with a piece sprayed across it; a power line overhead with a pair of sneakers slung over it;
  * a boombox on a milk crate whose speakers pump on the kick; a hydrant; the sidewalk in slabs with a
  * crack; the curb; steam out of a manhole in the street. [l]…[r] × [t]…[b] is the whole panel in
@@ -886,6 +933,7 @@ private fun back(c: Color, k: Float = 0.38f) = lerp(c, Tb.Void, k)
 private fun DrawScope.street(
     st: DrummerState, l: Float, r: Float, t: Float, b: Float, now: Float, playing: Boolean, beatPhase: Float, kickK: Float,
     tm: TextMeasurer, spray: TextStyle, neon: TextStyle,
+    snareK: Float = 0f, hatK: Float = 0f, crashK: Float = 0f, level: Float = 0f,
 ) {
     val walk = 236f                                          // wall meets sidewalk
     val curb = 293f
@@ -907,10 +955,12 @@ private fun DrawScope.street(
         }
     }
     drawPath(st.bricks, back(MORTAR, 0.2f).copy(alpha = 0.55f), style = Stroke(0.8f))
-    // wheatpasted posters, layered and a bit torn
-    poster(14f, 36f, 38f, 50f, -3f, back(Color(0xFFE9DFC8), 0.25f), back(HYDRANT, 0.25f))
-    poster(48f, 30f, 42f, 56f, 2f, back(Color(0xFFF2E36A), 0.3f), back(SPRAY_INK, 0.1f))
-    poster(94f, 44f, 36f, 46f, -2f, back(Color(0xFFE9DFC8), 0.25f), back(Color(0xFF2F64C8), 0.25f))
+    if (snareK > 0.02f) drawRect(Color.White.copy(alpha = 0.07f * snareK), Offset(l, t), Size(shopL - l, walk - t))   // the snare cracks off the bricks
+    // wheatpasted posters, layered and a bit torn; their loose corners flap on the snare
+    val flap = sin(now * 38f) * 3f * snareK
+    poster(14f, 36f, 38f, 50f, -3f + flap, back(Color(0xFFE9DFC8), 0.25f), back(HYDRANT, 0.25f))
+    poster(48f, 30f, 42f, 56f, 2f - flap * 0.6f, back(Color(0xFFF2E36A), 0.3f), back(SPRAY_INK, 0.1f))
+    poster(94f, 44f, 36f, 46f, -2f + flap * 0.8f, back(Color(0xFFE9DFC8), 0.25f), back(Color(0xFF2F64C8), 0.25f))
     // a tag low on the bricks: one fat stroke and a flick
     val p = st.path; p.reset()
     p.moveTo(10f, 196f); p.cubicTo(22f, 168f, 34f, 210f, 44f, 180f); p.cubicTo(52f, 160f, 60f, 206f, 72f, 178f)
@@ -933,7 +983,10 @@ private fun DrawScope.street(
         var y = gT + 4f
         while (y < gB) { g.moveTo(shopL + 8f, y); g.lineTo(r, y); y += 4.5f }
     }
-    drawPath(st.gate, back(STEEL_DARK, 0.3f), style = Stroke(1.1f))
+    // the gate rattles on the kick (the ribs shiver), and glows faintly with the neon's colour as the music gets loud
+    val rattle = sin(now * 95f) * 1.3f * kickK
+    withTransform({ translate(0f, rattle) }) { drawPath(st.gate, back(STEEL_DARK, 0.3f), style = Stroke(1.1f)) }
+    if (level > 0.05f) drawRect(NEON_PINK.copy(alpha = 0.05f * level + 0.06f * crashK), Offset(shopL + 8f, gT), Size(r - shopL - 8f, gB - gT))
     drawRect(back(STEEL_DARK, 0.2f), Offset(shopL + 8f, gB - 6f), Size(r - shopL - 8f, 6f))      // bottom bar
     drawRoundRect(back(BRASS, 0.3f), Offset(shopL + 40f, gB - 10f), Size(7f, 8f), CornerRadius(1.5f))   // padlock
     drawArc(back(CHROME_DARK, 0.3f), 180f, 180f, false, Offset(shopL + 40.5f, gB - 14f), Size(6f, 8f), style = Stroke(1.4f))
@@ -943,6 +996,8 @@ private fun DrawScope.street(
     val fit = pw / max(1f, gl.size.width.toFloat())
     val gx = 254f; val gy = 152f
     withTransform({ translate(gx, gy); rotate(-5f, Offset.Zero); scale(fit, fit, Offset.Zero) }) {
+        val glow = 0.35f * kickK + 0.15f * level
+        if (glow > 0.02f) drawText(gl, color = SPRAY_ORANGE.copy(alpha = glow), drawStyle = NEON_GLOW)   // the piece glows with the bass
         drawText(gl, color = back(SPRAY_INK, 0.05f), topLeft = Offset(9f, 9f))
         drawText(gl, color = back(SPRAY_INK, 0.05f), drawStyle = OUTLINE_THICK)
         drawText(gl, color = back(SPRAY_ORANGE, 0.22f))
@@ -954,11 +1009,22 @@ private fun DrawScope.street(
         drawLine(back(SPRAY_ORANGE, 0.25f), Offset(dx, dy), Offset(dx, dy + dl), 1.8f, cap = StrokeCap.Round)
         drawCircle(back(SPRAY_ORANGE, 0.25f), 1.4f, Offset(dx, dy + dl + 0.6f))
     }
-    // neon: DELI in pink, 24HR in cyan; a glow that breathes, kicks on the beat, and the odd flicker
+    // neon: BODEGA in pink (brighter with the music, a punch on the kick, white-hot on a crash, the odd flicker),
+    // and the little cyan OPEN sign that flickers on the hats
     val flick = if (((now * 3.7f).toInt() * 2654435761L % 23L) == 0L) 0.35f else 1f
-    neonWord(tm.measure("DELI", neon), 262f, 18f, 52f, NEON_PINK, (0.75f + 0.25f * pulse + 0.15f * kickK) * flick)
-    neonWord(tm.measure("24HR", neon), 326f, 18f, 58f, NEON_CYAN, 0.8f + 0.2f * pulse)
-    drawCircle(NEON_WASH, 90f, Offset(300f, 32f), alpha = 0.6f + 0.4f * pulse)                 // wash on the wall
+    neonWord(tm.measure("BODEGA", neon), 258f, 16f, 88f, NEON_PINK, ((0.65f + 0.35f * level + 0.2f * kickK + 0.5f * crashK) * flick).coerceAtMost(1.4f))
+    // the little OPEN sign: its own tube, flickers on the hats
+    drawRoundRect(back(Color(0xFF111018), 0.05f), Offset(352f, 20f), Size(40f, 18f), CornerRadius(4f))
+    drawRoundRect(NEON_CYAN.copy(alpha = 0.35f + 0.4f * hatK + 0.2f * pulse), Offset(352f, 20f), Size(40f, 18f), CornerRadius(4f), style = Stroke(1.5f))
+    neonWord(tm.measure("OPEN", neon), 356f, 22f, 32f, NEON_CYAN, 0.7f + 0.3f * hatK + 0.2f * pulse)
+    drawCircle(NEON_WASH, 90f, Offset(300f, 32f), alpha = (0.5f + 0.3f * pulse + 0.4f * level + 0.6f * crashK).coerceAtMost(1f))   // wash on the wall
+    // dust drifting through the neon's light, catching it on the hats
+    for (i in 0 until 14) {
+        val ph = (now * (0.03f + (i % 5) * 0.008f) + i * 0.137f) % 1f
+        val dx = 236f + ((i * 53) % 130) + sin(now * 0.7f + i) * 6f
+        val dy = 96f - ph * 70f
+        drawCircle(Color.White.copy(alpha = (0.10f + 0.55f * hatK) * sin(PI.toFloat() * ph)), 0.9f + 0.5f * (i % 3), Offset(dx, dy))
+    }
 
     // ---- the power line, with a pair of sneakers slung over it ----
     p.reset(); p.moveTo(l - 10f, 6f); p.quadraticTo(200f, 26f, r + 10f, 4f)
@@ -993,12 +1059,21 @@ private fun DrawScope.street(
         drawRect(back(ASPHALT, 0.2f), Offset(l, curb + 5f), Size(r - l, b - curb - 5f))
         drawOval(back(IRON, 0.1f), Offset(36f, curb + 12f), Size(52f, 12f))                    // manhole
         drawOval(back(CONCRETE_DARK, 0.2f), Offset(36f, curb + 12f), Size(52f, 12f), style = Stroke(1.2f))
+        // a puddle in the gutter holding the neon; the kick ripples it
+        val py = curb + 12f; val pxc = 300f
+        drawOval(Color(0xFF0D0C14), Offset(pxc - 60f, py), Size(120f, 14f))
+        drawOval(NEON_PINK.copy(alpha = 0.18f + 0.25f * level + 0.3f * crashK), Offset(pxc - 40f, py + 3f), Size(52f, 5f))
+        drawOval(NEON_CYAN.copy(alpha = 0.14f + 0.3f * hatK), Offset(pxc + 18f, py + 4f), Size(26f, 4f))
+        if (kickK > 0.03f) for (k in 0..1) {
+            val rr = 8f + (1f - kickK) * 40f + k * 12f
+            drawOval(Color.White.copy(alpha = 0.25f * kickK), Offset(pxc - rr, py + 7f - rr * 0.12f), Size(rr * 2f, rr * 0.24f), style = Stroke(0.8f))
+        }
     }
     // steam rising out of the manhole, drifting up past the curb
     for (k in 0 until 3) {
         val ph = ((now * 0.16f + k / 3f) % 1f)
         val sx = 62f + sin(now * 0.9f + k * 2f) * 8f * ph
-        drawCircle(Color.White.copy(alpha = 0.14f * (1f - ph) * (0.6f + 0.4f * ph)), 7f + 18f * ph, Offset(sx, curb + 14f - 90f * ph))
+        drawCircle(Color.White.copy(alpha = (0.14f + 0.12f * kickK) * (1f - ph) * (0.6f + 0.4f * ph)), 7f + 18f * ph + 4f * kickK, Offset(sx, curb + 14f - 90f * ph))
     }
     // soft shadow under the kit
     drawOval(Color.Black.copy(alpha = 0.28f), Offset(60f, 276f), Size(310f, 16f))
@@ -1020,7 +1095,11 @@ private fun DrawScope.street(
         drawCircle(back(CHROME_DARK, 0.3f), cone, Offset(sx, bbT + 12f), style = Stroke(1.2f))
         drawCircle(back(CHROME, 0.3f), 1.6f + 0.6f * kickK, Offset(sx, bbT + 12f))
     }
-    for (i in 0 until 4) drawRect(lerp(back(Color(0xFF3B3B44), 0.2f), NEON_CYAN, if (i < 1 + (3 * kickK).toInt()) 0.7f else 0f), Offset(cx0 + 15f + i * 3.2f, bbT + 15f), Size(2.2f, 3f))
+    for (i in 0 until 4) drawRect(lerp(back(Color(0xFF3B3B44), 0.2f), NEON_CYAN, if (i < 1 + (3 * maxOf(kickK, level)).toInt()) 0.7f else 0f), Offset(cx0 + 15f + i * 3.2f, bbT + 15f), Size(2.2f, 3f))
+    if (kickK > 0.05f) for (sx in floatArrayOf(cx0 + 8f, cx0 + 34f)) {                      // the woofers push air on the kick
+        val rr = 9f + (1f - kickK) * 16f
+        drawCircle(Color.White.copy(alpha = 0.22f * kickK), rr, Offset(sx, bbT + 12f), style = Stroke(1f))
+    }
 
     // ---- hydrant, sidewalk right ----
     val hx = 388f
@@ -1029,6 +1108,8 @@ private fun DrawScope.street(
     drawOval(back(HYDRANT, 0.1f), Offset(hx - 8f, 256f), Size(16f, 10f))
     drawRect(back(HYDRANT, 0.05f), Offset(hx - 12f, 268f), Size(24f, 5f))
     drawCircle(back(CHROME_DARK, 0.2f), 1.6f, Offset(hx, 256f))
+    // a crash lights the whole corner up for a moment
+    if (crashK > 0.02f) drawRect(NEON_PINK.copy(alpha = 0.06f * crashK), Offset(l, t), Size(r - l, b - t))
 }
 
 /** A wheatpasted poster: paper, a colour block header, a few lines of type, one torn corner. */
@@ -1045,8 +1126,10 @@ private fun DrawScope.poster(x: Float, y: Float, w: Float, h: Float, tilt: Float
 private fun DrawScope.neonWord(t: androidx.compose.ui.text.TextLayoutResult, x: Float, y: Float, w: Float, c: Color, on: Float) {
     val fit = w / max(1f, t.size.width.toFloat())
     withTransform({ translate(x, y); scale(fit, fit, Offset.Zero) }) {
-        drawText(t, color = c.copy(alpha = 0.22f * on), drawStyle = NEON_GLOW)
-        drawText(t, color = lerp(c, Color.White, 0.35f * on).copy(alpha = 0.35f + 0.65f * on))
+        // [on] can run past 1 (a crash): the tube goes white-hot and the glow thickens; alphas stay ≤ 1
+        val o = on.coerceIn(0f, 1f); val hot = (on - 1f).coerceIn(0f, 1f)
+        drawText(t, color = c.copy(alpha = (0.22f * o + 0.25f * hot).coerceAtMost(1f)), drawStyle = NEON_GLOW)
+        drawText(t, color = lerp(c, Color.White, 0.35f * o + 0.5f * hot).copy(alpha = 0.35f + 0.65f * o))
     }
 }
 
