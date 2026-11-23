@@ -54,7 +54,7 @@ data class DisplayProbe(
 )
 
 enum class ScreenRole { SESSION, DECK }
-enum class TopView { SAMPLER, SYNTH, DRUM, SEQ, MIX, VIZ }
+enum class TopView { SAMPLER, SYNTH, DRUM, SEQ, MIX, DUCK, VIZ }
 
 /**
  * A sample load in progress (for the loading card). [opened] = the file was opened and handed to the
@@ -224,6 +224,27 @@ class AppState(private val app: Application) {
             Deck.DRUMS -> { if (topView.value == TopView.SAMPLER || topView.value == TopView.SYNTH) topView.value = TopView.DRUM; groove.seqTrack.intValue = drumTrack.intValue }
             // The STEP deck is the synth's step sequencer (drums have their own grid on DRM).
             Deck.STEP -> { topView.value = TopView.SEQ; groove.seqTrack.intValue = synthTrack.intValue; groove.synthEdit.value = com.thorbox.app.groove.GrooveController.SynthEdit.GRID }
+            else -> Unit
+        }
+    }
+    /** DUCK's ON / OFF (needs a key and something to dip first: says so if not). */
+    fun toggleDuck() {
+        val d = groove.duck.value
+        when {
+            d.source < 0 -> com.thorbox.app.ui.Info.toast("DUCK", "Pick a KEY first: the kick, a track or the BEAT")
+            d.targets == 0 -> com.thorbox.app.ui.Info.toast("DUCK", "Pick what DIPS: the tracks that duck under the key")
+            else -> groove.setDuck { it.copy(enabled = !it.enabled) }
+        }
+    }
+    /** Play the DUCK key once so you can hear (and see) the pump: the drum voice, the sampler's pad 1, or a synth note. */
+    fun auditionDuckKey() {
+        val d = groove.duck.value
+        val t = d.source
+        if (t !in tracks.value.indices) { com.thorbox.app.ui.Info.toast("DUCK", if (t == com.thorbox.model.DuckSettings.BEAT) "BEAT ducks on every quarter note: press ▶" else "Pick a KEY first"); return }
+        when (trackKind(t)) {
+            com.thorbox.model.TrackKind.DRUMS -> com.thorbox.engine.NativeEngine.drumTrigger(t, d.sourceSlot.coerceAtLeast(0), 1f)
+            com.thorbox.model.TrackKind.SAMPLER -> com.thorbox.engine.NativeEngine.noteOn(t * 17, 1f)
+            com.thorbox.model.TrackKind.SYNTH -> { com.thorbox.engine.NativeEngine.synthNoteOn(t, 36, 1f); scope.launch { kotlinx.coroutines.delay(180); com.thorbox.engine.NativeEngine.synthNoteOff(t, 36) } }
             else -> Unit
         }
     }
@@ -550,7 +571,7 @@ class AppState(private val app: Application) {
         groove.restore(groove0, scale0, p.clips,
             p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },
             p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.byName(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
-            p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } })
+            p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } }, p.duck)
 
         val f = p.focus
         fun pick(want: Int, kind: com.thorbox.model.TrackKind) = if (fixed.getOrNull(want)?.kind == kind) want else fixed.indexOfFirst { it.kind == kind }

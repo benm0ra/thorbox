@@ -273,6 +273,37 @@ class InputRouter(private val state: AppState) {
             return true
         }
 
+        if (ctx == PlayCtx.DUCK) {
+            val presets = com.thorbox.model.DuckPresets.all
+            when (e.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (first) {
+                    val i = presets.indexOfFirst { it.name == g.duck.value.preset }
+                    val n = ((if (i < 0) 0 else i) + (if (e.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1) + presets.size) % presets.size
+                    g.setDuck { it.withPreset(presets[n]) }
+                    com.thorbox.app.ui.Info.toast(presets[n].name, presets[n].blurb)
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (down) {
+                    val d = if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP) 0.05f else -0.05f
+                    g.setDuck { it.copy(mix = it.mix + d, preset = "") }
+                }
+                KeyEvent.KEYCODE_BUTTON_A -> if (first) state.auditionDuckKey()
+                KeyEvent.KEYCODE_BUTTON_X -> if (first) {
+                    // next key: each real track in turn, then the BEAT, then off
+                    val order = state.tracks.value.indices.filter { state.trackKind(it) != com.thorbox.model.TrackKind.EMPTY } +
+                        com.thorbox.model.DuckSettings.BEAT + -1
+                    val i = order.indexOf(g.duck.value.source)
+                    val nxt = order[(i + 1) % order.size]
+                    g.setDuck { d -> d.copy(source = nxt, sourceSlot = if (nxt in state.tracks.value.indices && state.trackKind(nxt) == com.thorbox.model.TrackKind.DRUMS) 0 else -1)
+                        .let { if (nxt >= 0 && nxt < 64) it.withTarget(nxt, false) else it } }
+                }
+                KeyEvent.KEYCODE_BUTTON_Y -> if (first) state.toggleDuck()
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
+                KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> Unit
+                else -> return false
+            }
+            return true
+        }
+
         if (ctx == PlayCtx.MIX) {
             val sel = g.mixSelected.intValue          // 0 sampler, 1 synth, 2 drums, 3 = master
             val master = com.thorbox.app.ui.MASTER_STRIP
@@ -396,6 +427,16 @@ class InputRouter(private val state: AppState) {
             val master = com.thorbox.app.ui.MASTER_STRIP
             if (vol != 0f) { if (sel == master) g.setMaster(g.masterDb.floatValue + vol) else g.setChannel(sel) { it.copy(volumeDb = it.volumeDb + vol) } }
             if (pan != 0f && sel < master) g.setChannel(sel) { it.copy(pan = it.pan + pan) }
+            return
+        }
+        if (state.topView.value == TopView.DUCK) {
+            // sticks = four of the knobs: L ◀▶ WEIGHT, L ▲▼ SQUASH, R ◀▶ SNAP, R ▲▼ BOUNCE (stick up = more)
+            val dirs = floatArrayOfAxes()
+            val knobs = com.thorbox.app.ui.DuckKnob.entries
+            for (i in 0 until 4) {
+                val a = dirs[i]
+                if (a != 0f) { val k = knobs[i]; state.groove.setDuck { k.set(it, k.norm(it) + a * abs(a) * dt * 0.85f).copy(preset = "") } }
+            }
             return
         }
         if (state.topView.value == TopView.DRUM) {

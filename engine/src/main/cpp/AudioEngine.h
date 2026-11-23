@@ -15,6 +15,7 @@
 #include "SampleBuffer.h"
 #include "SamplerVoice.h"
 #include "SpscQueue.h"
+#include "Ducker.h"
 #include "Synth.h"
 #include "DrumSynth.h"
 #include "Sequencer.h"
@@ -86,6 +87,10 @@ public:
     // Per-strip peaks (held until read): [2k, 2k+1] = strip k L/R, [16, 17] = master,
     // [18 + k] = strip k sidechain gain (1 = no ducking).
     void getMeters(float* out26);
+    // DUCK (the mix's sidechain compressor): set a duck::Param; telemetry since the last read:
+    // [0] deepest gain reduction dB, [1] reduction right now dB, [2] loudest key (linear), [3] trigger count.
+    bool setDuck(int param, float value);
+    void getDuck(float* out4);
 
     // ---- Transport / groove / mixer (main thread → audio thread) ----
     bool setTempo(float bpm);
@@ -207,7 +212,11 @@ private:
         int scSrc = -1; float scAmount = 0.f, scReleaseMs = 150.f;   // sidechain
         float scEnv = 0.f, scGainMin = 1.f;
     };
-    std::array<float, kStrips> mScKey{};   // per-strip key envelope (pre-fader), shared by all ducked strips
+    std::array<float, kStrips> mScKey{};
+    duck::Ducker mDuck;
+    std::array<float, kChunk> mDuckKey{}, mDuckGain{};
+    std::atomic<float> mDuckGrMax{0.f}, mDuckGrNow{0.f}, mDuckKeyPk{0.f};
+    std::atomic<uint32_t> mDuckTrig{0};   // per-strip key envelope (pre-fader), shared by all ducked strips
     std::array<Strip, kStrips> mStrips{};
     float mMasterPeakL = 0.f, mMasterPeakR = 0.f;
     float mClickPhase = 0.f, mClickEnv = 0.f, mClickFreq = 1500.f;

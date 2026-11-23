@@ -97,6 +97,49 @@ class GrooveController(private val app: AppState) {
     val meters = FloatArray(2 * com.thorbox.model.TRACK_COUNT + 2)
     /** Sidechain gain per track (1 = no ducking), smoothed for display. */
     val scGain = FloatArray(com.thorbox.model.TRACK_COUNT) { 1f }
+
+    // ================= DUCK: the mix's sidechain compressor =================
+    val duck = mutableStateOf(com.thorbox.model.DuckSettings())
+    private val duckBuf = FloatArray(4)
+    /** Telemetry, refreshed every frame: deepest reduction this frame (dB), the key's level (dBFS), triggers so far. */
+    var duckGrDb = 0f; private set
+    var duckKeyDb = -90f; private set
+    var duckTriggers = 0; private set
+    /** The last 3 s of gain reduction (dB), one value per frame, oldest at [duckHead]: the BOUNCE curve. */
+    val duckHistory = FloatArray(180)
+    var duckHead = 0; private set
+
+    fun setDuck(f: (com.thorbox.model.DuckSettings) -> com.thorbox.model.DuckSettings) {
+        val old = duck.value
+        val n = f(old).clamped()
+        if (n == old) return
+        duck.value = n
+        pushDuck(n, old)
+    }
+    /** Send what changed (everything when [old] is null) to the engine. */
+    fun pushDuck(d: com.thorbox.model.DuckSettings, old: com.thorbox.model.DuckSettings? = null) {
+        val P = NativeEngine.DuckParam
+        fun send(id: Int, v: Float, was: Float?) { if (was == null || was != v) NativeEngine.setDuck(id, v) }
+        send(P.SOURCE_SLOT, d.sourceSlot.toFloat(), old?.sourceSlot?.toFloat())
+        send(P.TARGETS, d.targets.toFloat(), old?.targets?.toFloat())
+        send(P.THRESHOLD_DB, d.thresholdDb, old?.thresholdDb)
+        send(P.RATIO, d.ratio, old?.ratio)
+        send(P.ATTACK_MS, d.attackMs, old?.attackMs)
+        send(P.RELEASE_MS, d.releaseMs, old?.releaseMs)
+        send(P.MIX, if (d.enabled) d.mix else 0f, old?.let { if (it.enabled) it.mix else 0f })
+        send(P.MAKEUP_DB, d.makeupDb, old?.makeupDb)
+        send(P.SOURCE, if (d.source == com.thorbox.model.DuckSettings.BEAT) P.BEAT.toFloat() else d.source.toFloat(), old?.source?.let { if (it == com.thorbox.model.DuckSettings.BEAT) P.BEAT.toFloat() else it.toFloat() })
+    }
+    /** A project from before DUCK: its mixer PUMP settings (per-track source + amount) become one ducker. */
+    fun duckFromPump(chans: List<Channel>): com.thorbox.model.DuckSettings? {
+        val pumped = chans.withIndex().filter { it.value.scSource >= 0 && it.value.scAmount > 0f }
+        if (pumped.isEmpty()) return null
+        val src = pumped.first().value.scSource
+        var mask = 0
+        for ((i, c) in pumped) if (c.scSource == src) mask = mask or (1 shl i)
+        return com.thorbox.model.DuckSettings(source = src, sourceSlot = -1, targets = mask, thresholdDb = -30f, ratio = 10f,
+            attackMs = 1f, releaseMs = 150f, mix = pumped.maxOf { it.value.scAmount }, makeupDb = 0f, preset = "FROM PUMP")
+    }
     private val recBuf = DoubleArray(4)
     private val openNotes = HashMap<Int, Pair<Int, Double>>()   // track*128+note → (event tick, abs start tick)
 
@@ -329,12 +372,18 @@ class GrooveController(private val app: AppState) {
     /** A track was added or removed: empty pattern, fresh strip (named after the track), any sidechain on it dropped. */
     /** Opening a project (or starting a new one): replace the whole sequencer / mixer state and resend it. */
     fun restore(g: Groove, s: ScaleSetting, clipList: List<com.thorbox.model.Clip>, channelList: List<Channel>, feelList: List<TrackFeel>,
-                master: Float, lanes: Map<String, List<Automation.Point>>) {
+                master: Float, lanes: Map<String, List<Automation.Point>>, duckSaved: com.thorbox.model.DuckSettings? = null) {
         if (playing.value) togglePlay()
         val n = com.thorbox.model.TRACK_COUNT
         groove.value = g; scale.value = s
         clips.value = List(n) { t -> clipList.getOrNull(t) ?: com.thorbox.model.Clip(com.thorbox.model.ClipId("t$t"), "T${t + 1}", color = t, lengthTicks = 16 * STEP_TICKS) }
-        channels.value = List(n) { t -> channelList.getOrNull(t) ?: Channel("T${t + 1}") }
+        var chans = List(n) { t -> channelList.getOrNull(t) ?: Channel("T${t + 1}") }
+        // DUCK replaces the mixer's per-track PUMP: an older project's PUMP moves over (and stops ducking twice)
+        val migrated = if (duckSaved == null) duckFromPump(chans) else null
+        if (migrated != null || duckSaved != null) chans = chans.map { it.copy(scSource = -1, scAmount = 0f) }
+        channels.value = chans
+        duck.value = (duckSaved ?: migrated ?: com.thorbox.model.DuckSettings()).clamped()
+        pushDuck(duck.value)
         feels.value = List(n) { t -> feelList.getOrNull(t) ?: TrackFeel() }
         masterDb.floatValue = master
         auto.clearAll(); auto.lanes.value = lanes
@@ -350,6 +399,8 @@ class GrooveController(private val app: AppState) {
         list[t] = Channel(name)
         for (k in list.indices) if (list[k].scSource == t) list[k] = list[k].copy(scSource = -1)
         channels.value = list
+        // a reset / removed track leaves DUCK: no longer a target, and no longer the key
+        setDuck { d -> d.withTarget(t, false).let { if (it.source == t) it.copy(source = -1) else it } }
         for (k in list.indices) pushChannel(k)
     }
     /** Rename a strip (mirrors the track name). */
@@ -656,6 +707,11 @@ class GrooveController(private val app: AppState) {
         NativeEngine.meters(meterBuf)
         for (i in meters.indices) meters[i] = maxOf(meterBuf[i], meters[i] * fall)
         for (k in scGain.indices) scGain[k] = minOf(meterBuf[meters.size + k], scGain[k] + (1f - scGain[k]) * 0.2f)
+        NativeEngine.duck(duckBuf)
+        duckGrDb = if (duck.value.on) maxOf(duckBuf[0], duckBuf[1]) else 0f
+        duckKeyDb = if (duckBuf[2] > 1e-5f) 20f * kotlin.math.log10(duckBuf[2]) else -90f
+        duckTriggers = duckBuf[3].toInt()
+        duckHistory[duckHead] = duckGrDb; duckHead = (duckHead + 1) % duckHistory.size
         while (true) {
             val t = NativeEngine.pollRecord(recBuf)
             if (t == 0) break

@@ -103,6 +103,16 @@ object NativeEngine {
     fun setPadParam(pad: Int, param: Int, value: Float) = nativeSetPadParam(pad, param, value)
     /** Fade out every sampler voice on [track] (-1 = all tracks), one-shots included. */
     fun stopPads(track: Int) = nativeStopPads(track)
+    /** DUCK, the mix's sidechain compressor: one [DuckParam] at a time. */
+    fun setDuck(param: Int, value: Float) = nativeSetDuck(param, value)
+    /** DUCK telemetry since the last call: [0] deepest reduction dB, [1] reduction now dB, [2] loudest key (linear), [3] trigger count. */
+    fun duck(out: FloatArray) = nativeGetDuck(out)
+    /** Must match duck::Param in Ducker.h. */
+    object DuckParam {
+        const val SOURCE = 0; const val SOURCE_SLOT = 1; const val TARGETS = 2; const val THRESHOLD_DB = 3; const val RATIO = 4
+        const val ATTACK_MS = 5; const val RELEASE_MS = 6; const val MIX = 7; const val MAKEUP_DB = 8
+        const val BEAT = 99
+    }
     /** Must match the engine's PadParam. */
     object PadParam {
         const val PAN = 0; const val ATTACK_MS = 1; const val DECAY_MS = 2; const val RELEASE_MS = 3; const val CUTOFF = 4
@@ -277,6 +287,8 @@ object NativeEngine {
     private external fun nativeGetWave(sampleId: Int, out: FloatArray): Boolean
     private external fun nativeSetPadParam(pad: Int, param: Int, v: Float): Boolean
     private external fun nativeStopPads(track: Int): Boolean
+    private external fun nativeSetDuck(param: Int, v: Float): Boolean
+    private external fun nativeGetDuck(out: FloatArray)
     private external fun nativeRegionLevels(sampleId: Int, regions: LongArray, out: FloatArray): Boolean
     private external fun nativeGetTransients(sampleId: Int, sens: Float, maxSlices: Int, out: LongArray): Int
     private external fun nativeStretchSample(sampleId: Int, tempo: Double, semis: Double, requestId: Int, cropStart: Long, cropEnd: Long)

@@ -55,6 +55,7 @@ fun TopScreen(state: AppState) {
             HwButton("DRUMS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DRUM, accent = TopView.DRUM.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DRUM) }
             HwButton("STEPS", Modifier.fillMaxWidth().weight(1f), active = view == TopView.SEQ, accent = TopView.SEQ.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.SEQ) }
             HwButton("MIXER", Modifier.fillMaxWidth().weight(1f), active = view == TopView.MIX, accent = TopView.MIX.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.MIX) }
+            HwButton("DUCK", Modifier.fillMaxWidth().weight(1f), active = view == TopView.DUCK, accent = Tb.Key, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) { state.selectTop(TopView.DUCK) }
             HwButton("VISUAL", Modifier.fillMaxWidth().weight(1f), active = view == TopView.VIZ, accent = TopView.VIZ.section.color, minHeight = 28.dp, fontSize = 10, hPad = 2.dp) {
                 if (view == TopView.VIZ) state.exitViz() else state.selectTop(TopView.VIZ)
             }
@@ -75,6 +76,7 @@ fun TopScreen(state: AppState) {
                 TopView.DRUM -> DrumScreen(state)
                 TopView.SEQ -> SeqScreen(state)
                 TopView.MIX -> MixScreen(state)
+                TopView.DUCK -> DuckScreen(state)
                 TopView.VIZ -> VizScreen(state)
             }
             // Holding a step on the STEP deck opens its components here, over any view.

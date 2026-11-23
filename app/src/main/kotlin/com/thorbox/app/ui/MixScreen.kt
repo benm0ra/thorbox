@@ -73,7 +73,7 @@ fun MixScreen(state: AppState) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTag(state, Section.MIXER)
         val n = tracks.count { it.kind != com.thorbox.model.TrackKind.EMPTY }
-        Text("$n TRACK${if (n == 1) "" else "S"} · name = open · ⋯ = PUMP", style = Type.label, maxLines = 1,
+        Text("$n TRACK${if (n == 1) "" else "S"} · name = open · ⋯ = DUCK", style = Type.label, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(String.format(java.util.Locale.US, "MASTER %+.1f dB", g.masterDb.floatValue), style = Type.value, maxLines = 1)
     }
@@ -90,7 +90,7 @@ fun MixScreen(state: AppState) {
                 onSolo = { g.setChannel(i) { it.copy(solo = !it.solo) } },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 onName = { state.selectTrack(i) }, onMenu = { menuFor = i },
-                pump = if (ch.scSource >= 0 && ch.scAmount > 0f) ch.scAmount else 0f, scIdx = i,
+                pump = g.duck.value.let { d -> if (d.on && d.isTarget(i)) d.mix else 0f }, scIdx = i,
             )
         }
         Column(Modifier.width(56.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -175,7 +175,7 @@ fun KindIcon(k: com.thorbox.model.TrackKind, modifier: Modifier) {
     }
 }
 
-/** Strip menu: PUMP (sidechain) source + amount, open in editor, remove. */
+/** Strip menu: DUCK target on/off (and a way to the DUCK page), open in editor, remove. */
 @Composable
 fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val g = state.groove
@@ -190,21 +190,19 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
             HwButton("OPEN", minHeight = 34.dp, fontSize = 12, accent = kindColor(tracks[t].kind), active = true) { state.selectTrack(t); onDone() }
             HwButton("✕", Modifier.width(44.dp), minHeight = 34.dp, fontSize = 14, onClick = onDone)
         }
-        Text("PUMP: duck this track whenever another one hits (classic kick → bass sidechain)", color = Tb.Muted, fontSize = 11.sp)
+        // DUCK (the sidechain page) decides what pumps: here, just whether this track is one of its targets
+        val d = g.duck.value
+        val isKey = d.source == t
+        Text(when {
+            isKey -> "DUCK: this track is the KEY (it makes the others dip)"
+            d.source < 0 -> "DUCK: pick a KEY on the DUCK page (the kick, a track or the beat), then the tracks that dip"
+            else -> "DUCK: dip this track whenever the key hits (kick → sample / bass sidechain)"
+        }, color = Tb.Muted, fontSize = 11.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            HwButton("OFF", minHeight = 40.dp, fontSize = 11, active = ch.scSource < 0, accent = Tb.Muted) { g.setChannel(t) { it.copy(scSource = -1) } }
-            tracks.forEachIndexed { k, tr ->
-                if (k == t || tr.kind == com.thorbox.model.TrackKind.EMPTY) return@forEachIndexed
-                HwButton(tr.name.take(8), minHeight = 40.dp, fontSize = 11, active = ch.scSource == k, accent = kindColor(tr.kind)) {
-                    g.setChannel(t) { it.copy(scSource = k, scAmount = if (it.scAmount <= 0f) 0.6f else it.scAmount) }
-                }
-            }
-        }
-        if (ch.scSource >= 0) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("AMOUNT", color = Tb.Muted, fontSize = 11.sp, fontWeight = FontWeight.Black, modifier = Modifier.width(64.dp))
-            listOf(0.25f, 0.5f, 0.75f, 1f).forEach { a ->
-                HwButton("${(a * 100).toInt()}%", Modifier.weight(1f), minHeight = 40.dp, fontSize = 12, active = kotlin.math.abs(ch.scAmount - a) < 0.01f, accent = Tb.Key) {
-                    g.setChannel(t) { it.copy(scAmount = a) } }
+            HwButton(if (d.isTarget(t)) "DUCKED ✓" else "DUCK THIS TRACK", Modifier.weight(1f), minHeight = 40.dp, fontSize = 12,
+                active = d.isTarget(t), enabled = !isKey, accent = Tb.Key) { g.setDuck { it.withTarget(t, !it.isTarget(t)) } }
+            HwButton("OPEN DUCK PAGE", Modifier.weight(1f), minHeight = 40.dp, fontSize = 12, accent = Tb.Tempo, active = true) {
+                state.selectTop(com.thorbox.app.TopView.DUCK); onDone()
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -204,16 +204,17 @@ public:
         hits[slot]++;
     }
 
-    // Adds into interleaved stereo `out`.
-    void render(float* out, int n) {
+    // Adds into interleaved stereo `out`. [key] (optional): voice [keySlot] alone, mono, added in too
+    // (the DUCK sidechain keys off one drum, e.g. just the kick, not the whole kit).
+    void render(float* out, int n, float* key = nullptr, int keySlot = -1) {
         for (float& p : pkBlock) p = 0.f;
-        if (!bus.active()) { renderVoices(out, n); }
+        if (!bus.active()) { renderVoices(out, n, key, keySlot); }
         else for (int off = 0; off < n; off += kChunk) {
             const int m = std::min(kChunk, n - off);
             bool playing = false;
             for (int s = 0; s < kSlots && !playing; ++s) playing = voices[s][0].on || voices[s][1].on;
             std::fill(scratch.begin(), scratch.begin() + 2 * m, 0.f);
-            renderVoices(scratch.data(), m);
+            renderVoices(scratch.data(), m, key ? key + off : nullptr, keySlot);
             bus.process(scratch.data(), m, mSr, playing);
             for (int i = 0; i < 2 * m; ++i) out[2 * off + i] += scratch[i];
         }
@@ -222,7 +223,7 @@ public:
 
 private:
     static constexpr int kChunk = 256;
-    void renderVoices(float* out, int n) {
+    void renderVoices(float* out, int n, float* key = nullptr, int keySlot = -1) {
         for (int s = 0; s < kSlots; ++s) {
             if (!voices[s][0].on && !voices[s][1].on) continue;          // silent slot: no gain maths
             const SlotParams& sp = slots[s];
@@ -236,6 +237,7 @@ private:
                     const float x = sample(v) * v.fade;
                     v.fade *= v.fadeK;
                     out[2 * i] += x * gl; out[2 * i + 1] += x * gr;
+                    if (key && s == keySlot) key[i] += x * lin;
                     pk = std::max(pk, std::fabs(x));
                     if (v.fade < 1e-4f || (v.amp < 1e-4f && v.nz < 1e-4f && v.t > 0.01f)) { v.on = false; break; }
                 }

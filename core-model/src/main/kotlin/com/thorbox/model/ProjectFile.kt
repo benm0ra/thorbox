@@ -32,6 +32,8 @@ data class ProjectFile(
     /** Per track index, for SAMPLER tracks. */
     val samplers: Map<Int, SamplerDto> = emptyMap(),
     val focus: FocusDto = FocusDto(),
+    /** DUCK (the sidechain page). null = an older project: its mixer PUMP settings are carried over. */
+    val duck: DuckSettings? = null,
 )
 
 @Serializable data class TransportDto(

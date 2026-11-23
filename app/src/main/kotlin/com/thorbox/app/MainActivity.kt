@@ -108,6 +108,12 @@ class MainActivity : ComponentActivity() {
         if (i?.hasExtra("controlmap") == true) state.showControllerMap.value = i.getBooleanExtra("controlmap", false)
         if (i?.hasExtra("padedit") == true) i.getIntExtra("padedit", -1).let { pg -> state.showPadEdit.value = pg >= 0; if (pg >= 0) state.padEditPage.intValue = pg.coerceIn(0, 4) }
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
+        // `--ez duckdemo true`: DUCK keyed off the drum track's kick, the sampler + synth dipping (BOOM BAP POCKET)
+        if (i?.getBooleanExtra("duckdemo", false) == true) state.groove.setDuck {
+            com.thorbox.model.DuckSettings(source = state.drumTrack.intValue, sourceSlot = 0,
+                targets = (1 shl state.samplerTrack.intValue) or (1 shl state.synthTrack.intValue)).withPreset(com.thorbox.model.DuckPresets.all[0])
+        }
+        i?.getStringExtra("duckpreset")?.let { n -> com.thorbox.model.DuckPresets.all.firstOrNull { it.name == n.replace('_', ' ') }?.let { p -> state.groove.setDuck { it.withPreset(p) } } }
         if (i?.hasExtra("toponly") == true) topOnly.value = i.getBooleanExtra("toponly", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()

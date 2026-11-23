@@ -39,6 +39,7 @@ enum class CmdType : uint8_t {
     SetFocus,      // pad = track: its synth feeds the synth telemetry/scope, its pads the pad telemetry
     SetPadParam,   // pad, i0 = PadParam, f0 = value
     StopPads,      // pad = track (-1 = every track): fade out every sampler voice, one-shots too
+    SetDuck,       // i0 = duck::Param, f0 = value
 };
 
 // Per-pad sound settings (the PAD EDIT page). Must match com.thorbox.engine.NativeEngine.PadParam.

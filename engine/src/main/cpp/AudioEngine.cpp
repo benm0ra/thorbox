@@ -249,6 +249,16 @@ bool AudioEngine::setPadParam(int pad, int param, float v) {
     if (pad < 0 || pad >= kMaxPads || param < 0 || param > (int)PadParam::ChokeAll || !std::isfinite(v)) return false;
     return mCmds.push({CmdType::SetPadParam, pad, param, v});
 }
+bool AudioEngine::setDuck(int param, float v) {
+    if (param < 0 || param >= duck::kCount || !std::isfinite(v)) return false;
+    return mCmds.push({CmdType::SetDuck, 0, param, v});
+}
+void AudioEngine::getDuck(float* out) {
+    out[0] = mDuckGrMax.exchange(0.f, std::memory_order_relaxed);
+    out[1] = mDuckGrNow.load(std::memory_order_relaxed);
+    out[2] = mDuckKeyPk.exchange(0.f, std::memory_order_relaxed);
+    out[3] = (float)mDuckTrig.load(std::memory_order_relaxed);
+}
 bool AudioEngine::stopPads(int track) {
     if (track < -1 || track >= kTracks) return false;
     return mCmds.push({CmdType::StopPads, track, 0, 0.f});
@@ -621,6 +631,12 @@ void AudioEngine::handleCommand(const Command& c) {
             }
             break;
         }
+        case CmdType::SetDuck: {
+            const bool was = mDuck.s.active();
+            mDuck.s.set(c.i0, c.f0);
+            if (was && !mDuck.s.active()) mDuck.reset();
+            break;
+        }
         case CmdType::StopPads:
             for (auto& v : mVoices)
                 if (v.active() && !v.releasing() && (c.pad < 0 || v.pad() / kPadsPerTrack == c.pad)) v.release(25.f, sr);
@@ -764,7 +780,9 @@ void AudioEngine::renderSegment(int a, int b, float sr, uint32_t& w) {
             mSynths[t].render(mBus[t].data() + 2 * a, focus ? mSynthScratch.data() + a : nullptr, n);
             scoped |= focus;
         } else if (mTrackType[t] == TrackType::Drums) {
-            mDrums[t].render(mBus[t].data() + 2 * a, n);
+            // DUCK keyed off one drum voice: that voice is also written (mono) into the key
+            const bool tap = mDuck.s.active() && mDuck.s.source == t && mDuck.s.sourceSlot >= 0;
+            mDrums[t].render(mBus[t].data() + 2 * a, n, tap ? mDuckKey.data() + a : nullptr, tap ? mDuck.s.sourceSlot : -1);
         }
     }
     if (!scoped) std::fill(mSynthScratch.begin() + a, mSynthScratch.begin() + b, 0.f);
@@ -786,6 +804,34 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
     for (auto& s : mStrips) anySolo |= s.solo;
     const float coeff = 1.f - std::exp(-1.f / (0.005f * sr));
     const float mcoeff = 1.f - std::exp(-1.f / (0.01f * sr));
+    // DUCK: one key (a track, one drum voice, or the beat) ducks every target track. The key is read
+    // from the raw buses before anything is turned down, so it never ducks itself into silence.
+    if (mDuck.s.active()) {
+        const duck::Settings& d = mDuck.s;
+        const bool beat = d.source == duck::kBeat;
+        const bool slotKey = !beat && d.source < kTracks && d.sourceSlot >= 0 && mTrackType[d.source] == TrackType::Drums;
+        if (beat) {
+            const bool run = mSeq.playing();
+            for (int i = 0; i < n; ++i) mDuckKey[i] = run ? duck::beatPulse(tick + i * tps, seq::kPpqn, sr, tps) : 0.f;
+        } else if (!slotKey && d.source < kTracks) {
+            const float* key = mBus[d.source].data();
+            for (int i = 0; i < n; ++i) mDuckKey[i] = std::max(std::fabs(key[2 * i]), std::fabs(key[2 * i + 1]));
+        }
+        mDuck.process(mDuckKey.data(), n, sr, mDuckGain.data());
+        const float makeup = std::pow(10.f, d.makeupDb / 20.f);
+        for (int k = 0; k < kStrips; ++k) {
+            if (!(d.targets & (1u << k))) continue;
+            if (!beat && !slotKey && k == d.source) continue;                 // a whole track never ducks itself
+            float* bus = mBus[k].data();
+            float gmin = mStrips[k].scGainMin;
+            for (int i = 0; i < n; ++i) {
+                const float g = mDuckGain[i];
+                bus[2 * i] *= g; bus[2 * i + 1] *= g;
+                gmin = std::min(gmin, g / makeup);                             // the mixer's PUMP bar: reduction only
+            }
+            mStrips[k].scGainMin = gmin;
+        }
+    }
     // Sidechain ("pump"): each ducked strip follows its source strip's PRE-fader level (instant
     // attack, release ms) and turns the gain down by up to `amount`. Keys are read from the raw
     // buses before any ducking, so ducking order never matters.
@@ -912,6 +958,7 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
         const double tps = mSeq.ticksPerSample(sr);
         const int nf = mSeq.process(len, sr, mFires.data(), (int)mFires.size());
         for (auto& b : mBus) std::fill(b.begin(), b.begin() + 2 * len, 0.f);
+        std::fill(mDuckKey.begin(), mDuckKey.begin() + len, 0.f);
         std::fill(mClickBus.begin(), mClickBus.begin() + 2 * len, 0.f);
 
         // Sample-accurate: render up to each event, apply it, continue.
@@ -951,6 +998,10 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
         while (gr < cur && !mScGain[k].compare_exchange_weak(cur, gr, std::memory_order_relaxed)) {}
     }
     atomicMax(mMeters[2 * kStrips], mMasterPeakL); atomicMax(mMeters[2 * kStrips + 1], mMasterPeakR);
+    atomicMax(mDuckGrMax, mDuck.grMax); atomicMax(mDuckKeyPk, mDuck.keyPeak);
+    mDuck.grMax = 0.f; mDuck.keyPeak = 0.f;
+    mDuckGrNow.store(mDuck.s.active() ? mDuck.grDb() : 0.f, std::memory_order_relaxed);
+    mDuckTrig.store(mDuck.triggers, std::memory_order_relaxed);
     {
         uint32_t dm = 0;
         for (int t = 0; t < kTracks; ++t) {

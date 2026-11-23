@@ -264,6 +264,29 @@ int main() {
         bool finite = true; for (float v : click) finite &= std::isfinite(v);
         CHECK(finite, "all output finite");
     }   // destructor deletes live patterns (ASan: no leaks)
+    {   // DUCK: the kick alone (drum voice 0 on track 2) ducks a held synth note (track 1); the snare doesn't
+        AudioEngine e;
+        e.setTrackType(1, 2); e.setTrackType(2, 3);          // track 1 synth, track 2 drums
+        e.setChannel(2, 2, 1.f); e.setChannel(1, 2, 0.f);       // drums muted (they still key), synth audible
+        e.synthParam(1, synth::AmpS, 1.f); e.synthParam(1, synth::AmpD, 10.f);   // full sustain: a steady level
+        e.synthNoteOn(1, 60, 1.f); render(e, 9600);
+        const double base = rms(render(e, 2400), 0);
+        e.setDuck(duck::Source, 2); e.setDuck(duck::SourceSlot, 0); e.setDuck(duck::Targets, 1 << 1);
+        e.setDuck(duck::ThresholdDb, -30.f); e.setDuck(duck::Ratio, 20.f); e.setDuck(duck::AttackMs, 0.5f);
+        e.setDuck(duck::ReleaseMs, 150.f); e.setDuck(duck::Mix, 1.f);
+        render(e, 256); float dk[4]; e.getDuck(dk);
+        e.drumTrigger(2, 0, 1.f); const double ducked = rms(render(e, 2400), 0); e.getDuck(dk);
+        CHECK(base > 0.01 && ducked < base * 0.5 && dk[0] > 6.f && dk[3] >= 1.f,
+              "DUCK: the kick pulls the synth down (%.3f → %.3f, %.1f dB, %d triggers)", base, ducked, dk[0], (int)dk[3]);
+        // (the default patch's level drifts as its oscillators beat, so recovery is read from the ducker itself)
+        render(e, 48000); e.getDuck(dk); render(e, 2400); e.getDuck(dk);
+        CHECK(dk[0] < 0.1f && dk[1] < 0.1f, "DUCK: back up after the release (%.2f dB left)", dk[1]);
+        e.drumTrigger(2, 1, 1.f); render(e, 4800); e.getDuck(dk);
+        CHECK(dk[0] < 0.1f, "DUCK keyed off the kick ignores the snare (%.2f dB)", dk[0]);
+        e.setDuck(duck::Source, duck::kBeat); e.setPlaying(true); render(e, 48000); e.getDuck(dk);
+        CHECK(dk[0] > 6.f, "DUCK on the ghost BEAT pumps with the transport (%.1f dB)", dk[0]);
+        CHECK(!e.setDuck(duck::kCount, 0.f) && !e.setDuck(-1, 0.f), "bad DUCK params rejected");
+    }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

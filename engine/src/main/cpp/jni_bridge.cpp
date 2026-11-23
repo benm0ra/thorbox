@@ -111,6 +111,15 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadParam)(JNIEnv*, jobject, jint pad,
 JNIEXPORT jboolean JNICALL JNI_FN(nativeStopPads)(JNIEnv*, jobject, jint track) {
     return gEngine && gEngine->stopPads(track);
 }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetDuck)(JNIEnv*, jobject, jint param, jfloat v) {
+    return gEngine && finite(v) && gEngine->setDuck(param, v);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeGetDuck)(JNIEnv* env, jobject, jfloatArray out) {
+    if (!gEngine || !out || env->GetArrayLength(out) < 4) return;
+    float tmp[4];
+    gEngine->getDuck(tmp);
+    env->SetFloatArrayRegion(out, 0, 4, tmp);
+}
 // Safe from any thread (reads an immutable buffer).
 JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sampleId, jfloat sens, jint maxSlices, jlongArray out) {
     if (!gEngine || !out || !finite(sens) || maxSlices < 1 || maxSlices > 64) return 0;

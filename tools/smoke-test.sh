@@ -144,6 +144,13 @@ shots() {
   done
   adb shell am start -n $PKG/$ACT --es theme pastel --es view SYNTH --es synth E-PIANO >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-synth-pastel-keys.png"
   adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-drums-pastel.png"
+  # DUCK: off (nothing picked yet), then keyed off the kick and playing, in pastel and genesis, several frames (the rat pumps)
+  adb shell am start -n $PKG/$ACT --es view DUCK >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-duck-off.png"
+  adb shell am start -n $PKG/$ACT --ez duckdemo true --ez play true >/dev/null; sleep 2
+  for i in 1 2 3 4; do adb exec-out screencap -p > "$d/top-duck-pastel-$i.png"; sleep 0.17; done
+  adb shell am start -n $PKG/$ACT --es theme genesis --es duckpreset HEAVY_DILLA_PUMP >/dev/null; sleep 2
+  for i in 1 2 3 4; do adb exec-out screencap -p > "$d/top-duck-$i.png"; sleep 0.17; done
+  adb shell am start -n $PKG/$ACT --es theme pastel >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view MIX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-mix-pastel.png"
   adb shell am start -n $PKG/$ACT --ez toponly false --es theme genesis >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --ez play false --es synth INIT >/dev/null; sleep 1

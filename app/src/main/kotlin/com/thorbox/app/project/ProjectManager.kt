@@ -317,6 +317,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
             automation = g.auto.lanes.value.mapValues { (_, pts) -> pts.map { AutoPointDto(it.tick, it.value) } },
             synths = synths, kits = kits, samplers = samplers,
             focus = FocusDto(app.samplerTrack.intValue, app.synthTrack.intValue, app.drumTrack.intValue, g.seqTrack.intValue),
+            duck = g.duck.value,
         )
     }
 
