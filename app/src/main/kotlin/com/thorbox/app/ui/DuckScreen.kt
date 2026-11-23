@@ -311,7 +311,8 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
             if (since in 0f..0.45f && d.on) {
                 val a = 1f - since / 0.45f
                 val t = tm.measure("BOOM", boom)
-                withTransform({ translate(158f, 66f - since * 24f); scale(0.9f + since, 0.9f + since, Offset.Zero) }) {
+                // over the dark tunnel mouth, where the yellow reads in every theme
+                withTransform({ translate(234f, 84f - since * 18f); scale(0.9f + since, 0.9f + since, Offset.Zero) }) {
                     drawText(t, topLeft = Offset(-t.size.width / 2f, 0f), alpha = a)
                 }
             }
