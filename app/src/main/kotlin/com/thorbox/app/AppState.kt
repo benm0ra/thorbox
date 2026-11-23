@@ -134,6 +134,9 @@ class AppState(private val app: Application) {
     val settingsTab = androidx.compose.runtime.mutableIntStateOf(0)
     /** The controller map pinned open from SETTINGS (normally it shows while SELECT is held). B closes it. */
     val showControllerMap = mutableStateOf(false)
+    /** The sampler's PAD EDIT page (the selected pad's sound, mute group, play mode…), over the chop screen. */
+    val showPadEdit = mutableStateOf(false)
+    val padEditPage = androidx.compose.runtime.mutableIntStateOf(0)
 
     // ---- Settings (persisted) ----
     /** Master meter strip across the top screen. */
@@ -559,7 +562,8 @@ class AppState(private val app: Application) {
                     sm.pendingRestore = com.thorbox.app.sampler.SamplerController.Restore(
                         regions = sd.regions.chunked(2).filter { it.size == 2 }.map { com.thorbox.app.sampler.Region(it[0], it[1]) },
                         pads = sd.pads.map { pd -> com.thorbox.app.sampler.PadSlot(pd.pitch, pd.fine,
-                            runCatching { com.thorbox.model.PlayMode.valueOf(pd.mode) }.getOrDefault(com.thorbox.model.PlayMode.ONE_SHOT), pd.gainDb, pd.warp) },
+                            runCatching { com.thorbox.model.PlayMode.valueOf(pd.mode) }.getOrDefault(com.thorbox.model.PlayMode.ONE_SHOT), pd.gainDb, pd.warp,
+                            pd.pan, pd.attackMs, pd.decayMs, pd.releaseMs, pd.cutoff, pd.reso, pd.reverse, pd.muteGroup, pd.muteA, pd.muteB, pd.poly, pd.velSens) },
                         chopMode = runCatching { com.thorbox.app.sampler.ChopMode.valueOf(sd.chopMode) }.getOrDefault(com.thorbox.app.sampler.ChopMode.AUTO),
                         sensitivity = sd.sensitivity, equalCount = sd.equalCount, keyMatch = sd.keyMatch,
                         stretch = runCatching { com.thorbox.app.sampler.StretchMode.valueOf(sd.stretch) }
@@ -903,7 +907,7 @@ class AppState(private val app: Application) {
                     else "$name · $what")
                 val sid = e.sampleId
                 scope.launch {
-                    val pk = withContext(Dispatchers.Default) { NativeEngine.peaks(sid, 2048) }
+                    val pk = withContext(Dispatchers.Default) { NativeEngine.wave(sid, 2048) }    // [min, max, rms] per column
                     if (target.info?.engineId == sid) target.peaks = pk
                     if (_sample.value?.engineId == sid) _peaks.value = pk
                 }

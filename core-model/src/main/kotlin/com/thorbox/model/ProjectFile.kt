@@ -45,7 +45,13 @@ data class ProjectFile(
 )
 @Serializable data class FeelDto(val template: String = "STRAIGHT", val amount: Float = 1f)
 @Serializable data class AutoPointDto(val tick: Int, val value: Float)
-@Serializable data class PadDto(val pitch: Int = 0, val fine: Int = 0, val mode: String = "ONE_SHOT", val gainDb: Float = 0f, val warp: Boolean = false)
+@Serializable data class PadDto(
+    val pitch: Int = 0, val fine: Int = 0, val mode: String = "ONE_SHOT", val gainDb: Float = 0f, val warp: Boolean = false,
+    // PAD EDIT (added later: defaults = how pads always sounded, so older projects open unchanged)
+    val pan: Float = 0f, val attackMs: Float = 0f, val decayMs: Float = 0f, val releaseMs: Float = 15f,
+    val cutoff: Float = 1f, val reso: Float = 0f, val reverse: Boolean = false,
+    val muteGroup: Int = 0, val muteA: Int = -1, val muteB: Int = -1, val poly: Boolean = false, val velSens: Float = 1f,
+)
 @Serializable data class SamplerDto(
     /** File name inside the project folder (samples/…), or null when the track has no sample. */
     val file: String? = null,

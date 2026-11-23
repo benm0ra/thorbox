@@ -15,9 +15,19 @@ import kotlinx.coroutines.withContext
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/** One of the 16 pads: which slice it plays and how. */
-/** [warp]: pitch changes keep the slice's length and timing (rendered per pad) instead of speeding it up like a turntable. */
-data class PadSlot(val pitch: Int = 0, val fine: Int = 0, val mode: PlayMode = PlayMode.ONE_SHOT, val gainDb: Float = 0f, val warp: Boolean = false)
+/**
+ * One of the 16 pads: which slice it plays and how.
+ * [warp]: pitch changes keep the slice's length and timing (rendered per pad) instead of speeding it up like a turntable.
+ * The PAD EDIT page: [pan] −1…1 · [attackMs] / [decayMs] (0 = hold) / [releaseMs] · low-pass [cutoff] 0…1 (1 = off) and
+ * [reso] · [reverse] · [muteGroup] 0 off / 1…16 (pads in a group cut each other: open/closed hat) · [muteA]/[muteB]
+ * pads this one cuts (-1 none) · [poly] hits overlap instead of retriggering · [velSens] 0…1 how much velocity sets level.
+ */
+data class PadSlot(
+    val pitch: Int = 0, val fine: Int = 0, val mode: PlayMode = PlayMode.ONE_SHOT, val gainDb: Float = 0f, val warp: Boolean = false,
+    val pan: Float = 0f, val attackMs: Float = 0f, val decayMs: Float = 0f, val releaseMs: Float = 15f,
+    val cutoff: Float = 1f, val reso: Float = 0f, val reverse: Boolean = false,
+    val muteGroup: Int = 0, val muteA: Int = -1, val muteB: Int = -1, val poly: Boolean = false, val velSens: Float = 1f,
+)
 
 /**
  * How the whole sample is time-stretched (pitch kept): OFF, SYNC (follow the project tempo),
@@ -380,13 +390,40 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     private fun pushRegions() { for (p in 0 until ChopLogic.PADS) assignPad(p); renderWarps() }
 
     private fun pushPadModes(i: Int, s: PadSlot) {
-        NativeEngine.setPlayMode(gp(i), NativeEngine.PlayMode.entries[s.mode.ordinal])
-        NativeEngine.setPadGain(gp(i), 10f.pow(s.gainDb / 20f))
+        val g = gp(i)
+        NativeEngine.setPlayMode(g, NativeEngine.PlayMode.entries[s.mode.ordinal])
+        NativeEngine.setPadGain(g, 10f.pow(s.gainDb / 20f))
+        val P = NativeEngine.PadParam
+        NativeEngine.setPadParam(g, P.PAN, s.pan)
+        NativeEngine.setPadParam(g, P.ATTACK_MS, s.attackMs.coerceAtLeast(1f))
+        NativeEngine.setPadParam(g, P.DECAY_MS, s.decayMs)
+        NativeEngine.setPadParam(g, P.RELEASE_MS, s.releaseMs)
+        NativeEngine.setPadParam(g, P.CUTOFF, s.cutoff)
+        NativeEngine.setPadParam(g, P.RESO, s.reso)
+        NativeEngine.setPadParam(g, P.REVERSE, if (s.reverse) 1f else 0f)
+        NativeEngine.setPadParam(g, P.MUTE_GROUP, s.muteGroup.toFloat())
+        NativeEngine.setPadParam(g, P.MUTE_A, s.muteA.toFloat())
+        NativeEngine.setPadParam(g, P.MUTE_B, s.muteB.toFloat())
+        NativeEngine.setPadParam(g, P.POLY, if (s.poly) 1f else 0f)
+        NativeEngine.setPadParam(g, P.VEL_SENS, s.velSens)
+    }
+
+    /** Silence this track's pads now (one-shots too), and the chop preview. */
+    fun stopAll() {
+        if (lazyRunning.value) stopLazy()
+        NativeEngine.noteOff(preview)
+        NativeEngine.stopPads(track)
     }
 
     fun updatePad(i: Int, f: (PadSlot) -> PadSlot) {
         val list = pads.value.toMutableList()
-        val n = f(list[i]).let { it.copy(pitch = it.pitch.coerceIn(-24, 24), fine = it.fine.coerceIn(-100, 100), gainDb = it.gainDb.coerceIn(-24f, 24f)) }
+        val n = f(list[i]).let {
+            it.copy(pitch = it.pitch.coerceIn(-24, 24), fine = it.fine.coerceIn(-100, 100), gainDb = it.gainDb.coerceIn(-24f, 24f),
+                pan = it.pan.coerceIn(-1f, 1f), attackMs = it.attackMs.coerceIn(0f, 5000f), decayMs = it.decayMs.coerceIn(0f, 20000f),
+                releaseMs = it.releaseMs.coerceIn(1f, 5000f), cutoff = it.cutoff.coerceIn(0f, 1f), reso = it.reso.coerceIn(0f, 1f),
+                muteGroup = it.muteGroup.coerceIn(0, 16), muteA = it.muteA.coerceIn(-1, 15), muteB = it.muteB.coerceIn(-1, 15),
+                velSens = it.velSens.coerceIn(0f, 1f))
+        }
         if (n == list[i]) return
         val old = list[i]
         list[i] = n; pads.value = list

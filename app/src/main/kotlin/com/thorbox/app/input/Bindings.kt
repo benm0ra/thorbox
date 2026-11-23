@@ -68,7 +68,7 @@ object Bindings {
     fun context(c: PlayCtx): List<Pair<String, String>> = when (c) {
         PlayCtx.SAMPLER -> listOf(
             "D-pad" to "choose pad", "A · R1" to "play pad", "L-stick ◀▶" to "pitch ±1",
-            "L-stick ▲▼" to "pitch ±12", "X" to "play mode", "Y" to "reset pitch")
+            "L-stick ▲▼" to "pitch ±12", "X" to "play mode", "Y" to "reset pitch", "L3" to "pad edit", "R3" to "stop sound")
         PlayCtx.SYNTH -> listOf(
             "sticks" to "the 4 knobs", "◀ ▶" to "page", "▲ ▼" to "octave",
             "A · R1" to "play root", "X" to "chord mode", "Y" to "reset page", "L3 · R3" to "next preset · DICE")

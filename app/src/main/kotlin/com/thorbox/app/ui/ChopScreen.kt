@@ -71,6 +71,8 @@ fun ChopScreen(state: AppState) {
             }
             // a load in progress: the loading card over the sample side (CANCEL is reachable by touch and NAV)
             state.loadJob.value?.let { LoadingCard(state, it, Modifier.align(Alignment.Center)) }
+            // PAD EDIT (the selected pad's sound / mute group / play mode), over the chop side
+            if (state.showPadEdit.value) PadEditSheet(state, onClose = { state.showPadEdit.value = false }, modifier = Modifier.fillMaxSize())
         }
     }
 }
@@ -161,6 +163,10 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     val path = remember { Path() }
     val tm = rememberTextMeasurer(cacheSize = 64)
     val tab = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 10.sp, fontWeight = FontWeight.Black) }
+    val ruler = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }
+    val barStyle = remember(Tb.palette) { TextStyle(color = Tb.Tempo.copy(alpha = 0.8f), fontSize = 8.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Black) }
+    val infoStyle = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold) }
+    val info by state.sample.collectAsState()
     val tel = state.telemetry
     val grabPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
 
@@ -191,43 +197,134 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                 true
             }
             .drawWithCache {
-                // The waveform path is rebuilt only when the peaks or the size change, not at 120 Hz.
+                // Everything but the playhead is built here, once per (peaks, slices, selection, size, theme):
+                // the 120 Hz playhead only re-draws.
                 val w = size.width; val h = size.height
+                val rulerH = 18.dp.toPx()
+                val wh = h - rulerH
+                val mid = wh / 2f; val amp = wh * 0.44f
                 val p = peaks
-                path.reset()
-                if (p != null) {
-                    val buckets = p.size / 2; val cols = w.toInt().coerceAtLeast(1); val mid = h / 2f; val amp = h * 0.42f
+                val nReg = regions.size
+                // one outline (peaks) + one body (RMS, what you hear as loudness) per slice, coloured like its pad;
+                // index nReg = audio outside every slice
+                val outer = Array(nReg + 1) { Path() }; val inner = Array(nReg + 1) { Path() }
+                val clipMarks = Path()
+                var peakAbs = 0f
+                if (p != null && p.size >= 3 && frames > 0) {
+                    val buckets = p.size / 3; val cols = w.toInt().coerceAtLeast(1)
+                    var ri = 0
                     for (x in 0 until cols) {
                         val b0 = x * buckets / cols; val b1 = ((x + 1) * buckets / cols).coerceIn(b0 + 1, buckets)
-                        var mn = 0f; var mx = 0f
-                        for (bk in b0 until b1) { mn = minOf(mn, p[2 * bk]); mx = maxOf(mx, p[2 * bk + 1]) }
-                        path.moveTo(x + 0.5f, mid - mx * amp); path.lineTo(x + 0.5f, mid - mn * amp + 1f)
+                        var mn = 0f; var mx = 0f; var sq = 0f
+                        for (bk in b0 until b1) { mn = minOf(mn, p[3 * bk]); mx = maxOf(mx, p[3 * bk + 1]); sq += p[3 * bk + 2] * p[3 * bk + 2] }
+                        val rms = kotlin.math.sqrt(sq / (b1 - b0))
+                        val f = ((x + 0.5f) / w * frames).toLong()
+                        while (ri < nReg - 1 && f >= regions[ri + 1].start) ri++
+                        val idx = if (nReg == 0 || f < regions[ri].start || f >= regions[ri].end) nReg else ri
+                        val xx = x + 0.5f
+                        outer[idx].moveTo(xx, mid - mx * amp); outer[idx].lineTo(xx, mid - mn * amp + 1f)
+                        inner[idx].moveTo(xx, mid - rms * amp); inner[idx].lineTo(xx, mid + rms * amp + 1f)
+                        if (mx >= 0.989f || mn <= -0.989f) clipMarks.addRect(androidx.compose.ui.geometry.Rect(x.toFloat(), 0f, x + 1f, 4.dp.toPx()))
+                        peakAbs = maxOf(peakAbs, mx, -mn)
                     }
                 }
                 val waveStroke = Stroke(1f)
                 val tabLabels = List(16) { tm.measure("${it + 1}", tab) }      // measured once per size/theme, not per frame
                 val tabSize = Size(18.dp.toPx(), 15.dp.toPx()); val tabR = CornerRadius(3.dp.toPx())
                 val thin = 2.dp.toPx(); val thick = 3.dp.toPx(); val phW = 2.5f.dp.toPx()
+                // time ruler: the largest step that keeps labels ≥ 64 dp apart
+                val sr = (info?.sampleRate ?: 44100).coerceAtLeast(1)
+                val secs = frames.toDouble() / sr
+                val stepS = doubleArrayOf(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0)
+                    .firstOrNull { secs > 0 && it / secs * w >= 64.dp.toPx() } ?: 300.0
+                val ticks = ArrayList<Pair<Float, androidx.compose.ui.text.TextLayoutResult>>()
+                if (secs > 0) { var t = 0.0; while (t <= secs) { ticks += (t / secs * w).toFloat() to tm.measure(fmtTime(t, stepS), ruler); t += stepS } }
+                // beat / bar grid from the detected tempo (bars every 4 beats from the start)
+                val bpm = info?.bpm
+                val beatPx = if (bpm != null && bpm > 0f && frames > 0) (60.0 / bpm * sr / frames * w).toFloat() else 0f
+                val barEvery = generateSequence(1) { it * 2 }.first { beatPx * 4 * it >= 30.dp.toPx() || it >= 64 }
+                val barLabels = if (beatPx > 0f) List(((w / (beatPx * 4)).toInt() + 2).coerceAtMost(400)) { if (it % barEvery == 0) tm.measure("${it + 1}", barStyle) else null } else emptyList()
+                // the readout: length · rate · channels · peak
+                val infoText = if (frames > 0) tm.measure(buildString {
+                    append(fmtTime(secs, 0.01)); append(" · ").append(String.format(Locale.US, "%.1f kHz", sr / 1000f))
+                    append(if ((info?.channels ?: 1) > 1) " stereo" else " mono")
+                    if (peakAbs > 0f) append(String.format(Locale.US, " · peak %.1f dB", 20f * kotlin.math.log10(peakAbs)))
+                }, infoStyle) else null
+                val selR = regions.getOrNull(selected)
+                val sliceText = if (selR != null && frames > 0) tm.measure(String.format(Locale.US, "PAD %d · %s → %s · %.2f s", selected + 1,
+                    fmtTime(selR.start.toDouble() / sr, 0.01), fmtTime(selR.end.toDouble() / sr, 0.01), (selR.end - selR.start).toDouble() / sr), infoStyle) else null
+                val chipPad = 5.dp.toPx(); val chipR = CornerRadius(4.dp.toPx())
                 onDrawBehind {
-                    if (frames <= 0 || regions.isEmpty()) return@onDrawBehind
+                    if (frames <= 0) return@onDrawBehind
+                    // slice tints
                     regions.forEachIndexed { i, r ->
                         val x0 = r.start.toFloat() / frames * w; val x1 = r.end.toFloat() / frames * w
-                        drawRect(Tb.Pads[i % Tb.Pads.size].copy(alpha = if (i == selected) 0.30f else 0.10f), Offset(x0, 0f), Size(x1 - x0, h))
+                        drawRect(Tb.Pads[i % Tb.Pads.size].copy(alpha = if (i == selected) 0.16f else 0.05f), Offset(x0, 0f), Size(x1 - x0, wh))
                     }
-                    drawPath(path, Tb.Text.copy(alpha = 0.85f), style = waveStroke)
+                    // beat + bar grid
+                    if (beatPx >= 7.dp.toPx() || beatPx * 4 >= 7.dp.toPx()) {
+                        var k = 0; var x = 0f
+                        while (x <= w) {
+                            val bar = k % 4 == 0
+                            if (bar || beatPx >= 7.dp.toPx()) drawLine(Tb.Text.copy(alpha = if (bar) 0.13f else 0.05f), Offset(x, 0f), Offset(x, wh), 1f)
+                            k++; x = k * beatPx
+                        }
+                    }
+                    drawLine(Tb.Line, Offset(0f, mid), Offset(w, mid), 1f)
+                    // the waveform: peaks as a thin outline, RMS as the solid body, each slice in its pad's colour
+                    for (i in 0..nReg) {
+                        val c = if (i == nReg) Tb.Text else Tb.Pads[i % Tb.Pads.size]
+                        val on = i == selected
+                        drawPath(outer[i], (if (i == nReg) c.copy(alpha = 0.35f) else lerpC(c, Tb.Text, 0.25f)).copy(alpha = if (on) 0.65f else 0.38f), style = waveStroke)
+                        drawPath(inner[i], c.copy(alpha = if (on || i == nReg) 1f else 0.72f), style = waveStroke)
+                    }
+                    drawPath(clipMarks, Tb.Warn)                                    // clipping: red ticks along the top
                     regions.forEachIndexed { i, r ->
                         val x = r.start.toFloat() / frames * w
                         val c = Tb.Pads[i % Tb.Pads.size]
-                        drawLine(c, Offset(x, 0f), Offset(x, h), if (i == selected) thick else thin)
+                        drawLine(c, Offset(x, 0f), Offset(x, wh), if (i == selected) thick else thin)
                         // Keep the number tab on screen: a slice starting near the right edge used to
                         // ask drawText for a negative width and crash.
                         val tx = x.coerceAtMost(w - tabSize.width).coerceAtLeast(0f)
                         drawRoundRect(c, Offset(tx, 0f), tabSize, tabR)
                         drawText(tabLabels[i % tabLabels.size], topLeft = Offset(tx + 3.dp.toPx(), 1.dp.toPx()))
                     }
+                    // ruler: time ticks + labels, bar numbers on the beat grid
+                    drawRect(Tb.Void.copy(alpha = 0.55f), Offset(0f, wh), Size(w, rulerH))
+                    drawLine(Tb.Line, Offset(0f, wh), Offset(w, wh), 1f)
+                    for ((x, lay) in ticks) {
+                        drawLine(Tb.Muted, Offset(x, wh), Offset(x, wh + 5.dp.toPx()), 1f)
+                        val lx = (x + 3.dp.toPx()).coerceAtMost(w - lay.size.width - 2f)
+                        if (lx >= 0f) drawText(lay, topLeft = Offset(lx, wh + rulerH - lay.size.height - 1f))
+                    }
+                    barLabels.forEachIndexed { k, lay ->
+                        if (lay == null) return@forEachIndexed
+                        val x = k * 4 * beatPx
+                        if (x + lay.size.width < w) drawText(lay, topLeft = Offset(x + 2.dp.toPx(), wh + 1f))
+                    }
+                    // readouts: the sample (top-right, under the tabs), the selected slice (bottom-left)
+                    infoText?.let { t ->
+                        val o = Offset(w - t.size.width - chipPad * 3, 20.dp.toPx())
+                        drawRoundRect(Tb.Void.copy(alpha = 0.7f), o - Offset(chipPad, 2f), Size(t.size.width + 2 * chipPad, t.size.height + 4f), chipR)
+                        drawText(t, topLeft = o)
+                    }
+                    sliceText?.let { t ->
+                        val c = Tb.Pads[selected % Tb.Pads.size]
+                        val o = Offset(chipPad * 2, wh - t.size.height - 6.dp.toPx())
+                        drawRoundRect(Tb.Void.copy(alpha = 0.7f), o - Offset(chipPad, 2f), Size(t.size.width + 2 * chipPad, t.size.height + 4f), chipR)
+                        drawText(t, color = c, topLeft = o)
+                    }
                     tel.frame.longValue                    // only the playhead needs every frame
                     val ph = state.playhead.floatValue
-                    if (ph in 0f..1f) drawLine(Tb.Text, Offset(ph * w, 0f), Offset(ph * w, h), phW)
+                    if (ph in 0f..1f) {
+                        val x = ph * w
+                        drawLine(Tb.Text.copy(alpha = 0.18f), Offset(x, 0f), Offset(x, wh), phW * 4f)     // glow
+                        drawLine(Tb.Text, Offset(x, 0f), Offset(x, wh), phW)
+                        val t = tm.measure(fmtTime(ph * secs, 0.1), infoStyle)
+                        val lx = (x + 4.dp.toPx()).coerceAtMost(w - t.size.width - 4f)
+                        drawRoundRect(Tb.Text, Offset(lx - 3f, wh - t.size.height - 26.dp.toPx()), Size(t.size.width + 6f, t.size.height + 2f), chipR)
+                        drawText(t, color = Tb.Black, topLeft = Offset(lx, wh - t.size.height - 25.dp.toPx()))
+                    }
                 }
             }
     ) {
@@ -268,6 +365,9 @@ private fun ChopControls(state: AppState) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
         HoldButton("▶", false, Tb.Good, Modifier.width(52.dp).fillMaxHeight()) { sm.togglePreview(it) }
+        // STOP: lights while anything on this sampler is sounding (one-shots, loops, the preview); cuts it all
+        val sounding by remember { androidx.compose.runtime.derivedStateOf { state.playhead.floatValue >= 0f } }
+        HwButton("■", Modifier.width(52.dp).fillMaxHeight(), active = sounding, accent = Tb.Warn, fontSize = 16) { sm.stopAll() }
     }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     // Wide (the Thor's top screen): one row. Narrow (single-screen phones / emulator): pitch on one
@@ -294,8 +394,10 @@ private fun ChopControls(state: AppState) {
             state.lastInput.value = sm.toggleNormalize()
         }
         if (pad.gainDb != 0f) Text(String.format(Locale.US, "%+.1f dB", pad.gainDb), color = Tb.Good, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        if (!narrow) { Box(Modifier.weight(1f)); Text("PLAY", style = Tb.Label, color = Tb.Muted) }
-        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE-SHOT"; PlayMode.GATE -> "HOLD"; PlayMode.LOOP -> "LOOP" }, (if (narrow) Modifier.weight(1.2f) else Modifier.width(120.dp)).fillMaxHeight(),
+        if (!narrow) Box(Modifier.weight(1f))
+        HwButton("PAD EDIT", (if (narrow) Modifier.weight(1.2f) else Modifier.width(104.dp)).fillMaxHeight(), active = state.showPadEdit.value,
+            accent = padColor, fontSize = 12) { state.showPadEdit.value = !state.showPadEdit.value }
+        HwButton(when (pad.mode) { PlayMode.ONE_SHOT -> "ONE SHOT"; PlayMode.GATE -> "NOTE ON"; PlayMode.LOOP -> "LOOP" }, (if (narrow) Modifier.weight(1.2f) else Modifier.width(120.dp)).fillMaxHeight(),
             active = true, accent = padColor, fontSize = 12) { state.cyclePlayMode() }
     }
     if (narrow) androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -392,3 +494,14 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
         if (lazy) drawRoundRect(Tb.Warn, Offset(gap, gap), Size(size.width - 2 * gap, size.height - 2 * gap), r, style = Stroke(3.dp.toPx()))
     }
 }
+
+/** m:ss.s for a time ruler / readout; [resolution] picks the decimals (0.01 → 2, 0.1 → 1, ≥ 1 → none). */
+private fun fmtTime(t: Double, resolution: Double): String {
+    val m = (t / 60).toInt(); val sec = t - m * 60
+    val dec = when { resolution < 0.1 -> 2; resolution < 1.0 -> 1; else -> 0 }
+    val sf = when (dec) { 2 -> String.format(Locale.US, "%05.2f", sec); 1 -> String.format(Locale.US, "%04.1f", sec); else -> String.format(Locale.US, "%02d", sec.toInt()) }
+    return if (m > 0 || dec == 0) "$m:$sf" else String.format(Locale.US, if (dec == 2) "%.2fs" else "%.1fs", sec)
+}
+
+private fun lerpC(a: androidx.compose.ui.graphics.Color, b: androidx.compose.ui.graphics.Color, t: Float) =
+    androidx.compose.ui.graphics.Color(a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t, a.alpha)

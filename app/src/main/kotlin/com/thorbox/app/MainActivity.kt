@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
         if (i?.hasExtra("fxxy") == true) state.groove.fxXyMode.value = i.getBooleanExtra("fxxy", false)
         if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))
         if (i?.hasExtra("controlmap") == true) state.showControllerMap.value = i.getBooleanExtra("controlmap", false)
+        if (i?.hasExtra("padedit") == true) i.getIntExtra("padedit", -1).let { pg -> state.showPadEdit.value = pg >= 0; if (pg >= 0) state.padEditPage.intValue = pg.coerceIn(0, 4) }
         if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()

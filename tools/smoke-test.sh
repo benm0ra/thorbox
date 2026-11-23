@@ -119,6 +119,10 @@ shots() {
   adb shell am start -n $PKG/$ACT --ez demo true --es view SAMPLER >/dev/null; sleep 6
   adb shell am start -n $PKG/$ACT --ez dice true --ez play true >/dev/null; sleep 3
   adb exec-out screencap -p > "$d/sampler.png"
+  # sampler: the waveform with a slice playing, then PAD EDIT's five pages
+  adb shell am start -n $PKG/$ACT --es view SAMPLER >/dev/null; sleep 2; adb exec-out screencap -p > "$d/wave.png"
+  for pg in 0 1 2 3 4; do adb shell am start -n $PKG/$ACT --es view SAMPLER --ei padedit $pg >/dev/null; sleep 1.5; adb exec-out screencap -p > "$d/padedit-$pg.png"; done
+  adb shell am start -n $PKG/$ACT --ei padedit -1 >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view DRUM >/dev/null; sleep 3
   for i in 1 2 3 4 5 6; do adb exec-out screencap -p > "$d/drums-$i.png"; sleep 0.35; done
   adb shell am start -n $PKG/$ACT --es kit CRATE_DUST --ei drumpage 2 >/dev/null; sleep 3

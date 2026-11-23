@@ -299,10 +299,10 @@ class InputRouter(private val state: AppState) {
             KeyEvent.KEYCODE_DPAD_DOWN -> if (synth) { if (first) state.shiftOctave(-1) } else if (down) movePad(e.keyCode)
             KeyEvent.KEYCODE_BUTTON_X -> if (first) { if (synth) state.chordMode.value = !state.chordMode.value else state.cyclePlayMode() }
             KeyEvent.KEYCODE_BUTTON_Y -> if (first) { if (synth) state.resetPage(state.synthPage.value) else state.resetPitch() }
-            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
-            // Stick clicks: in the synth, L3 = next preset, R3 = DICE a new sound. Reserved elsewhere.
-            KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first && synth) state.stepSynthPreset(+1)
-            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first && synth) state.diceSynth()
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> Unit
+            // Stick clicks: synth L3 = next preset, R3 = DICE a new sound; sampler L3 = PAD EDIT, R3 = stop the sound.
+            KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) { if (synth) state.stepSynthPreset(+1) else state.showPadEdit.value = !state.showPadEdit.value }
+            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) { if (synth) state.diceSynth() else state.sampler.stopAll() }
             else -> return false
         }
         return true
