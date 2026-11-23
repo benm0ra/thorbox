@@ -156,6 +156,23 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 - **The song** is the patterns in order, each played × its repeats. **+ SONG** adds the current pattern to the end. On each step, **− / +** sets repeats, **▲ ▼** moves it and **✕** drops it. **▶ SONG** plays from the top. **LOOP** goes back to the start at the end; LOOP OFF stops there. The bars under the header show where you are in the pattern and in the song.
 - **PATTERN / SONG** chooses what ▶ does: loop the current pattern, or play the song. Launching a pattern by hand switches back to PATTERN.
 - Recording, automation and the playheads all count from the start of the current pattern, so each pattern loops on its own beat 1.
+- **Each pattern has its own automation.** Moves you record go into the current pattern, and they change with it, like the notes. COPY → NEW copies them too.
+
+### EXPORT
+
+![EXPORT](img/export.jpg)
+
+**EXPORT** (in the SONG header) bounces your track to audio files, faster than real time. The speakers stay quiet while it works.
+
+- **WHAT:** the **SONG** (all of it, or **FROM** / **TO** a stretch of steps), or the current **PATTERN** × loops.
+- **FILE:** **WAV** or **FLAC**, **24-bit** or **16-bit** (dithered), **48 kHz** or **44.1**.
+- **STEMS ON** writes a file per track as well as the mix. Only tracks you can hear and that have notes get a stem.
+  - **FX ON MIX** (the default): each stem is its track after the fader, pan and DUCK, before the master FX. Line them up in a DAW and they add up to the dry mix, so you can mix and add effects there. The mix file has the FX.
+  - **FX ON STEMS**: each stem is rendered on its own with the master FX on it, echo and reverb tails included. This takes one pass per track.
+- **TAIL ↘** keeps going after the last note until the echoes and reverb have died away. **TAIL CUT** stops exactly at the end, for loops that line up.
+- **+ MIDI** saves a .mid of the same stretch next to the audio.
+
+Press **EXPORT**. A bar shows the progress on both screens; **CANCEL** (or **B**) stops it and keeps nothing. The files land in **Music/Clamshell Beats/Exports/<project>/**, named after the project ("Beat 3 - song.flac", "Beat 3 - song - 02 SYNTH.flac"). **SHARE** sends them to any app that takes audio. What you hear is what you get: the bounce plays the same song steps, automation and DUCK as playing it live, sample for sample.
 
 **KEY LOCK** holds the whole project in one key. Tap the key (in the SONG header, or the **PROJECT** box on the sampler) for the key sheet: pick the root and the scale, then **KEY LOCK ON**. Locked:
 

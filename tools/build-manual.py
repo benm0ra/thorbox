@@ -46,6 +46,7 @@ SHOTS = {
     "look.jpg": ("settings-look.png", (0, 0, 1170, 1060)),
     "duck.jpg": ("top-duck-pastel-2.png", (180, 0, 1920, 1010)),
     "song.jpg": ("top-song.png", (180, 0, 1920, 1010)),
+    "export.jpg": ("top-export.png", (180, 0, 1920, 1010)),
 }
 
 

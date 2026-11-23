@@ -12,6 +12,7 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 
 ## New in this round
 
+- **EXPORT to WAV / FLAC, with stems.** Bounce the song (or a stretch of it, or a pattern × N) faster than real time: WAV or FLAC, 24 / 16-bit, 48 / 44.1 kHz, and optionally a stem per track (dry, so they sum to the mix, or with the master FX printed on each) and a MIDI file of the same bars. It renders the same song steps, automation and ducking as live playback, sample for sample (host-tested), and our own FLAC encoder is checked bit-exact against a decoder and ffmpeg. Files go to *Music/Clamshell Beats/Exports* and **SHARE** sends them on. Automation is now kept per pattern.
 - **PATTERNS + SONG.** There are 16 patterns per project, each a pattern for every track (MPC-style sequences). Launch one and it changes exactly on the bar line: the engine swaps it in at the right sample, so it's never late. Chain patterns into a **song** (× repeats, reorder, loop or stop at the end), copy a pattern to start a variation, and save it all with the project.
 - **KEY LOCK.** Pick a key and lock it. Every sampler track key-matches to it (new samples too), synth patterns snap into the scale as they play (your notes are kept), and the keys stay in scale. Change the key and everything follows.
 - **Characters with real motion:** spring physics (follow-through, anticipation, squash and stretch) for the rat, the cat and BIG DAWG, tuned with an offline motion sim (`tools/anim-sim`).
@@ -251,7 +252,7 @@ app/
 
 ## Roadmap
 
-Next: stem export (WAV per track) and resampling · scratch deck · Wi-Fi Transfer + wired export of projects · network tempo sync (opt-in) · Session clip grid · strum deck · Performance Mode.
+Next: resampling (bounce to a pad) · scratch deck · Wi-Fi Transfer + wired export of projects · network tempo sync (opt-in) · Session clip grid · strum deck · Performance Mode.
 
 ## Contributing
 

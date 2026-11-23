@@ -157,18 +157,18 @@ shots() {
   for _ in $(seq 1 90); do adb logcat -d -s Thorbox | grep -q "export:" && break; sleep 1; done
   sleep 1; adb exec-out screencap -p > "$d/top-export-done.png"
   if adb logcat -d -s Thorbox | grep -q "export: EXPORTED"; then
-    echo "::notice::[$name] $(adb logcat -d -s Thorbox | grep 'export: EXPORTED' | tail -1 | sed 's/.*export: //')"
+    echo "::notice::[export] $(adb logcat -d -s Thorbox | grep 'export: EXPORTED' | tail -1 | sed 's/.*export: //')"
     adb shell 'ls -l "/sdcard/Music/Clamshell Beats/Exports/"*' || true
     ex=$(mktemp -d); adb pull "/sdcard/Music/Clamshell Beats/Exports" "$ex" >/dev/null 2>&1 || true
     if command -v ffprobe >/dev/null; then
       find "$ex" -name '*.flac' -print0 | while IFS= read -r -d '' f; do
-        ffmpeg -v error -i "$f" -f null - && echo "decodes: $(basename "$f") $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f") s" || { echo "::error::[$name] export doesn't decode: $f"; touch "$ex/bad"; }
+        ffmpeg -v error -i "$f" -f null - && echo "decodes: $(basename "$f") $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f") s" || { echo "::error::[export] export doesn't decode: $f"; touch "$ex/bad"; }
       done
       [ -e "$ex/bad" ] && fail=1
     fi
     rm -rf "$ex"
   else
-    echo "::error::[$name] export never finished"; adb logcat -d -s Thorbox | tail -20; fail=1
+    echo "::error::[export] export never finished"; adb logcat -d -s Thorbox | tail -20; fail=1
   fi
   adb shell am start -n $PKG/$ACT --ez exportsheet false >/dev/null; sleep 1
   # DUCK: off (nothing picked yet), then keyed off the kick and playing, in pastel and genesis, several frames (the rat pumps)
