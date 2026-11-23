@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -214,6 +213,15 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
     }
 }
 
+/**
+ * One channel strip, laid out like a console: name, PAN (above the fader, as on a desk), PUMP, the
+ * level readout, then the fader beside its dB scale and LED meters, and MUTE / SOLO at the bottom.
+ *
+ * Touch rules (the old strip jumped controls to wherever a finger landed, so pulling a fader up from
+ * −∞ started on the pan slider underneath and threw the pan):
+ *  - the fader moves by how far you drag (relative), never jumps; double-tap = 0 dB
+ *  - pan only moves on a sideways drag (a vertical swipe across it does nothing); double-tap = centre
+ */
 @Composable
 private fun Strip(
     state: AppState, name: String, color: Color, selected: Boolean, db: Float, pan: Float?, mute: Boolean?, solo: Boolean?,
@@ -222,18 +230,65 @@ private fun Strip(
 ) {
     val g = state.groove
     val tel = state.telemetry
+    val tm = androidx.compose.ui.text.rememberTextMeasurer(cacheSize = 32)
+    val scaleStyle = androidx.compose.runtime.remember(Tb.palette) {
+        androidx.compose.ui.text.TextStyle(color = Tb.Muted, fontSize = 8.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Bold)
+    }
+    val panStyle = androidx.compose.runtime.remember(Tb.palette) {
+        androidx.compose.ui.text.TextStyle(color = Tb.Text, fontSize = 9.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Black)
+    }
+    // peak hold per side: level + when it was set (held 1.2 s, then falls); last clip time
+    val hold = androidx.compose.runtime.remember { FloatArray(4) }        // [peakL, peakR, timeL, timeR]
+    val clipAt = androidx.compose.runtime.remember { floatArrayOf(-10f) }
+    // the latest values for gesture lambdas that outlive recomposition
+    val dbNow = androidx.compose.runtime.rememberUpdatedState(db)
+    val panNow = androidx.compose.runtime.rememberUpdatedState(pan ?: 0f)
+    val faderPos = androidx.compose.runtime.remember { floatArrayOf(0f) }
+    val setDb = androidx.compose.runtime.rememberUpdatedState(onDb)
+    val setPan = androidx.compose.runtime.rememberUpdatedState(onPan)
     Column(
-        modifier.glass(state, 14.dp).then(if (selected) Modifier.border(2.dp, color.copy(alpha = 0.8f), RoundedCornerShape(14.dp)) else Modifier).padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        modifier.glass(state, 14.dp).then(if (selected) Modifier.border(2.dp, color.copy(alpha = 0.85f), RoundedCornerShape(14.dp)) else Modifier)
+            .clip(RoundedCornerShape(14.dp)),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Box(Modifier.fillMaxWidth().height(4.dp).background(color))                       // the track's colour band
+        Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(name, color = color, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false).then(if (onName != null) Modifier.navClickable(label = "OPEN $name") { Info.show("OPEN TRACK"); onName() } else Modifier))
             if (onMenu != null) Text(" ⋯", color = Tb.Muted, fontWeight = FontWeight.Black, fontSize = 14.sp,
                 modifier = Modifier.navClickable(label = "$name MENU") { Info.show("TRACK MENU"); onMenu() })
         }
+
+        // ---- PAN: above the fader, sideways drags only ----
+        if (pan != null) {
+            Canvas(
+                Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(13.dp)).background(Tb.Raised)
+                    .navAdjustable("$name PAN", onReset = { onPan(0f) }) { d -> onPan((pan + d * 2f).coerceIn(-1f, 1f)) }
+                    .pointerInput(Unit) {
+                        androidx.compose.foundation.gestures.detectHorizontalDragGestures { change, dx ->
+                            change.consume()
+                            setPan.value((panNow.value + dx / size.width * 2f).coerceIn(-1f, 1f))
+                        }
+                    }
+                    .pointerInput(Unit) { detectTapGestures(onDoubleTap = { setPan.value(0f) }) }
+            ) {
+                val w = size.width; val h = size.height; val mid = w / 2f
+                val x = mid + pan * (w / 2f - h / 2f)
+                // fill from the centre to the knob, in the track's colour
+                drawRect(color.copy(alpha = 0.35f), Offset(minOf(mid, x), 0f), Size(kotlin.math.abs(x - mid), h))
+                drawLine(Tb.Dim, Offset(mid, 4f), Offset(mid, h - 4f), 1.dp.toPx())
+                drawCircle(color, h / 2f - 3.dp.toPx(), Offset(x, h / 2f))
+                val label = if (kotlin.math.abs(pan) < 0.005f) "C" else if (pan < 0) "L${(-pan * 100).toInt()}" else "R${(pan * 100).toInt()}"
+                val t = tm.measure(label, panStyle)
+                val tx = if (pan <= 0f) w - t.size.width - 6.dp.toPx() else 6.dp.toPx()        // on the side away from the knob
+                drawText(t, topLeft = Offset(tx, (h - t.size.height) / 2f))
+            }
+        } else Box(Modifier.height(26.dp))
         if (pump > 0f && scIdx >= 0) {
-            // PUMP chip: live ducking bar (how far the sidechain is pulling this track down right now)
+            // PUMP: live ducking bar (how far the sidechain is pulling this track down right now)
             Canvas(Modifier.fillMaxWidth().height(6.dp)) {
                 tel.frame.longValue
                 val duck = (1f - g.scGain[scIdx]).coerceIn(0f, 1f)
@@ -241,65 +296,88 @@ private fun Strip(
                 drawRoundRect(Tb.Key, Offset.Zero, Size(size.width * duck, size.height), CornerRadius(3f))
             }
         }
-        Text(if (db <= -59.9f) "−∞" else String.format(Locale.US, "%+.1f dB", db), color = Tb.Text, fontFamily = Tb.Mono, fontSize = 13.sp, fontWeight = FontWeight.Black)
+        Text(if (db <= -59.9f) "−∞" else String.format(Locale.US, "%+.1f dB", db), color = Tb.Text, fontFamily = Tb.Mono, fontSize = 13.sp,
+            fontWeight = FontWeight.Black, maxLines = 1)
 
-        // Fader + stereo meter
-        val dbNow = db
+        // ---- fader + scale + LED meters ----
         Canvas(
             Modifier.weight(1f).fillMaxWidth()
                 .navAdjustable("$name VOLUME", onReset = { onDb(0f) }) { d -> onDb(faderToDb((dbToFader(db) + d).coerceIn(0f, 1f))) }
                 .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
+                    androidx.compose.foundation.gestures.detectVerticalDragGestures(
+                        onDragStart = { faderPos[0] = dbToFader(dbNow.value) },
+                    ) { change, dy ->
                         change.consume()
-                        onDb(faderToDb((1f - change.position.y / size.height).coerceIn(0f, 1f)))
+                        faderPos[0] = (faderPos[0] - dy / size.height).coerceIn(0f, 1f)
+                        setDb.value(faderToDb(faderPos[0]))
                     }
                 }
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onDb(0f) }) }
+                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { setDb.value(0f) }) }
         ) {
             tel.frame.longValue
             val w = size.width; val h = size.height
-            val trackW = 8.dp.toPx()
-            val cx = w * 0.36f
-            drawRoundRect(Tb.Raised, Offset(cx - trackW / 2, 0f), Size(trackW, h), CornerRadius(trackW / 2))
-            val zeroY = h * (1f - 0.75f)
-            drawLine(Tb.Dim, Offset(cx - 16.dp.toPx(), zeroY), Offset(cx + 16.dp.toPx(), zeroY), 1.dp.toPx())
-            val fy = h * (1f - dbToFader(dbNow))
-            drawRoundRect(color, Offset(cx - 18.dp.toPx(), fy - 9.dp.toPx()), Size(36.dp.toPx(), 18.dp.toPx()), CornerRadius(4.dp.toPx()))
-            drawLine(Tb.Black, Offset(cx - 12.dp.toPx(), fy), Offset(cx + 12.dp.toPx(), fy), 2.dp.toPx())
-            // meters (L, R)
-            val mw = 6.dp.toPx(); val mx = w * 0.72f
+            val now = tel.timeSec
+            val pad = 9.dp.toPx()                               // the cap's half-height: the scale runs inside it
+            val top = pad; val bot = h - pad; val span = bot - top
+            fun yOf(n: Float) = bot - n * span
+            // dB scale on the left
+            val scaleW = w * 0.26f
+            for (mark in SCALE) {
+                val y = yOf(dbToFader(mark))
+                val t = tm.measure(if (mark <= -60f) "−∞" else if (mark > 0f) "+${mark.toInt()}" else "${mark.toInt()}", scaleStyle)
+                drawText(t, topLeft = Offset(scaleW - t.size.width - 3.dp.toPx(), y - t.size.height / 2f))
+                drawLine(if (mark == 0f) Tb.Muted else Tb.Line, Offset(scaleW, y), Offset(scaleW + 5.dp.toPx(), y), 1.dp.toPx())
+            }
+            // fader track + cap
+            val cx = scaleW + (w * 0.62f - scaleW) / 2f + 3.dp.toPx()
+            val trackW = 6.dp.toPx()
+            drawRoundRect(Tb.Void, Offset(cx - trackW / 2, top), Size(trackW, span), CornerRadius(trackW / 2))
+            val fy = yOf(dbToFader(db))
+            drawRoundRect(color.copy(alpha = 0.5f), Offset(cx - trackW / 2, fy), Size(trackW, bot - fy), CornerRadius(trackW / 2))   // level fill
+            val capW = minOf(38.dp.toPx(), (w * 0.62f - scaleW) - 2.dp.toPx()); val capH = 2 * pad
+            drawRoundRect(Tb.Black.copy(alpha = 0.35f), Offset(cx - capW / 2 + 1.5f, fy - pad + 2f), Size(capW, capH), CornerRadius(4.dp.toPx()))   // shadow
+            drawRoundRect(color, Offset(cx - capW / 2, fy - pad), Size(capW, capH), CornerRadius(4.dp.toPx()))
+            for (k in -1..1) drawLine(Tb.Black.copy(alpha = if (k == 0) 0.85f else 0.35f), Offset(cx - capW * 0.32f, fy + k * 4.dp.toPx()),
+                Offset(cx + capW * 0.32f, fy + k * 4.dp.toPx()), if (k == 0) 2.dp.toPx() else 1.dp.toPx())   // grip lines, centre = the value
+            // LED meters, L and R, with peak hold and a clip light on top
+            val mw = minOf(7.dp.toPx(), w * 0.12f); val mx0 = w * 0.68f; val gapM = 3.dp.toPx()
+            val segs = 28; val segH = span / segs
             for (c in 0..1) {
                 val p = g.meters[meterIdx + c]
                 val n = meterNorm(p)
-                val x = mx + c * (mw + 3.dp.toPx())
-                drawRoundRect(Tb.Raised, Offset(x, 0f), Size(mw, h), CornerRadius(mw / 2))
-                drawRoundRect(if (p >= 0.99f) Tb.Warn else Tb.Good, Offset(x, h * (1f - n)), Size(mw, h * n), CornerRadius(mw / 2))
+                if (p >= 0.99f) clipAt[0] = now
+                if (n >= hold[c] || now - hold[2 + c] > 1.2f) {
+                    if (n >= hold[c]) { hold[c] = n; hold[2 + c] = now } else hold[c] = maxOf(n, hold[c] - 0.012f)
+                }
+                val x = mx0 + c * (mw + gapM)
+                for (sIdx in 0 until segs) {
+                    val sn = (sIdx + 0.5f) / segs
+                    val y = bot - (sIdx + 1) * segH
+                    val lit = sn <= n
+                    val sdb = faderToDb(sn)
+                    val col = if (sdb > -3f) Tb.Warn else if (sdb > -12f) Tb.Key else Tb.Good
+                    drawRect(if (lit) col else col.copy(alpha = 0.10f), Offset(x, y + 0.75f), Size(mw, segH - 1.5f))
+                }
+                if (hold[c] > 0.02f) drawRect(Tb.Text, Offset(x, yOf(hold[c]) - 1f), Size(mw, 2f))
             }
+            val clip = now - clipAt[0] < 2f
+            drawRoundRect(if (clip) Tb.Warn else Tb.Warn.copy(alpha = 0.15f), Offset(mx0, 0f), Size(2 * mw + gapM, 5.dp.toPx()), CornerRadius(2.dp.toPx()))
         }
 
-        if (pan != null) {
-            Canvas(
-                Modifier.fillMaxWidth().height(28.dp)
-                    .navAdjustable("$name PAN", onReset = { onPan(0f) }) { d -> onPan((pan + d * 2f).coerceIn(-1f, 1f)) }
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, _ -> change.consume(); onPan(((change.position.x / size.width) * 2f - 1f).coerceIn(-1f, 1f)) }
-                    }
-                    .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onPan(0f) }) }
-            ) {
-                val y = size.height / 2
-                drawLine(Tb.Raised, Offset(0f, y), Offset(size.width, y), 6.dp.toPx())
-                drawLine(Tb.Dim, Offset(size.width / 2, y - 8.dp.toPx()), Offset(size.width / 2, y + 8.dp.toPx()), 1.dp.toPx())
-                drawCircle(color, 9.dp.toPx(), Offset((pan + 1f) / 2f * size.width, y))
-            }
+        if (mute != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 HwButton("M", Modifier.weight(1f), active = mute == true, accent = Tb.Warn, onClick = onMute)
                 HwButton("S", Modifier.weight(1f), active = solo == true, accent = Tb.Key, onClick = onSolo)
             }
         } else {
-            Box(Modifier.height(28.dp + 6.dp + 44.dp))   // keep faders aligned with the track strips
+            Box(Modifier.height(44.dp))   // keep faders aligned with the track strips
+        }
         }
     }
 }
+
+/** Where the fader's scale is printed. */
+private val SCALE = floatArrayOf(6f, 0f, -6f, -12f, -24f, -48f, -60f)
 
 /** mixSelected index of the master strip (after the three track strips). */
 const val MASTER_STRIP = com.thorbox.model.TRACK_COUNT

@@ -36,8 +36,11 @@ import com.thorbox.app.input.navClickable
  */
 @Composable
 fun ThemeGrid(state: AppState, modifier: Modifier = Modifier) {
-        Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Themes.all.forEach { p ->
+        // two rows of four: eight themes stay big enough to judge at a glance
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Themes.all.chunked(4).forEach { rowThemes ->
+          Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            rowThemes.forEach { p ->
                 val on = p == Tb.palette
                 Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(p.void)
                     .border(if (on) 3.dp else 1.dp, if (on) p.text else p.line, RoundedCornerShape(12.dp))
@@ -56,5 +59,7 @@ fun ThemeGrid(state: AppState, modifier: Modifier = Modifier) {
                     }
                 }
             }
+          }
+          }
         }
 }

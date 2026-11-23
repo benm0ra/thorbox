@@ -95,9 +95,12 @@ tour() {
   adb shell am start -n $PKG/$ACT --es deck FX --ei fx 7 >/dev/null; sleep 3      # REVERB engaged, then its tail
   adb exec-out screencap -p > "$OUT/$name-reverb.png" || true
   adb shell am start -n $PKG/$ACT --ei fx -1 >/dev/null; sleep 3
-  for th in cyberpunk pastel terminal grayscale studio genesis; do        # every theme on the busiest screens
+  for th in bodega vintage cyberpunk pastel terminal grayscale studio genesis; do        # every theme on the busiest screens
     for v in DRUM SYNTH; do adb shell am start -n $PKG/$ACT --es theme $th --es view $v --es deck FX >/dev/null; sleep 2; done
     adb exec-out screencap -p > "$OUT/$name-theme-$th.png" || true
+    adb shell am start -n $PKG/$ACT --es view MIX --es deck PADS >/dev/null; sleep 2
+    adb exec-out screencap -p > "$OUT/$name-theme-$th-mix.png" || true
+    mkdir -p "$OUT/shots"; cp "$OUT/$name-theme-$th.png" "$OUT/shots/theme-$th.png" 2>/dev/null; cp "$OUT/$name-theme-$th-mix.png" "$OUT/shots/theme-$th-mix.png" 2>/dev/null
   done
   adb logcat -d -v threadtime > "$OUT/$name-tour-logcat.txt"
   if ! adb shell pidof $PKG >/dev/null || grep -qE "FATAL EXCEPTION|Fatal signal" "$OUT/$name-tour-logcat.txt"; then

@@ -21,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,30 +83,39 @@ private fun OnOff(on: Boolean, label: String = if (on) "ON" else "OFF", onToggle
 private fun LookPage(state: AppState) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ThemeGrid(state, Modifier.fillMaxWidth().weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f)) {
-                SettingRow("METERS", "Master peak · RMS · spectrum · wave · scope, across the top") {
-                    OnOff(state.miniMeters.value) { state.setMiniMeters(!state.miniMeters.value) }
-                }
+        // four compact tiles (title over its button): side-by-side rows squeezed the titles to nothing on narrow screens
+        Row(Modifier.fillMaxWidth().height(70.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LookTile("METERS", "Master peak · RMS · spectrum · wave · scope, across the top", Modifier.weight(1f)) {
+                OnOffFill(state.miniMeters.value) { state.setMiniMeters(!state.miniMeters.value) }
             }
-            Box(Modifier.weight(1f)) {
-                SettingRow("HINTS", "The strip that explains what you just touched") {
-                    OnOff(Info.enabled.value) { state.setHints(!Info.enabled.value) }
-                }
+            LookTile("HINTS", "The strip that explains what you just touched", Modifier.weight(1f)) {
+                OnOffFill(Info.enabled.value) { state.setHints(!Info.enabled.value) }
             }
-            Box(Modifier.weight(1f)) {
-                SettingRow("GLASS", "Frosted panels + the aurora behind them") {
-                    HwButton(state.glass.value.name, Modifier.width(96.dp), minHeight = 38.dp, fontSize = 12, active = true, accent = Tb.EncBlue) { state.cycleGlass() }
-                }
+            LookTile("GLASS", "Frosted panels + the aurora behind them: FULL · SUBTLE · OFF", Modifier.weight(1f)) {
+                HwButton(state.glass.value.name, Modifier.fillMaxWidth(), minHeight = 36.dp, fontSize = 12, active = true, accent = Tb.EncBlue) { state.cycleGlass() }
             }
-            Box(Modifier.weight(1f)) {
-                SettingRow("120 HZ", "Animate at the screen's full rate. Off: 60 fps, easier on the battery") {
-                    OnOff(state.fullRateAnim.value) { state.setFullRateAnim(!state.fullRateAnim.value) }
-                }
+            LookTile("120 HZ", "Animate at the screen's full rate. Off: 60 fps, easier on the battery", Modifier.weight(1f)) {
+                OnOffFill(state.fullRateAnim.value) { state.setFullRateAnim(!state.fullRateAnim.value) }
             }
         }
     }
 }
+
+/** A LOOK setting: its name over its control; the long explanation goes to the hint strip when you touch it. */
+@Composable
+private fun LookTile(title: String, detail: String, modifier: Modifier, content: @Composable () -> Unit) {
+    Column(modifier.fillMaxHeight().background(Tb.Panel, RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FitText(title, androidx.compose.ui.text.TextStyle(color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp), minSize = 8f)
+        Box(Modifier.fillMaxWidth().pointerInput(detail) {
+            awaitPointerEventScope { while (true) { val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); if (e.changes.any { it.pressed && !it.previousPressed }) Info.toast(title, detail) } }
+        }) { content() }
+    }
+}
+
+@Composable
+private fun OnOffFill(on: Boolean, onToggle: () -> Unit) =
+    HwButton(if (on) "ON" else "OFF", Modifier.fillMaxWidth(), minHeight = 36.dp, fontSize = 12, active = on, accent = Tb.Good, onClick = onToggle)
 
 @Composable
 private fun DefaultsPage(state: AppState) {
