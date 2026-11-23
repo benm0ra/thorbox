@@ -72,8 +72,9 @@ Right under the waveform is the sampler track's **pattern**: one cell per 1/16 s
 - **Tap a step** to put the selected pad there (you hear it). Tap again to take it off. Select another pad and keep tapping to build the beat.
 - **Long-press a step** to clear everything on it.
 - **SEQ CHOPS** writes the chops in their original order and timing (by the sample's tempo, its FIT bars or half / double time, up to 4 bars), so the loop plays back as pad hits. Rearrange from there.
-- **● REC** records what you play on the pads, live, in time.
-- **CLEAR** empties the pattern (↶ undo brings it back).
+- **●** records what you play on the pads, live, in time.
+- **✕** empties the pattern (↶ undo brings it back).
+- **SWING** on the right swings it (drag; double-tap for straight).
 
 The **STEPS** view on the top screen and the **STEP** deck on the bottom edit the same pattern in more detail (velocity, probability, ratchets, conditions, locks).
 

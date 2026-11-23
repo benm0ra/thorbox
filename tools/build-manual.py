@@ -38,7 +38,7 @@ LINE = colors.HexColor("#D9D3EC")
 SHOTS = {
     "sampler.jpg": ("sampler.png", None),
     "wave.jpg": ("wave.png", (180, 0, 1170, 1010)),
-    "pattern.jpg": ("wave.png", (560, 560, 1170, 1010)),
+    "pattern.jpg": ("wave.png", (300, 250, 1180, 1010)),
     "padedit.jpg": ("padedit-3.png", (180, 0, 1170, 1010)),
     "synth.jpg": ("cat-WARM_PAD.png", (180, 0, 1170, 1010)),
     "drums.jpg": ("drums-dust.png", (180, 0, 1170, 1010)),
