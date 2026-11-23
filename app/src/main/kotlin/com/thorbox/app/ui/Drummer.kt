@@ -1075,6 +1075,14 @@ private fun DrawScope.street(
         val sx = 62f + sin(now * 0.9f + k * 2f) * 8f * ph
         drawCircle(Color.White.copy(alpha = (0.14f + 0.12f * kickK) * (1f - ph) * (0.6f + 0.4f * ph)), 7f + 18f * ph + 4f * kickK, Offset(sx, curb + 14f - 90f * ph))
     }
+    // the drum rug (every kit sits on one, or it walks): a worn red runner in perspective, border, medallion, fringe
+    p.reset(); p.moveTo(96f, 266f); p.lineTo(334f, 266f); p.lineTo(362f, 292f); p.lineTo(68f, 292f); p.close()
+    drawPath(p, back(Color(0xFF7A2430), 0.25f))
+    p.reset(); p.moveTo(104f, 269f); p.lineTo(326f, 269f); p.lineTo(350f, 289f); p.lineTo(80f, 289f); p.close()
+    drawPath(p, back(Color(0xFFC9A15A), 0.35f), style = Stroke(1.4f))
+    p.reset(); p.moveTo(215f, 271f); p.lineTo(245f, 279f); p.lineTo(215f, 287f); p.lineTo(185f, 279f); p.close()
+    drawPath(p, back(Color(0xFF233A5E), 0.3f)); drawPath(p, back(Color(0xFFC9A15A), 0.35f), style = Stroke(1f))
+    var fx = 72f; while (fx < 360f) { drawLine(back(TRIM, 0.4f), Offset(fx, 292f), Offset(fx - 1f, 296f), 0.8f); fx += 4f }
     // soft shadow under the kit
     drawOval(Color.Black.copy(alpha = 0.28f), Offset(60f, 276f), Size(310f, 16f))
 
