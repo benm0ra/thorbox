@@ -91,6 +91,21 @@ int main() {
             e.stopPads(0); render(e, 4800);
             e.setPadParam(0, (int)PadParam::Poly, 0.f);
             CHECK(!e.setPadParam(0, 99, 1.f) && !e.setPadParam(-1, 0, 0.f) && !e.stopPads(42), "bad pad params / tracks rejected");
+            {   // note repeat on a sampler pad: a 50 ms slice at 1/16 (120 BPM = 125 ms) gives a hit every 125 ms
+                e.setTempo(120); e.setPadRegion(0, 0, 2400);
+                e.repeatOn(0, 0, 240, 1.f);
+                auto rr = render(e, 48000);
+                e.repeatOff(0, 0); render(e, 4800);
+                int bursts = 0; bool loud = false;
+                for (int i = 0; i < 48000; i += 240) {             // 5 ms windows
+                    double s = 0; for (int k = 0; k < 240; ++k) s += std::fabs(rr[2 * (i + k)]);
+                    const bool now = s / 240 > 0.02;
+                    if (now && !loud) ++bursts;
+                    loud = now;
+                }
+                CHECK(bursts >= 7 && bursts <= 9, "note repeat on a sampler pad: %d hits in 1 s at 1/16, 120 BPM", bursts);
+                e.setPadRegion(0, 0, -1);
+            }
         }
         {   // NORMALIZE input: per-region peak + loudness (a steady sine: loudness = peak − 3 dB)
             int64_t st[2] = {0, 24000}, en[2] = {24000, 48000}; float pk[2], ld[2];

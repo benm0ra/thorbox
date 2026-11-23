@@ -25,6 +25,7 @@ import kotlin.math.sign
 class InputRouter(private val state: AppState) {
 
     private val axes = FloatArray(4)          // LX, LY, RX, RY after deadzone
+    private var l1DownAt = 0L
     private var heldRoot: IntArray? = null
 
     // ================= NAV cursor: reach every on-screen control without touching =================
@@ -66,11 +67,21 @@ class InputRouter(private val state: AppState) {
             KeyEvent.KEYCODE_BUTTON_B -> if (first) {
                 if (!Nav.back() && !Nav.closeTop() && !backOverlay()) setNav(false)
             }
-            // L1 / R1: jump to the top / bottom screen.
-            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
+            // L1 hold: note repeat while you play pads / keys with A. L1 tap: jump to the top screen
+            // (on release, and only if nothing repeated). R1: jump to the bottom screen.
+            KeyEvent.KEYCODE_BUTTON_L1 -> {
+                if (first) { l1DownAt = e.eventTime; state.groove.repeatUsed = false; state.groove.setRepeatHeld(true) }
+                else if (up) {
+                    state.groove.setRepeatHeld(false)
+                    if (!state.groove.repeatUsed && e.eventTime - l1DownAt < 400) {
+                        Nav.back(); Nav.back()
+                        Nav.land(0, androidx.compose.ui.geometry.Offset(0f, Nav.screenSize[0].height))
+                    }
+                }
+            }
+            KeyEvent.KEYCODE_BUTTON_R1 -> if (first) {
                 Nav.back(); Nav.back()
-                val target = if (e.keyCode == KeyEvent.KEYCODE_BUTTON_L1) 0 else 1
-                Nav.land(target, if (target == 0) androidx.compose.ui.geometry.Offset(0f, Nav.screenSize[0].height) else androidx.compose.ui.geometry.Offset.Zero)
+                Nav.land(1, androidx.compose.ui.geometry.Offset.Zero)
             }
             // L2 / R2: previous / next top view (SAMPLE · SYNTH · DRUMS · STEPS · MIXER · VISUAL).
             KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2 -> if (first) {

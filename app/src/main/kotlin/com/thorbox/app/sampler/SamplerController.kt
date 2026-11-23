@@ -408,6 +408,41 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         NativeEngine.setPadParam(g, P.VEL_SENS, s.velSens)
     }
 
+    /**
+     * SEQ CHOPS: write this track's pattern so the chops play back in their original order and timing
+     * (the loop, rebuilt as pad hits), ready to rearrange step by step. The grid spans the sample:
+     * by its BPM (half / double time when stretched that way), or the FIT bars, or one bar when the
+     * sample has no tempo. Returns the toast's (title, detail).
+     */
+    fun sequenceChops(): Pair<String, String> {
+        val regs = regions.value
+        if (regs.isEmpty() || originalFrames <= 0) return "NOTHING TO SEQUENCE" to "Load a sample and chop it first"
+        val sr = (info?.sampleRate ?: 44100).toDouble()
+        val secs = originalFrames / sr
+        val bpm = info?.bpm?.toDouble()
+        val steps16 = when {
+            stretch.value == StretchMode.FIT -> fitBars.intValue * 16
+            bpm != null && bpm > 0 -> {
+                val raw = secs * bpm / 60.0 * 4.0 * when (stretch.value) { StretchMode.HALF -> 2.0; StretchMode.DOUBLE -> 0.5; else -> 1.0 }
+                raw.roundToInt().coerceAtLeast(1)
+            }
+            else -> if (regs.size <= 16) 16 else 32
+        }
+        val lenSteps = (((steps16 + 15) / 16) * 16).coerceIn(16, 64)
+        val at = ChopLogic.chopSteps(regs, originalFrames, steps16, lenSteps)
+        val placed = at.withIndex().filter { it.value >= 0 }.sortedBy { it.value }
+        val st = com.thorbox.app.groove.STEP_TICKS
+        val notes = placed.mapIndexed { k, iv ->
+            val next = placed.getOrNull(k + 1)?.value ?: lenSteps
+            com.thorbox.model.NoteEvent(tick = iv.value * st, lengthTicks = ((next - iv.value).coerceAtLeast(1)) * st, note = iv.index, velocity = 0.85f)
+        }
+        app.groove.setPattern(track, lenSteps * st, notes)
+        val bars = lenSteps / 16
+        val dropped = regs.size - placed.size
+        return "SEQUENCED ${placed.size} CHOPS · $bars BAR${if (bars == 1) "" else "S"}" to
+            (if (dropped > 0) "$dropped didn't fit in 4 bars. " else "") + "Tap a step to put the selected pad there · long-press to clear it"
+    }
+
     /** Silence this track's pads now (one-shots too), and the chop preview. */
     fun stopAll() {
         if (lazyRunning.value) stopLazy()
@@ -456,12 +491,15 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
             com.thorbox.app.levels.LevelMode.TUNE -> {
                 // each hit retriggers the (monophonic) pad, so repitching right before the hit is safe
                 NativeEngine.setPitch(gp(src), (slot.pitch + com.thorbox.app.levels.Levels.tune(k)).coerceIn(-36, 36), slot.fine.toFloat())
-                NativeEngine.noteOn(gp(src), velocity)
+                if (!app.groove.liveDown(track, src, velocity)) NativeEngine.noteOn(gp(src), velocity)
             }
-            else -> NativeEngine.noteOn(gp(src), com.thorbox.app.levels.Levels.velocity(k))
+            else -> {
+                val v = com.thorbox.app.levels.Levels.velocity(k)
+                if (!app.groove.liveDown(track, src, v)) NativeEngine.noteOn(gp(src), v)
+            }
         }
     }
-    fun levelUp(src: Int) = NativeEngine.noteOff(gp(src))
+    fun levelUp(src: Int) { if (!app.groove.liveUp(track, src)) NativeEngine.noteOff(gp(src)) }
     /** Leaving 16 LEVELS: the source pad back to its own pitch (and WARP slice). */
     fun restorePad(src: Int) = assignPad(src)
 }

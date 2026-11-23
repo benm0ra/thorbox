@@ -228,7 +228,7 @@ object Glossary {
         "SAVE LOG" to "Save the app's recent log as a text file in Downloads, to send with a bug report.",
         "SHARE LOG" to "Send the app's recent log to another app (email, chat, Drive).",
         "TILT" to "Lean the Thor to steer the effect you're holding. Shake to roll the dice.",
-        "RPT" to "Note repeat: hold this, then hold a pad or key to retrigger it in time.",
+        "RPT" to "Note repeat: tap to latch it on (tap again: off), or hold it; then hold a pad or key to retrigger it in time.",
     )
     private val keys = entries.keys.sortedByDescending { it.length }
 

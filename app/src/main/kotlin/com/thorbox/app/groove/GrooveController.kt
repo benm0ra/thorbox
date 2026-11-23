@@ -287,6 +287,12 @@ class GrooveController(private val app: AppState) {
         else -> "PAD ${selectedPad(track) + 1}"
     }
 
+    /** Every hit on [step] of [track] goes (all pads). */
+    fun clearStep(track: Int, step: Int) = update(track, saveUndo = true) { c -> c.copy(notes = c.notes.filterNot { Steps.stepOf(it, c.lengthTicks) == step }) }
+    /** Replace a track's pattern (SEQ CHOPS): one undo step back to what was there. */
+    fun setPattern(track: Int, lengthTicks: Int, notes: List<NoteEvent>) = update(track, saveUndo = true) { c ->
+        c.copy(lengthTicks = lengthTicks, notes = notes.filter { it.tick in 0 until lengthTicks }.sortedBy { it.tick })
+    }
     fun stepTap(track: Int, step: Int) = update(track) { c -> c.copy(notes = scoped(track, c.notes) { Steps.toggle(it, c.lengthTicks, step, defaultNote(track)) }) }
 
     /** Lane edit with v in 0..1. NOTE is scale-aware: two octaves of scale degrees from the root. */
@@ -485,6 +491,7 @@ class GrooveController(private val app: AppState) {
     /** Returns true if the hit became a repeat (the caller must not also trigger it). */
     fun liveDown(track: Int, note: Int, vel: Float): Boolean {
         if (!repeatHeld.value) return false
+        repeatUsed = true
         activeRepeats += track * 128 + note
         NativeEngine.repeatOn(track, note, groove.value.repeatRate.ticks, vel)
         return true
@@ -496,9 +503,18 @@ class GrooveController(private val app: AppState) {
         return true
     }
 
-    fun setRepeatHeld(held: Boolean) {
-        repeatHeld.value = held
-        if (!held) { activeRepeats.forEach { NativeEngine.repeatOff(it / 128, it % 128) }; activeRepeats.clear() }
+    /** RPT held (touch or L1) — momentary. */
+    fun setRepeatHeld(held: Boolean) { repeatMomentary = held; refreshRepeat() }
+    /** RPT tapped: note repeat stays on until tapped again (one hand free for the pads on a handheld). */
+    val repeatLatched = mutableStateOf(false)
+    fun setRepeatLatched(on: Boolean) { repeatLatched.value = on; refreshRepeat() }
+    private var repeatMomentary = false
+    /** Set when a pad / key repeated while RPT was held: L1 then doesn't also switch screens on release. */
+    var repeatUsed = false
+    private fun refreshRepeat() {
+        val on = repeatMomentary || repeatLatched.value
+        repeatHeld.value = on
+        if (!on) { activeRepeats.forEach { NativeEngine.repeatOff(it / 128, it % 128) }; activeRepeats.clear() }
     }
 
     // ================= punch-in FX =================

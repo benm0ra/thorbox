@@ -383,13 +383,22 @@ fun LevelsStrip(state: AppState, drums: Boolean, modifier: Modifier = Modifier) 
     }
 }
 
-/** Note repeat: hold RPT with one thumb and hit pads or keys with the other (or hold L1). */
+/** Note repeat: tap RPT to latch it on (tap again: off), or hold it while you play; hold L1 on the controller. */
 @Composable
 fun RepeatStrip(state: AppState, modifier: Modifier = Modifier) {
     val g = state.groove
     val rate = g.groove.value.repeatRate
     Row(modifier.height(44.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        HoldButton("RPT", g.repeatHeld.value, Tb.EncOrange, Modifier.width(64.dp).fillMaxHeight()) { g.setRepeatHeld(it) }
+        val downAt = androidx.compose.runtime.remember { longArrayOf(0L) }
+        val wasLatched = androidx.compose.runtime.remember { booleanArrayOf(false) }
+        HoldButton(if (g.repeatLatched.value) "RPT ●" else "RPT", g.repeatHeld.value, Tb.EncOrange, Modifier.width(64.dp).fillMaxHeight()) { down ->
+            val now = android.os.SystemClock.uptimeMillis()
+            if (down) { downAt[0] = now; wasLatched[0] = g.repeatLatched.value; g.setRepeatHeld(true) }
+            else {
+                g.setRepeatHeld(false)
+                if (now - downAt[0] < 250) g.setRepeatLatched(!wasLatched[0])   // a tap latches / unlatches; a hold was momentary
+            }
+        }
         RepeatRate.entries.forEach { r ->
             HwButton(r.label, Modifier.weight(1f).fillMaxHeight(), active = r == rate, accent = Tb.EncWhite, fontSize = 11, hPad = 1.dp) { g.setRepeatRate(r) }
         }
