@@ -248,7 +248,7 @@ class AppState(private val app: Application) {
         val j = loadJob.value ?: return
         NativeEngine.cancelLoad(j.requestId)
         pendingNames.remove(j.requestId); pendingTargets.remove(j.requestId); pendingSources.remove(j.requestId)
-        latestForTrack.entries.removeAll { it.value == j.requestId }
+        for (t in latestForTrack.indices) if (latestForTrack[t] == j.requestId) latestForTrack[t] = -1
         loadJob.value = null; _loadingName.value = null
         com.thorbox.app.ui.Info.toast("LOAD CANCELLED", j.name)
     }
