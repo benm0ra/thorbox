@@ -6,6 +6,7 @@ import com.thorbox.app.input.NavGrid
 import com.thorbox.app.input.navModal
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -542,7 +543,7 @@ private fun ChopPattern(state: AppState, modifier: Modifier) {
         Canvas(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Void.copy(alpha = 0.55f))
             .navTarget("PATTERN", grid = navGrid, corner = 6f)
             .pointerInput(steps, track, clip) {
-                androidx.compose.foundation.gestures.detectTapGestures(
+                detectTapGestures(
                     onTap = { p -> tapStep((p.x / size.width * steps).toInt().coerceIn(0, steps - 1)) },
                     onLongPress = { p -> g.clearStep(track, (p.x / size.width * steps).toInt().coerceIn(0, steps - 1)) },
                 )
