@@ -313,6 +313,8 @@ class AppState(private val app: Application) {
     val showKeySheet = mutableStateOf(false)
     /** The pattern pad the controller's D-pad is on (SONG page, PLAY mode). */
     val songCursor = androidx.compose.runtime.mutableIntStateOf(0)
+    /** SONG page: the part picked in the song list / timeline (-1 = none). */
+    val songPart = androidx.compose.runtime.mutableIntStateOf(-1)
     fun setLockAll(on: Boolean) {
         if (on == lockAll.value) return
         lockAll.value = on

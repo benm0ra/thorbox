@@ -149,14 +149,27 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 ![SONG](img/song.jpg)
 
-**SONG** (on the rail, after STEPS) is where a loop becomes a track.
+**SONG** (on the rail, after STEPS) is where loops become a track. Two ideas:
 
-- **16 patterns.** Each pattern holds a pattern for every track, like an MPC sequence. Every editor (STEPS, the drum grid, the chop lane, the piano roll) edits the **current** pattern. Tap another pad to launch it. While playing, it waits for the end of the current pattern and changes exactly on the beat (the pad pulses while it waits; tap it again to cancel). Stopped, it changes at once. A lit pad is playing. The dots show which tracks have notes, and the corner shows its length in bars.
-- **COPY → NEW** copies the current pattern into the first empty slot (then tap it to work on the copy: a verse, then a hook with more drums). **CLEAR** empties the current pattern.
-- **The song** is the patterns in order, each played × its repeats. **+ SONG** adds the current pattern to the end. On each step, **− / +** sets repeats, **▲ ▼** moves it and **✕** drops it. **▶ SONG** plays from the top. **LOOP** goes back to the start at the end; LOOP OFF stops there. The bars under the header show where you are in the pattern and in the song.
-- **PATTERN / SONG** chooses what ▶ does: loop the current pattern, or play the song. Launching a pattern by hand switches back to PATTERN.
-- Recording, automation and the playheads all count from the start of the current pattern, so each pattern loops on its own beat 1.
-- **Each pattern has its own automation.** Moves you record go into the current pattern, and they change with it, like the notes. COPY → NEW copies them too.
+- **Patterns are your loops.** There are 16 (the pads on the left). The lit one says **YOU'RE HERE**: it's the pattern SYNTH, DRUMS and STEPS are editing. Tap another to switch to it. While playing, it waits for the end of the bar and changes exactly on the beat (it says **NEXT** while it waits; tap it again to cancel). The playing pad fills as it goes; the dots show which tracks have notes, and **IN SONG** marks the ones the song uses.
+- **The song is the order they play in.** The list on the right plays top to bottom, and the strip across the top shows it as a timeline, each part as long as it plays, with the playhead moving through.
+
+To make a song:
+
+1. Make a beat in pattern 1 (SYNTH, DRUMS or STEPS).
+2. **DUPLICATE** it and change the copy: a chorus, a break, a drop. **CLEAR** empties the pattern you're on.
+3. Tap a pattern and press **ADD … TO SONG →**. It goes after the part you've picked, or at the end. Repeat in the order you want.
+4. **▶ PLAY SONG.**
+
+Tap a part (in the list or on the timeline) to change it: **PLAYS − / +** sets how many times it plays, **◀ EARLIER / LATER ▶** moves it, **▶ PLAY FROM HERE** starts the song there, **EDIT** jumps to its pattern (changing a pattern changes every part that uses it), **REMOVE** takes it out.
+
+In the header:
+
+- **▶ PLAYS: THE SONG / ONE PATTERN** sets what the play button does. Switching to a pattern by hand while the song plays leaves the song, and the pattern loops.
+- **LOOP SONG ↻ / PLAY ONCE** sets what happens at the end of the song.
+- The text on the right says what's happening ("▶ SONG · PART 2 OF 4 · PAT 2 (1 of 2)").
+
+Recording, automation and the playheads all count from the start of the current pattern, so each pattern loops on its own beat 1. **Each pattern has its own automation:** moves you record go into the pattern you're on and change with it, like the notes. DUPLICATE copies them too.
 
 **KEY LOCK** holds the whole project in one key. Tap the key (in the SONG header, or the **PROJECT** box on the sampler) for the key sheet: pick the root and the scale, then **KEY LOCK ON**. Locked:
 
@@ -171,7 +184,7 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 **EXPORT** (in the SONG header) bounces your track to audio files, faster than real time. The speakers stay quiet while it works.
 
-- **WHAT:** the **SONG** (all of it, or **FROM** / **TO** a stretch of steps), or the current **PATTERN** × loops.
+- **WHAT:** the **SONG** (all of it, or **FROM** / **TO** a stretch of parts), or the current **PATTERN** × loops.
 - **FILE:** **WAV** or **FLAC**, **24-bit** or **16-bit** (dithered), **48 kHz** or **44.1**.
 - **STEMS ON** writes a file per track as well as the mix. Only tracks you can hear and that have notes get a stem.
 - **FX ON MIX** (the default): each stem is its track after the fader, pan and DUCK, before the master FX. Line them up in a DAW and they add up to the dry mix, so you can mix and add effects there. The mix file has the FX.
@@ -179,7 +192,7 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 - **TAIL ↘** keeps going after the last note until the echoes and reverb have died away. **TAIL CUT** stops exactly at the end, for loops that line up.
 - **+ MIDI** saves a .mid of the same stretch next to the audio.
 
-Press **EXPORT**. A bar shows the progress on both screens; **CANCEL** (or **B**) stops it and keeps nothing. The files land in **Music/Clamshell Beats/Exports/<project>/**, named after the project ("Beat 3 - song.flac", "Beat 3 - song - 02 SYNTH.flac"). **SHARE** sends them to any app that takes audio. What you hear is what you get: the bounce plays the same song steps, automation and DUCK as playing it live, sample for sample.
+Press **EXPORT**. A bar shows the progress on both screens; **CANCEL** (or **B**) stops it and keeps nothing. The files land in **Music/Clamshell Beats/Exports/<project>/**, named after the project ("Beat 3 - song.flac", "Beat 3 - song - 02 SYNTH.flac"). **SHARE** sends them to any app that takes audio. What you hear is what you get: the bounce plays the same song parts, automation and DUCK as playing it live, sample for sample.
 
 ## 9. Mixer and FX
 
@@ -236,7 +249,7 @@ The whole session saves itself every few seconds and when the app goes to the ba
 | SYNTH | sticks = the four encoders · ◀ ▶ page, ▲ ▼ octave · A / R1 hold = root (or chord) · X chord mode · Y reset page · L3 next preset · R3 DICE |
 | DRUMS | ◀ ▶ step, ▲ ▼ sound · A toggle step · R1 hold plays the sound · sticks = encoders · X dice beat · Y undo · L3 next kit · R3 dice kit |
 | STEPS | ◀ ▶ step, ▲ ▼ lane · A toggle · X dice · Y undo |
-| SONG | D-pad picks a pattern · A launches it (on the beat) · X + SONG · Y PATTERN / SONG · L3 copy to a new pattern · R3 KEY LOCK |
+| SONG | D-pad picks a pattern · A switches to it (on the beat) · X adds it to the song · Y ▶ plays the song / one pattern · L3 duplicate · R3 KEY LOCK |
 | MIXER | ◀ ▶ channel, ▲ ▼ ±1 dB · A mute · Y solo · X open the track · left stick volume · right stick pan |
 | DUCK | left stick ◀ ▶ WEIGHT, ▲ ▼ SQUASH · right stick ◀ ▶ SNAP, ▲ ▼ BOUNCE · ▲ ▼ PUMP ±5 % · ◀ ▶ preset · A plays the key · X next key · Y on / off |
 | FX deck | D-pad picks an effect · A / R1 hold punches in · sticks sweep X / Y · X latch · Y ALL DRY |

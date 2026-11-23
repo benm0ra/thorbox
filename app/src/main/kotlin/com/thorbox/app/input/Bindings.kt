@@ -84,8 +84,8 @@ object Bindings {
             "◀ ▶" to "channel", "▲ ▼ · L-stick" to "volume", "R-stick" to "pan",
             "A" to "mute", "Y" to "solo", "X" to "open track")
         PlayCtx.SONG -> listOf(
-            "D-pad" to "choose pattern", "A" to "launch it (on the beat)", "X" to "+ SONG", "Y" to "PATTERN / SONG mode",
-            "L3" to "copy → new pattern", "R3" to "KEY LOCK")
+            "D-pad" to "choose pattern", "A" to "switch to it (on the beat)", "X" to "add it to the song", "Y" to "▶ plays: song / one pattern",
+            "L3" to "duplicate pattern", "R3" to "KEY LOCK")
         PlayCtx.DUCK -> listOf(
             "L-stick ◀▶ · ▲▼" to "WEIGHT · SQUASH", "R-stick ◀▶ · ▲▼" to "SNAP · BOUNCE", "▲ ▼" to "PUMP ±5 %",
             "◀ ▶" to "preset", "A" to "play the key", "X" to "next key", "Y" to "ON / OFF")

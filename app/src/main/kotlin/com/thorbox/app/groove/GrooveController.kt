@@ -351,6 +351,11 @@ class GrooveController(private val app: AppState) {
     fun firstEmptyPattern(): Int = (0 until PATTERNS).firstOrNull { it != patternIdx.intValue && !hasNotes(it) } ?: -1
 
     fun addSongStep(p: Int) { if (song.value.size < 64) song.value = song.value + com.thorbox.model.SongStep(p, 1) }
+    /** Put pattern [p] into the song as part [at] (the ones after it move down). */
+    fun insertSongStep(at: Int, p: Int) {
+        if (song.value.size >= 64) return
+        val l = song.value.toMutableList(); l.add(at.coerceIn(0, l.size), com.thorbox.model.SongStep(p, 1)); song.value = l
+    }
     fun removeSongStep(i: Int) { song.value = song.value.filterIndexed { k, _ -> k != i } }
     fun setRepeats(i: Int, r: Int) { song.value = song.value.mapIndexed { k, s -> if (k == i) s.copy(repeats = r.coerceIn(1, 16)) else s } }
     fun moveSongStep(i: Int, d: Int) {
