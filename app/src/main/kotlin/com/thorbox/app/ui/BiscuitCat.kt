@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -34,7 +35,7 @@ import kotlin.math.pow
 import kotlin.math.sin
 
 /*
- * THE CAT: a ginger cat in shades (gold hoop in one ear) making biscuits, kneading with both front
+ * THE CAT: a ginger tabby in shades (gold hoop in one ear), side-on and crouched, making biscuits with both front
  * paws in turn, on whatever suits the sound family of the current patch:
  *
  *   PAD    a fat pillow          (slow, deep presses; the pillow puffs back up)
@@ -67,7 +68,9 @@ private val CREAM = Color(0xFFF6E9D8)
 private val BEAN = Color(0xFFF2A1A8)
 private val SHADES = Color(0xFF111118)
 private val HOOP = Color(0xFFE6B93C)
-private const val CAT_SCALE = 0.86f
+private val OUT = Color(0xFF7A4018)
+private val FUR_SHADOW = Color(0xFF9C5A28)
+private val CREAM_SHADOW = Color(0xFFD9CBB9)
 
 /** What she kneads, per sound family. */
 fun kneadObjectName(c: SynthCategory) = when (c) {
@@ -104,7 +107,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, modifier: 
                 // press amount per paw: 1 = fully down, 0 = lifted; left on the beat, right on the off-beat
                 val dl = press(beat); val dr = press((beat + 0.5f) % 1f)
                 val depth = 0.6f + 0.6f * amp
-                val pl = 101f; val pr = 139f                              // paw x after the cat's scale below
+                val pl = 82f; val pr = 108f                                // near paw, far paw (where they land)
                 when (family) {
                     SynthCategory.PAD -> pillow(cs, dl * depth, dr * depth, pl, pr, now, amp, accent)
                     SynthCategory.SUB808 -> waterbed(beat, dl * depth, dr * depth, pl, pr, now, amp, accent, cs)
@@ -115,9 +118,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, modifier: 
                     SynthCategory.WEIRD -> slime(cs, dl * depth, dr * depth, pl, pr, now, amp, tel.lfoValue, accent)
                 }
                 val sink = when (family) { SynthCategory.PAD -> 7f; SynthCategory.WEIRD -> 9f; SynthCategory.SUB808 -> 4f; else -> 2f }
-                withTransform({ scale(CAT_SCALE, CAT_SCALE, Offset(120f, 142f)) }) {
-                    cat(cs, now, beat, playing, amp, tel.lfoValue, dl, dr, sink * depth / CAT_SCALE, 98f, 142f)
-                }
+                cat(cs, now, beat, playing, amp, tel.lfoValue, dl, dr, sink * depth, pl, pr)
             }
         }
         Text("${family.label} · ${kneadObjectName(family)}", color = accent.copy(alpha = 0.85f), fontSize = 10.sp,
@@ -134,112 +135,132 @@ private fun press(ph: Float): Float {
 // ----------------------------------------------------------------------------- the cat
 
 private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolean, amp: Float, lfo: Float,
-                          dl: Float, dr: Float, sink: Float, pl: Float, pr: Float) {
-    val bob = if (playing) 2.5f * abs(sin(PI.toFloat() * beat)) else 1f * sin(now * 1.4f)
-    val lean = (dl - dr) * 3f                                   // weight shifts onto the pressing paw
+                          dn: Float, df: Float, sink: Float, nearX: Float, farX: Float) {
+    // Side-on, three-quarter head: she's crouched on it facing left, chest up, rear sitting, and
+    // kneads with the near paw (on the beat) and the far paw (off-beat) in turn.
+    val bob = if (playing) 1.5f * abs(sin(PI.toFloat() * beat)) else 0.8f * sin(now * 1.4f)
+    val rock = (dn - df) * 1.2f
     val p = cs.path
 
-    // ---- tail: behind her, swishing with the LFO ----
-    val wag = lfo * 14f + sin(now * 1.3f) * 5f
-    p.reset(); p.moveTo(166f, 132f)
-    p.cubicTo(196f, 136f, 214f, 112f + wag * 0.5f, 206f + wag * 0.4f, 84f + wag)
-    drawPath(p, FUR_DARK, style = Stroke(11f, cap = StrokeCap.Round))
+    // ---- tail: up and over, swishing with the LFO ----
+    val wag = lfo * 10f + sin(now * 1.3f) * 4f
+    p.reset(); p.moveTo(190f, 120f)
+    p.cubicTo(222f, 116f, 230f, 80f + wag * 0.5f, 210f + wag * 0.3f, 60f + wag)
+    drawPath(p, OUT, style = Stroke(11f, cap = StrokeCap.Round))
     drawPath(p, FUR, style = Stroke(8f, cap = StrokeCap.Round))
-    drawCircle(FUR_DARK, 4.5f, Offset(206f + wag * 0.4f, 84f + wag))
+    drawCircle(FUR_DARK, 4.2f, Offset(210f + wag * 0.3f, 60f + wag))
 
-    // ---- body: a loaf behind the paws, cream bib ----
-    drawOval(FUR_DARK, Offset(60f + lean, 84f + bob * 0.5f), Size(120f, 68f))
-    drawOval(FUR, Offset(62f + lean, 85f + bob * 0.5f), Size(116f, 64f))
-    for (k in 0 until 3) {                                       // tabby stripes on the flank
-        val x = 150f + k * 8f + lean
-        drawLine(FUR_DARK, Offset(x, 96f + bob * 0.5f), Offset(x + 4f, 116f + bob * 0.5f), 3f, cap = StrokeCap.Round)
+    // ---- far front leg, in shadow behind her chest ----
+    val liftF = 10f * (1f - df).pow(1.5f)
+    val pfx = farX + 2f - 4f * (1f - df); val pfy = 140f + sink * df - liftF
+    p.reset(); p.moveTo(112f, 110f + rock); p.quadraticTo((112f + pfx) / 2f - 4f, (110f + pfy) / 2f, pfx, pfy - 4f)
+    drawPath(p, FUR_SHADOW, style = Stroke(12f, cap = StrokeCap.Round))
+    drawOval(CREAM_SHADOW, Offset(pfx - 2f - 8f - 2f * df, pfy - 5f), Size(16f + 4f * df, 10f))
+
+    // ---- body: back, haunch, belly ----
+    p.reset()
+    p.moveTo(90f, 98f)
+    p.cubicTo(110f, 80f, 166f, 78f, 192f, 94f)
+    p.cubicTo(210f, 106f, 208f, 136f, 188f, 143f)
+    p.lineTo(152f, 143f)
+    p.cubicTo(142f, 134f, 130f, 124f, 116f, 121f)
+    p.cubicTo(102f, 119f, 90f, 114f, 87f, 106f)
+    p.cubicTo(86f, 102f, 87f, 100f, 90f, 98f)
+    p.close()
+    drawPath(p, FUR)
+    drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+    p.reset(); p.moveTo(150f, 142f); p.cubicTo(146f, 120f, 160f, 100f, 184f, 100f)            // haunch
+    drawPath(p, FUR_DARK, style = Stroke(2f, cap = StrokeCap.Round))
+    drawOval(CREAM, Offset(150f, 136.5f), Size(20f, 9f))                                        // hind paw
+    drawOval(OUT, Offset(150f, 136.5f), Size(20f, 9f), style = Stroke(1f))
+    for (k in 0 until 4) {                                                                      // tabby stripes
+        val x = 130f + k * 14.5f; val y = if (k == 0) 84f else 82f
+        p.reset(); p.moveTo(x, y); p.quadraticTo(x + 3f, y + 8f, x, y + 14f)
+        drawPath(p, FUR_DARK, style = Stroke(3f, cap = StrokeCap.Round))
     }
-    drawOval(CREAM, Offset(100f + lean, 92f + bob * 0.5f), Size(40f, 44f))
-    // purr: little lines at her sides while anything sounds
+    // purr: little lines off her chest while anything sounds
     if (amp > 0.02f || playing) {
-        val j = sin(now * 60f) * 1.2f
-        for (sd in floatArrayOf(-1f, 1f)) for (k in 0 until 2) {
-            val x = 120f + sd * (68f + k * 7f) + j
-            drawLine(FUR_LIGHT.copy(alpha = 0.5f - k * 0.2f), Offset(x, 104f + k * 6f), Offset(x + sd * 4f, 100f + k * 6f), 1.6f, cap = StrokeCap.Round)
-        }
+        val j = sin(now * 60f) * 1f
+        for (k in 0 until 2) drawLine(FUR_LIGHT.copy(alpha = 0.55f - k * 0.2f), Offset(78f - k * 6f + j, 112f + k * 6f), Offset(74f - k * 6f + j, 108f + k * 6f), 1.6f, cap = StrokeCap.Round)
     }
 
-    // ---- front legs + paws: kneading ----
-    for (side in 0..1) {
-        val d = if (side == 0) dl else dr
-        val px = if (side == 0) pl else pr
-        val sx = if (side == 0) 106f else 134f
-        val lift = 12f * (1f - d).pow(1.5f)
-        val py = 140f + sink * d - lift
-        val shY = 110f + bob * 0.5f
-        drawLine(FUR_DARK, Offset(sx + lean, shY), Offset(px, py - 3f), 17f, cap = StrokeCap.Round)
-        drawLine(FUR, Offset(sx + lean, shY), Offset(px, py - 3f), 14f, cap = StrokeCap.Round)
-        // the paw: white sock, toes spread when it presses; lifted high you see the beans
-        val spread = 1.5f + 2.5f * d
-        drawOval(CREAM, Offset(px - 10f - spread * 0.5f, py - 6f), Size(20f + spread, 11f))
-        for (t in -1..1) drawLine(FUR_DARK.copy(alpha = 0.55f), Offset(px + t * (3.5f + spread * 0.4f), py - 1f), Offset(px + t * (3.5f + spread * 0.6f), py + 4f), 1.2f, cap = StrokeCap.Round)
-        if (lift > 7f) {
-            drawCircle(BEAN, 2.6f, Offset(px, py - 1f))
-            for (t in -1..1) drawCircle(BEAN, 1.3f, Offset(px + t * 4f, py - 5.5f))
-        }
-    }
+    // ---- near front leg + paw ----
+    val liftN = 10f * (1f - dn).pow(1.5f)
+    val pnx = nearX + 2f - 4f * (1f - dn); val pny = 140f + sink * dn - liftN
+    p.reset(); p.moveTo(98f, 108f); p.quadraticTo((98f + pnx) / 2f - 5f, (108f + pny) / 2f, pnx, pny - 4f)
+    drawPath(p, OUT, style = Stroke(15f, cap = StrokeCap.Round))
+    drawPath(p, FUR, style = Stroke(12f, cap = StrokeCap.Round))
+    drawOval(FUR, Offset(89f, 98f), Size(18f, 16f))                                             // shoulder, blended into the chest
+    val sp = 1f + 2.5f * dn                                                                     // toes spread as it presses
+    drawOval(CREAM, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f))
+    drawOval(OUT, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f), style = Stroke(1f))
+    for (t in -1..1) drawLine(OUT.copy(alpha = 0.6f), Offset(pnx - 2f + t * (3f + sp * 0.5f), pny + 1f), Offset(pnx - 2f + t * (3.5f + sp * 0.7f), pny + 5f), 1f, cap = StrokeCap.Round)
+    if (dn < 0.3f) drawCircle(BEAN, 2.4f, Offset(pnx - 2f, pny + 1f))                         // a bean shows on the lift
 
-    // ---- head ----
-    val hy = 62f + bob
+    // ---- head, three-quarter, on her shoulders ----
+    val hx = 84f; val hy = 76f + rock * 0.5f + bob
     val tw = now - cs.twitchAt
-    val twitch = if (tw in 0f..0.3f) sin(tw * 40f) * 10f * (1f - tw / 0.3f) else 0f
-    ear(cs, 92f, hy, -1f, -twitch)
-    ear(cs, 148f, hy, 1f, twitch * 0.6f)
-    drawOval(FUR_DARK, Offset(80f, hy - 32f), Size(80f, 64f))
-    drawOval(FUR, Offset(82f, hy - 31f), Size(76f, 62f))
-    // cheek fluff
-    for (sd in floatArrayOf(-1f, 1f)) {
-        p.reset(); p.moveTo(120f + sd * 34f, hy + 4f); p.lineTo(120f + sd * 46f, hy + 14f); p.lineTo(120f + sd * 32f, hy + 18f); p.close()
+    val twitch = if (tw in 0f..0.3f) sin(tw * 40f) * 9f * (1f - tw / 0.3f) else 0f
+    rotate(twitch * 0.6f, Offset(hx + 18f, hy - 20f)) {                                        // far ear (gold hoop)
+        p.reset(); p.moveTo(hx + 10f, hy - 22f); p.lineTo(hx + 26f, hy - 44f); p.lineTo(hx + 28f, hy - 14f); p.close()
+        drawPath(p, FUR); drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+        p.reset(); p.moveTo(hx + 14f, hy - 22f); p.lineTo(hx + 24f, hy - 37f); p.lineTo(hx + 24f, hy - 18f); p.close()
+        drawPath(p, BEAN)
+        drawCircle(HOOP, 3f, Offset(hx + 27f, hy - 16f), style = Stroke(1.4f))
+    }
+    rotate(-twitch, Offset(hx - 14f, hy - 18f)) {                                               // near ear
+        p.reset(); p.moveTo(hx - 26f, hy - 12f); p.lineTo(hx - 24f, hy - 44f); p.lineTo(hx - 4f, hy - 24f); p.close()
+        drawPath(p, FUR); drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+        p.reset(); p.moveTo(hx - 22f, hy - 17f); p.lineTo(hx - 21f, hy - 37f); p.lineTo(hx - 9f, hy - 24f); p.close()
+        drawPath(p, BEAN)
+    }
+    p.reset()
+    p.moveTo(hx - 30f, hy)
+    p.cubicTo(hx - 32f, hy - 26f, hx + 28f, hy - 30f, hx + 30f, hy - 2f)
+    p.cubicTo(hx + 32f, hy + 16f, hx + 16f, hy + 24f, hx, hy + 24f)
+    p.cubicTo(hx - 18f, hy + 24f, hx - 30f, hy + 14f, hx - 30f, hy)
+    p.close()
+    drawPath(p, FUR)
+    drawPath(p, OUT, style = Stroke(1.6f))
+    for (sd in floatArrayOf(-1f, 1f)) {                                                         // cheek tufts
+        p.reset(); p.moveTo(hx + sd * 29f, hy + 5f); p.lineTo(hx + sd * 35f, hy + 10f); p.lineTo(hx + sd * 28f, hy + 11f); p.close()
         drawPath(p, FUR)
     }
-    // forehead stripes
-    drawLine(FUR_DARK, Offset(120f, hy - 30f), Offset(120f, hy - 20f), 3f, cap = StrokeCap.Round)
-    drawLine(FUR_DARK, Offset(111f, hy - 28f), Offset(113f, hy - 20f), 2.5f, cap = StrokeCap.Round)
-    drawLine(FUR_DARK, Offset(129f, hy - 28f), Offset(127f, hy - 20f), 2.5f, cap = StrokeCap.Round)
-    // muzzle, nose, a smug little mouth
-    drawOval(CREAM, Offset(104f, hy + 2f), Size(32f, 22f))
-    p.reset(); p.moveTo(115f, hy + 5f); p.lineTo(125f, hy + 5f); p.lineTo(120f, hy + 10f); p.close()
+    p.reset(); p.moveTo(hx - 10f, hy - 20f); p.lineTo(hx - 6f, hy - 14f); p.lineTo(hx - 2f, hy - 21f); p.lineTo(hx + 2f, hy - 14f); p.lineTo(hx + 6f, hy - 20f)
+    drawPath(p, FUR_DARK, style = Stroke(2f, cap = StrokeCap.Round, join = StrokeJoin.Round))   // the tabby M
+    // muzzle, nose, a pleased little mouth
+    val mx = hx - 4f
+    drawOval(CREAM, Offset(mx - 15f, hy + 4f), Size(18f, 14f))
+    drawOval(CREAM, Offset(mx - 3f, hy + 4f), Size(18f, 14f))
+    p.reset(); p.moveTo(mx - 4f, hy + 4f); p.lineTo(mx + 4f, hy + 4f); p.lineTo(mx, hy + 8f); p.close()
     drawPath(p, BEAN)
-    drawLine(FUR_DARK, Offset(120f, hy + 10f), Offset(120f, hy + 13f), 1.4f)
-    drawArc(FUR_DARK, 20f, 120f, false, Offset(113f, hy + 9f), Size(7f, 6f), style = Stroke(1.4f))
-    drawArc(FUR_DARK, 40f, 120f, false, Offset(120f, hy + 9f), Size(8f, 7f), style = Stroke(1.4f))      // the smirk side
-    // whiskers
-    for (sd in floatArrayOf(-1f, 1f)) for (k in -1..1) {
-        drawLine(CREAM.copy(alpha = 0.85f), Offset(120f + sd * 14f, hy + 10f + k * 2.5f), Offset(120f + sd * 40f, hy + 6f + k * 6f), 1f)
+    p.reset(); p.moveTo(mx, hy + 8f); p.lineTo(mx, hy + 11f)
+    p.moveTo(mx, hy + 11f); p.quadraticTo(mx - 3f, hy + 14f, mx - 6f, hy + 11f)
+    p.moveTo(mx, hy + 11f); p.quadraticTo(mx + 4f, hy + 15f, mx + 8f, hy + 10f)
+    drawPath(p, OUT, style = Stroke(1.2f, cap = StrokeCap.Round))
+    for (k in -1..1) {                                                                          // whiskers: short and soft
+        drawLine(CREAM.copy(alpha = 0.8f), Offset(mx - 12f, hy + 10f + k * 2f), Offset(mx - 30f, hy + 7f + k * 5f), 0.8f)
+        drawLine(CREAM.copy(alpha = 0.8f), Offset(mx + 12f, hy + 10f + k * 2f), Offset(mx + 28f, hy + 7f + k * 5f), 0.8f)
     }
     // brows pop over the shades on loud notes
-    val brow = 3f * amp + (if (tw in 0f..0.25f) 1.5f else 0f)
-    drawLine(FUR_DARK, Offset(96f, hy - 14f - brow), Offset(112f, hy - 16f - brow), 2.4f, cap = StrokeCap.Round)
-    drawLine(FUR_DARK, Offset(128f, hy - 16f - brow), Offset(144f, hy - 14f - brow), 2.4f, cap = StrokeCap.Round)
-    // shades: two dark lenses, a bridge, and a glint that sweeps across now and then
-    drawRoundRect(SHADES, Offset(93f, hy - 12f), Size(25f, 14f), CornerRadius(5f))
-    drawRoundRect(SHADES, Offset(122f, hy - 12f), Size(25f, 14f), CornerRadius(5f))
-    drawLine(SHADES, Offset(116f, hy - 9f), Offset(124f, hy - 9f), 2.4f)
-    drawLine(SHADES, Offset(93f, hy - 9f), Offset(86f, hy - 12f), 2f)
-    drawLine(SHADES, Offset(147f, hy - 9f), Offset(154f, hy - 12f), 2f)
-    val g = (now * 0.35f) % 1f
-    if (g < 0.25f) {
-        val gx = 93f + g / 0.25f * 54f
-        if (gx < 116f || gx > 124f) drawLine(Color.White.copy(alpha = 0.65f), Offset(gx, hy - 10f), Offset(gx + 5f, hy - 1f), 1.6f, cap = StrokeCap.Round)
+    val brow = 2.5f * amp + (if (tw in 0f..0.25f) 1.5f else 0f)
+    if (brow > 0.3f) {
+        drawLine(FUR_DARK, Offset(hx - 22f, hy - 12f - brow), Offset(hx - 9f, hy - 13f - brow), 2f, cap = StrokeCap.Round)
+        drawLine(FUR_DARK, Offset(hx + 7f, hy - 13f - brow), Offset(hx + 19f, hy - 12f - brow), 2f, cap = StrokeCap.Round)
     }
-    drawRoundRect(Color.White.copy(alpha = 0.12f), Offset(96f, hy - 10f), Size(9f, 3f), CornerRadius(1.5f))
-    drawRoundRect(Color.White.copy(alpha = 0.12f), Offset(125f, hy - 10f), Size(9f, 3f), CornerRadius(1.5f))
-}
-
-/** An ear: fur triangle, pink inside, swivelling on its base by [angle] degrees. The right one wears a gold hoop. */
-private fun DrawScope.ear(cs: CatState, x: Float, hy: Float, side: Float, angle: Float) {
-    rotate(angle, Offset(x, hy - 16f)) {
-        val p = cs.path2
-        p.reset(); p.moveTo(x + 10f * side, hy - 18f); p.lineTo(x + 2f * side, hy - 46f); p.lineTo(x - 16f * side, hy - 28f); p.close()
-        drawPath(p, FUR_DARK)
-        p.reset(); p.moveTo(x + 6f * side, hy - 22f); p.lineTo(x + 2f * side, hy - 40f); p.lineTo(x - 8f * side, hy - 28f); p.close()
-        drawPath(p, BEAN.copy(alpha = 0.8f))
-        if (side > 0f) drawCircle(HOOP, 3.2f, Offset(x + 10f, hy - 20f), style = Stroke(1.4f))
+    // shades: the near lens bigger (three-quarter), a bridge, an arm back to the far ear, a sweeping glint
+    p.reset(); p.moveTo(hx - 26f, hy - 9f); p.lineTo(hx - 3f, hy - 9f); p.lineTo(hx - 5f, hy + 1f); p.quadraticTo(hx - 14f, hy + 5f, hx - 24f, hy + 1f); p.close()
+    drawPath(p, SHADES)
+    p.reset(); p.moveTo(hx + 3f, hy - 9f); p.lineTo(hx + 24f, hy - 9f); p.lineTo(hx + 23f, hy); p.quadraticTo(hx + 14f, hy + 4f, hx + 5f, hy + 1f); p.close()
+    drawPath(p, SHADES)
+    drawLine(SHADES, Offset(hx - 3f, hy - 8f), Offset(hx + 3f, hy - 8f), 2f)
+    drawLine(SHADES, Offset(hx + 24f, hy - 8f), Offset(hx + 30f, hy - 10f), 2f)
+    drawLine(Color.White.copy(alpha = 0.25f), Offset(hx - 21f, hy - 7f), Offset(hx - 16f, hy - 7f), 2f, cap = StrokeCap.Round)
+    drawLine(Color.White.copy(alpha = 0.25f), Offset(hx + 7f, hy - 7f), Offset(hx + 12f, hy - 7f), 2f, cap = StrokeCap.Round)
+    val g = (now * 0.35f) % 1f
+    if (g < 0.2f) {
+        val gx = hx - 24f + g / 0.2f * 46f
+        if (gx < hx - 5f || gx > hx + 5f) drawLine(Color.White.copy(alpha = 0.6f), Offset(gx, hy - 8f), Offset(gx + 4f, hy), 1.5f, cap = StrokeCap.Round)
     }
 }
 
