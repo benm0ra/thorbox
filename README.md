@@ -12,6 +12,10 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 
 ## New in this round
 
+- **PATTERNS + SONG.** There are 16 patterns per project, each a pattern for every track (MPC-style sequences). Launch one and it changes exactly on the bar line: the engine swaps it in at the right sample, so it's never late. Chain patterns into a **song** (× repeats, reorder, loop or stop at the end), copy a pattern to start a variation, and save it all with the project.
+- **KEY LOCK.** Pick a key and lock it. Every sampler track key-matches to it (new samples too), synth patterns snap into the scale as they play (your notes are kept), and the keys stay in scale. Change the key and everything follows.
+- **Characters with real motion:** spring physics (follow-through, anticipation, squash and stretch) for the rat, the cat and BIG DAWG, tuned with an offline motion sim (`tools/anim-sim`).
+
 - **DUCK, a sidechain page for the whole mix.** One key (the kick alone, any track, or a ghost BEAT) ducks any set of tracks: WEIGHT, SQUASH, SNAP, BOUNCE, PUMP and LOUD are real threshold, ratio, attack, release, mix and makeup. There are four presets (BOOM BAP POCKET, HEAVY DILLA PUMP, SUBTLE GLUE, LO-FI GHOST), a gain-reduction meter with the last 3 s of the pump, and an NYC subway rat on the DUCK ST platform. He holds a slice overhead and squashes by the real gain reduction, then rises on the release. The mixer's PUMP moved here (older projects carry over).
 
 - **Sampler: 1 AT A TIME** (the default). Playing a pad silences the pad before it, so chops never pile up; turn it off in PAD EDIT → MUTE to layer them. Mute groups and targets still work either way.

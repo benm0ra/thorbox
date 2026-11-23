@@ -242,8 +242,9 @@ fun KeySheet(state: AppState, modifier: Modifier = Modifier) {
         }
         // scales
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (m in listOf(ScaleMode.MAJOR, ScaleMode.MINOR, ScaleMode.DORIAN, ScaleMode.MIXOLYDIAN, ScaleMode.PENTATONIC_MINOR)) {
-                HwButton(com.thorbox.app.groove.Scales.label(m), Modifier.weight(1f).fillMaxHeight(), active = k.mode == m, accent = Tb.Key, minHeight = 34.dp, fontSize = 11, hPad = 2.dp) {
+            for ((m, name) in listOf(ScaleMode.MAJOR to "MAJOR", ScaleMode.MINOR to "MINOR", ScaleMode.DORIAN to "DORIAN",
+                    ScaleMode.MIXOLYDIAN to "MIXO", ScaleMode.PENTATONIC_MINOR to "PENTA")) {
+                HwButton(name, Modifier.weight(1f).fillMaxHeight(), active = k.mode == m, accent = Tb.Key, minHeight = 34.dp, fontSize = 11, hPad = 2.dp) {
                     state.setProjectKey(k.root, m)
                 }
             }

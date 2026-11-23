@@ -93,6 +93,10 @@ Go @('--ez', 'meters', 'false')
 foreach ($t in 0..4) { Go @('--ei', 'settings', "$t"); Shot "settings-$t" 2 }
 Go @('--ei', 'settings', '-1', '--ez', 'mic', 'true');  Shot 'recorder' 2
 Go @('--ez', 'mic', 'false')
+# SONG: patterns 2 + 3 copied from 1, a 4-step song, playing in song mode; then the key sheet with KEY LOCK
+Go @('--es', 'view', 'SONG', '--ez', 'songdemo', 'true'); Go @('--ez', 'play', 'true'); Shot 'song' 2
+Go @('--ez', 'play', 'false', '--ez', 'keylock', 'true', '--ez', 'keysheet', 'true'); Shot 'keylock' 2
+Go @('--ez', 'keylock', 'false', '--ez', 'keysheet', 'false')
 # DUCK: keyed off the kick, the sampler + synth dipping, playing (a few frames: the rat pumps)
 Go @('--es', 'view', 'DUCK', '--ez', 'duckdemo', 'true', '--ez', 'play', 'true'); Shot 'duck-1' 2
 Shot 'duck-2' 0

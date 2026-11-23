@@ -145,7 +145,26 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 **Groove** per track: STRAIGHT, MPC 60, GRIT, DRUNK, LAZY, BOOM BAP, TRAP or HOUSE, with a FEEL amount and swing (50 – 75 %, on 1/8 or 1/16). **REC** (tap SELECT, or ● REC) records live playing with quantize.
 
-## 8. Mixer and FX
+## 8. Patterns, songs and the key
+
+![SONG](img/song.jpg)
+
+**SONG** (on the rail, after STEPS) is where a loop becomes a track.
+
+- **16 patterns.** Each pattern holds a pattern for every track, like an MPC sequence. Every editor (STEPS, the drum grid, the chop lane, the piano roll) edits the **current** pattern. Tap another pad to launch it. While playing, it waits for the end of the current pattern and changes exactly on the beat (the pad pulses while it waits; tap it again to cancel). Stopped, it changes at once. A lit pad is playing. The dots show which tracks have notes, and the corner shows its length in bars.
+- **COPY → NEW** copies the current pattern into the first empty slot (then tap it to work on the copy: a verse, then a hook with more drums). **CLEAR** empties the current pattern.
+- **The song** is the patterns in order, each played × its repeats. **+ SONG** adds the current pattern to the end. On each step, **− / +** sets repeats, **▲ ▼** moves it and **✕** drops it. **▶ SONG** plays from the top. **LOOP** goes back to the start at the end; LOOP OFF stops there. The bars under the header show where you are in the pattern and in the song.
+- **PATTERN / SONG** chooses what ▶ does: loop the current pattern, or play the song. Launching a pattern by hand switches back to PATTERN.
+- Recording, automation and the playheads all count from the start of the current pattern, so each pattern loops on its own beat 1.
+
+**KEY LOCK** holds the whole project in one key. Tap the key (in the SONG header, or the **PROJECT** box on the sampler) for the key sheet: pick the root and the scale, then **KEY LOCK ON**. Locked:
+
+- Every sampler track is key-matched to it, including samples you load later.
+- Synth patterns snap into the scale as they play. The notes you wrote are kept, so turning the lock off brings them back.
+- The keys stay in scale, and the key stops following whatever sample you load.
+- Change the key and everything moves with it.
+
+## 9. Mixer and FX
 
 ![The mixer](img/mixer.jpg)
 
@@ -184,7 +203,7 @@ The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your
 
 Older projects that used the mixer's PUMP open with those settings moved onto the DUCK page.
 
-## 9. Projects and settings
+## 10. Projects and settings
 
 The whole session saves itself every few seconds and when the app goes to the background; the last project reopens at launch. **⚙ → PROJECTS** saves, saves as new, opens, renames, copies and deletes. Each project keeps its own copy of its samples.
 
@@ -192,7 +211,7 @@ The whole session saves itself every few seconds and when the app goes to the ba
 
 **⚙ → LOOK:** eight themes (Genesis, Studio, Bodega, Cyberpunk, Vintage, Pastel, Terminal, Grayscale), each tile a live preview of its tempo readout, pads and knob colours. Bodega is navy with corner-store neon; Vintage and Pastel are the two light themes. Text on coloured buttons and tabs picks dark or light by contrast, so every theme stays readable. Also in LOOK: glass FULL / SUBTLE / OFF, the meters strip, hints. **DEFAULTS:** what every launch starts with. **CONTROLS:** start in NAV, tilt, the controller map. **SYSTEM:** audio status, diagnostics and logs, version.
 
-## 10. Button map (PLAY mode)
+## 11. Button map (PLAY mode)
 
 | View | Buttons |
 |---|---|
@@ -200,12 +219,13 @@ The whole session saves itself every few seconds and when the app goes to the ba
 | SYNTH | sticks = the four encoders · ◀ ▶ page, ▲ ▼ octave · A / R1 hold = root (or chord) · X chord mode · Y reset page · L3 next preset · R3 DICE |
 | DRUMS | ◀ ▶ step, ▲ ▼ sound · A toggle step · R1 hold plays the sound · sticks = encoders · X dice beat · Y undo · L3 next kit · R3 dice kit |
 | STEPS | ◀ ▶ step, ▲ ▼ lane · A toggle · X dice · Y undo |
+| SONG | D-pad picks a pattern · A launches it (on the beat) · X + SONG · Y PATTERN / SONG · L3 copy to a new pattern · R3 KEY LOCK |
 | MIXER | ◀ ▶ channel, ▲ ▼ ±1 dB · A mute · Y solo · X open the track · left stick volume · right stick pan |
 | DUCK | left stick ◀ ▶ WEIGHT, ▲ ▼ SQUASH · right stick ◀ ▶ SNAP, ▲ ▼ BOUNCE · ▲ ▼ PUMP ±5 % · ◀ ▶ preset · A plays the key · X next key · Y on / off |
 | FX deck | D-pad picks an effect · A / R1 hold punches in · sticks sweep X / Y · X latch · Y ALL DRY |
 | always | START play / stop · B back · L1 hold note repeat · L2 / R2 filter / stutter punch-in |
 
-## 11. If something's off
+## 12. If something's off
 
 - **A sample won't load:** the toast says why (format, too large, unreadable). Files over 10 minutes load their first 10.
 - **No sound from a pad:** check the track's strip in the MIXER (mute / solo / level), and the pad's LEVEL and CUTOFF in PAD EDIT.
