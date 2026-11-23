@@ -9,6 +9,7 @@
 #include <cstring>
 #include <vector>
 #include <climits>
+#include <thread>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "ThorboxEngine", __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "ThorboxEngine", __VA_ARGS__)
@@ -881,11 +882,14 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
         const float tL = lin * std::cos(ang) * 1.41421356f, tR = lin * std::sin(ang) * 1.41421356f;
         const float* bus = mBus[k].data();
         float pL = s.peakL, pR = s.peakR;
+        // EXPORT stem: this strip post fader/pan/duck (master gain applied below), pre master FX
+        float* st = (mCapturing && mExpStemSlot[k] >= 0) ? mCapStem[k].data() + 2 * mCapOff : nullptr;
         for (int i = 0; i < n; ++i) {
             s.gL += (tL - s.gL) * coeff; s.gR += (tR - s.gR) * coeff;
             const float l = bus[2 * i] * s.gL, r = bus[2 * i + 1] * s.gR;
             out[2 * i] += l; out[2 * i + 1] += r;
             pL = std::max(pL, std::fabs(l)); pR = std::max(pR, std::fabs(r));
+            if (st) { st[2 * i] = l; st[2 * i + 1] = r; }
         }
         s.peakL = pL; s.peakR = pR;
     }
@@ -900,9 +904,17 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
         mMasterSide[tw & (kScope - 1)].store(0.5f * (l - r), std::memory_order_relaxed);
         mMasterTap[(tw++) & (kScope - 1)].store(0.5f * (l + r), std::memory_order_relaxed);
         mLoud.process(l, r);
+        mGainScratch[i] = mMasterGain;
         out[2 * i] = std::clamp(l + mClickBus[2 * i], -1.f, 1.f);         // click: monitoring only, after master
         out[2 * i + 1] = std::clamp(r + mClickBus[2 * i + 1], -1.f, 1.f);
+        if (mCapturing) { mCapMix[2 * (mCapOff + i)] = l; mCapMix[2 * (mCapOff + i) + 1] = r; }   // EXPORT: no click
     }
+    if (mCapturing)
+        for (int k = 0; k < kStrips; ++k) {
+            if (mExpStemSlot[k] < 0) continue;
+            float* st = mCapStem[k].data() + 2 * mCapOff;
+            for (int i = 0; i < n; ++i) { st[2 * i] *= mGainScratch[i]; st[2 * i + 1] *= mGainScratch[i]; }
+        }
     mMasterPeakL = mL; mMasterPeakR = mR;
     mMasterTapWrite.store(tw, std::memory_order_release);
 }
@@ -941,12 +953,22 @@ static inline void atomicMax(std::atomic<float>& a, float v) {
 
 oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, void* audioData, int32_t numFrames) {
     if (mTuner) mTuner->tune();
-    if (!mOutI16) { renderFloat(stream, static_cast<float*>(audioData), numFrames); return oboe::DataCallbackResult::Continue; }
+    // EXPORT handshake (Dekker): announce we're in, then look. exportBegin sets mOffline and waits for
+    // mInRender to clear, so either we see mOffline here or it sees us and waits for this block.
+    mInRender.store(true, std::memory_order_seq_cst);
+    if (mOffline.load(std::memory_order_seq_cst)) {
+        mInRender.store(false, std::memory_order_release);
+        std::memset(audioData, 0, (size_t)numFrames * 2 * (mOutI16 ? sizeof(int16_t) : sizeof(float)));
+        return oboe::DataCallbackResult::Continue;
+    }
+    const float sr = (float)stream->getSampleRate();
+    struct Out { std::atomic<bool>& f; ~Out() { f.store(false, std::memory_order_release); } } out{mInRender};
+    if (!mOutI16) { renderFloat(sr, static_cast<float*>(audioData), numFrames); return oboe::DataCallbackResult::Continue; }
     // 16-bit device: render float into scratch, then convert (with clipping) in slices.
     auto* dst = static_cast<int16_t*>(audioData);
     for (int32_t off = 0; off < numFrames; off += kI16ScratchFrames) {
         const int32_t n = std::min<int32_t>(kI16ScratchFrames, numFrames - off);
-        renderFloat(stream, mI16Scratch.data(), n);
+        renderFloat(sr, mI16Scratch.data(), n);
         for (int32_t i = 0; i < 2 * n; ++i) {
             const float v = std::clamp(mI16Scratch[(size_t)i], -1.f, 1.f);
             dst[2 * off + i] = (int16_t)std::lrint(v * 32767.f);
@@ -955,7 +977,7 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
     return oboe::DataCallbackResult::Continue;
 }
 
-void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32_t numFrames) {
+void AudioEngine::renderFloat(float sr, float* audioData, int32_t numFrames) {
 #if defined(__aarch64__)
     // Flush denormals to zero: filter and envelope tails decaying toward 0 would otherwise hit
     // ~100× slower subnormal arithmetic and cause CPU spikes exactly when notes release.
@@ -967,7 +989,6 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
 
     float* out = static_cast<float*>(audioData);
     std::memset(out, 0, sizeof(float) * (size_t)numFrames * 2);
-    const float sr = (float)stream->getSampleRate();
     for (auto& sy : mSynths) sy.setSampleRate(sr);
     for (auto& d : mDrums) d.setSampleRate(sr);
     mLoud.setSampleRate(sr);
@@ -992,6 +1013,7 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
             applyFire(f, tickAtChunk, tps, sr);
         }
         renderSegment(pos, len, sr, w);
+        mCapOff = off;
         mixChunk(out + 2 * off, len, sr, tickAtChunk, tps);
     }
     mScopeWrite.store(w, std::memory_order_release);
@@ -1063,4 +1085,74 @@ void AudioEngine::renderFloat(oboe::AudioStream* stream, float* audioData, int32
     mTelPads.store(mask, std::memory_order_relaxed);
     mTelPlayPad.store(phPad, std::memory_order_relaxed);
     return;
+}
+
+// ------------------------------------------------------------------------------------------ EXPORT
+
+bool AudioEngine::exportBegin(int sampleRate) {
+    if (mOffline.load(std::memory_order_relaxed)) return false;
+    mExpRate = (float)std::clamp(sampleRate, 22050, 96000);
+    mCapMix.assign(2 * (size_t)kExportMaxFrames, 0.f);
+    mExpOut.assign(2 * (size_t)kExportMaxFrames, 0.f);
+    for (auto& c : mCapStem) c.assign(2 * (size_t)kExportMaxFrames, 0.f);
+    mExpStemSlot.fill(-1); mExpMixSlot = -1;
+    mOffline.store(true, std::memory_order_seq_cst);
+    // wait out a live block already in flight (a few ms at most); afterwards the callback stays silent
+    while (mInRender.load(std::memory_order_seq_cst)) std::this_thread::yield();
+    return true;
+}
+
+bool AudioEngine::exportOpen(int slot, int fd, int format, int bits) {
+    if (!mOffline.load(std::memory_order_relaxed) || slot < 0 || slot >= kExportSlots || fd < 0) { if (fd >= 0) ::close(fd); return false; }
+    const int sr = (int)mExpRate;
+    if (format == (int)exportfile::Format::Flac) mExpW[(size_t)slot] = std::make_unique<exportfile::FlacWriter>(fd, sr, bits);
+    else mExpW[(size_t)slot] = std::make_unique<exportfile::WavWriter>(fd, sr, bits);
+    return true;
+}
+
+void AudioEngine::exportRoute(int mixSlot, const int* stemSlots) {
+    auto ok = [&](int s) { return s >= 0 && s < kExportSlots ? s : -1; };
+    mExpMixSlot = ok(mixSlot);
+    for (int k = 0; k < kStrips; ++k) mExpStemSlot[(size_t)k] = stemSlots ? ok(stemSlots[k]) : -1;
+}
+
+float AudioEngine::exportRender(int frames, float* stemPeaks) {
+    if (!mOffline.load(std::memory_order_relaxed)) return -1.f;
+    frames = std::clamp(frames, 0, kExportMaxFrames);
+    mCapturing = true;
+    renderFloat(mExpRate, mExpOut.data(), frames);
+    mCapturing = false;
+    float peak = 0.f;
+    for (int i = 0; i < 2 * frames; ++i) peak = std::max(peak, std::fabs(mCapMix[(size_t)i]));
+    if (mExpMixSlot >= 0 && mExpW[(size_t)mExpMixSlot]) mExpW[(size_t)mExpMixSlot]->write(mCapMix.data(), frames);
+    for (int k = 0; k < kStrips; ++k) {
+        const int sl = mExpStemSlot[(size_t)k];
+        float p = 0.f;
+        if (sl >= 0) {
+            for (int i = 0; i < 2 * frames; ++i) p = std::max(p, std::fabs(mCapStem[(size_t)k][(size_t)i]));
+            if (mExpW[(size_t)sl]) mExpW[(size_t)sl]->write(mCapStem[(size_t)k].data(), frames);
+        }
+        if (stemPeaks) stemPeaks[k] = p;
+        peak = std::max(peak, p);
+    }
+    return peak;
+}
+
+int64_t AudioEngine::exportClose(int slot) {
+    if (slot < 0 || slot >= kExportSlots || !mExpW[(size_t)slot]) return -1;
+    auto& w = mExpW[(size_t)slot];
+    const bool ok = w->close();
+    const int64_t n = w->frames();
+    w.reset();
+    return ok ? n : -1;
+}
+
+void AudioEngine::exportEnd() {
+    if (!mOffline.load(std::memory_order_relaxed)) return;
+    for (auto& w : mExpW) w.reset();                                   // an unfinished file is just closed
+    mExpStemSlot.fill(-1); mExpMixSlot = -1;
+    mLoud.reset();
+    mCapMix = {}; mExpOut = {};
+    for (auto& c : mCapStem) c = {};
+    mOffline.store(false, std::memory_order_seq_cst);                  // the live callback takes over again
 }

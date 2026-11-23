@@ -113,6 +113,21 @@ object NativeEngine {
     fun setDuck(param: Int, value: Float) = nativeSetDuck(param, value)
     /** DUCK telemetry since the last call: [0] deepest reduction dB, [1] reduction now dB, [2] loudest key (linear), [3] trigger count. */
     fun duck(out: FloatArray) = nativeGetDuck(out)
+    // ---- EXPORT: offline bounce (main thread). Between begin and end the live output is silent and
+    // every render call advances the engine by `frames`; commands sent meanwhile land between calls.
+    fun exportBegin(sampleRate: Int) = nativeExportBegin(sampleRate)
+    /** Opens a writer in [slot] (0..9) on [fd] (ownership passes to the engine). [format]: 0 WAV, 1 FLAC. */
+    fun exportOpen(slot: Int, fd: Int, format: Int, bits: Int) = nativeExportOpen(slot, fd, format, bits)
+    /** Where the next renders go: the mix to [mixSlot], track k's stem to stems[k] (-1 = nowhere). */
+    fun exportRoute(mixSlot: Int, stems: IntArray?) = nativeExportRoute(mixSlot, stems)
+    /** Renders up to [EXPORT_MAX_FRAMES]; returns the block's peak (mix and routed stems). */
+    fun exportRender(frames: Int, stemPeaks: FloatArray? = null) = nativeExportRender(frames, stemPeaks)
+    /** Finishes a file: frames written, or -1 if it failed. */
+    fun exportClose(slot: Int) = nativeExportClose(slot)
+    fun exportEnd() = nativeExportEnd()
+    const val EXPORT_MAX_FRAMES = 8192
+    const val EXPORT_SLOTS = 10
+
     /** Must match duck::Param in Ducker.h. */
     object DuckParam {
         const val SOURCE = 0; const val SOURCE_SLOT = 1; const val TARGETS = 2; const val THRESHOLD_DB = 3; const val RATIO = 4
@@ -255,6 +270,12 @@ object NativeEngine {
         else -> null
     }
 
+    private external fun nativeExportBegin(sampleRate: Int): Boolean
+    private external fun nativeExportOpen(slot: Int, fd: Int, format: Int, bits: Int): Boolean
+    private external fun nativeExportRoute(mixSlot: Int, stems: IntArray?)
+    private external fun nativeExportRender(frames: Int, stemPeaks: FloatArray?): Float
+    private external fun nativeExportClose(slot: Int): Long
+    private external fun nativeExportEnd()
     private external fun nativeStart(): Boolean
     private external fun nativeStop()
     private external fun nativeNoteOn(pad: Int, velocity: Float): Boolean

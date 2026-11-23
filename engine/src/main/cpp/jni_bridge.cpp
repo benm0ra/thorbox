@@ -120,6 +120,27 @@ JNIEXPORT void JNICALL JNI_FN(nativeGetDuck)(JNIEnv* env, jobject, jfloatArray o
     gEngine->getDuck(tmp);
     env->SetFloatArrayRegion(out, 0, 4, tmp);
 }
+// EXPORT (main thread only; see AudioEngine.h)
+JNIEXPORT jboolean JNICALL JNI_FN(nativeExportBegin)(JNIEnv*, jobject, jint sr) { return engine().exportBegin(sr); }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeExportOpen)(JNIEnv*, jobject, jint slot, jint fd, jint format, jint bits) {
+    if (!gEngine) { if (fd >= 0) ::close(fd); return JNI_FALSE; }
+    return gEngine->exportOpen(slot, fd, format, bits);
+}
+JNIEXPORT void JNICALL JNI_FN(nativeExportRoute)(JNIEnv* env, jobject, jint mix, jintArray stems) {
+    if (!gEngine) return;
+    int s[AudioEngine::kTracks]; for (int& v : s) v = -1;
+    if (stems) { const jsize n = std::min<jsize>(env->GetArrayLength(stems), AudioEngine::kTracks); env->GetIntArrayRegion(stems, 0, n, reinterpret_cast<jint*>(s)); }
+    gEngine->exportRoute(mix, s);
+}
+JNIEXPORT jfloat JNICALL JNI_FN(nativeExportRender)(JNIEnv* env, jobject, jint frames, jfloatArray stemPeaks) {
+    if (!gEngine) return -1.f;
+    float p[AudioEngine::kTracks] = {};
+    const float peak = gEngine->exportRender(frames, p);
+    if (stemPeaks && env->GetArrayLength(stemPeaks) >= AudioEngine::kTracks) env->SetFloatArrayRegion(stemPeaks, 0, AudioEngine::kTracks, p);
+    return peak;
+}
+JNIEXPORT jlong JNICALL JNI_FN(nativeExportClose)(JNIEnv*, jobject, jint slot) { return gEngine ? gEngine->exportClose(slot) : -1; }
+JNIEXPORT void JNICALL JNI_FN(nativeExportEnd)(JNIEnv*, jobject) { if (gEngine) gEngine->exportEnd(); }
 // Safe from any thread (reads an immutable buffer).
 JNIEXPORT jint JNICALL JNI_FN(nativeGetTransients)(JNIEnv* env, jobject, jint sampleId, jfloat sens, jint maxSlices, jlongArray out) {
     if (!gEngine || !out || !finite(sens) || maxSlices < 1 || maxSlices > 64) return 0;

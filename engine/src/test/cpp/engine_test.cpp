@@ -8,6 +8,8 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <fcntl.h>
+#include <string>
 // Decoder stub: fd 7777 "decodes" to 1 s of a 220 Hz tone (mono, 48 kHz); 7779 is the same, cut from
 // a "30-minute" file; 7778 decodes until cancelled; anything else fails.
 // Lets the test drive the real worker → registry → pollEvent → assign → play path.
@@ -286,6 +288,100 @@ int main() {
         e.setDuck(duck::Source, duck::kBeat); e.setPlaying(true); render(e, 48000); e.getDuck(dk);
         CHECK(dk[0] > 6.f, "DUCK on the ghost BEAT pumps with the transport (%.1f dB)", dk[0]);
         CHECK(!e.setDuck(duck::kCount, 0.f) && !e.setDuck(-1, 0.f), "bad DUCK params rejected");
+    }
+    {   // EXPORT: an offline bounce is the live render, sample for sample; stems sum to the mix; files are whole
+        auto setup = [](AudioEngine& e) {
+            e.setTempo(100); e.setPattern(1, synthLoop());
+            auto* dp = new seq::Pattern(); dp->lengthTicks = 3840; dp->count = 8;
+            for (int i = 0; i < 8; ++i) dp->events[i] = seq::Event{i * 480, 120, (int16_t)(i % 4 == 2 ? 1 : (i % 2 ? 2 : 0)), 1.f, 1.f};
+            e.setPattern(2, dp);
+            e.setChannel(1, 0, -6.f); e.setChannel(1, 1, -0.4f); e.setChannel(2, 1, 0.3f);   // a fader and two pans
+            e.setDuck(duck::Source, duck::kBeat); e.setDuck(duck::Targets, 2.f);
+            e.setPlaying(true);
+        };
+        const int N = 1024 * 90;                                        // ~1.9 s, four loops' worth of hits
+        AudioEngine live; setup(live);
+        std::vector<float> L((size_t)N * 2);
+        for (int off = 0; off < N; off += 1024) {
+            if (off == 1024 * 30) live.fxOn(1, 0.6f, 0.4f);              // an echo punched in mid-way
+            live.onAudioReady(&gStream, L.data() + 2 * off, 1024);
+        }
+        AudioEngine off; setup(off);
+        const std::string mixPath = "/tmp/ce_export_mix.wav", stemPath = "/tmp/ce_export_synth.flac";
+        CHECK(off.exportBegin(48000) && !off.exportBegin(48000), "exportBegin parks the live output (once)");
+        CHECK(off.exportOpen(0, ::open(mixPath.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0600), 0, 24)
+              && off.exportOpen(1, ::open(stemPath.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0600), 1, 24), "export files open");
+        int stems[AudioEngine::kTracks]; for (int& v : stems) { v = -1; }
+        stems[1] = 1;
+        off.exportRoute(0, stems);
+        // the live callback, if the device keeps calling it, plays silence and moves nothing
+        off.getTransport(tr); const double t0 = tr[0];
+        std::vector<float> z(2 * 512, 1.f); off.onAudioReady(&gStream, z.data(), 512); off.getTransport(tr);
+        bool silent = true; for (float v : z) silent &= v == 0.f;
+        CHECK(silent && tr[0] == t0, "while exporting, the device callback outputs silence and doesn't advance");
+        // capture what the mix writer sees by routing it twice: into a file, and back from the file
+        float peak = 0.f;
+        for (int o = 0; o < N; o += 1024) {
+            if (o == 1024 * 30) off.fxOn(1, 0.6f, 0.4f);
+            peak = std::max(peak, off.exportRender(1024));
+        }
+        CHECK(off.exportClose(0) == N && off.exportClose(1) == N && off.exportClose(1) == -1, "both files closed with %d frames", N);
+        off.exportEnd();
+        // read the 24-bit WAV back and compare with the live output, quantised the same way
+        FILE* f = std::fopen(mixPath.c_str(), "rb"); std::vector<uint8_t> wav((size_t)N * 6 + 44);
+        const size_t got = f ? std::fread(wav.data(), 1, wav.size(), f) : 0; if (f) std::fclose(f);
+        exportfile::Quantizer q(24); int diff = 0; double lvl = 0;
+        for (int i = 0; i < 2 * N && got == wav.size(); ++i) {
+            const uint8_t* p = wav.data() + 44 + 3 * (size_t)i;
+            int32_t v = p[0] | p[1] << 8 | p[2] << 16; if (v & 0x800000) v -= 0x1000000;
+            diff = std::max(diff, std::abs(v - q(L[(size_t)i]))); lvl = std::max(lvl, (double)std::fabs(L[(size_t)i]));
+        }
+        CHECK(got == wav.size() && diff == 0 && lvl > 0.05 && peak > 0.05, "offline mix == live render, bit for bit (peak %.2f, max diff %d LSB)", lvl, diff);
+        std::remove(mixPath.c_str()); std::remove(stemPath.c_str());
+        render(off, 4800);
+        CHECK(rms(render(off, 9600), 0) > 0.01, "after exportEnd the live callback plays again");
+    }
+    {   // EXPORT stems: per track, post fader/pan/duck/master gain, pre master FX: they add up to the dry mix
+        AudioEngine e;
+        e.setTempo(120); e.setPattern(1, synthLoop());
+        auto* dp = new seq::Pattern(); dp->lengthTicks = 3840; dp->count = 4;
+        for (int i = 0; i < 4; ++i) dp->events[i] = seq::Event{i * 960, 120, (int16_t)(i % 2), 1.f, 1.f};
+        e.setPattern(2, dp);
+        e.setChannel(1, 0, -3.f); e.setChannel(2, 1, -0.5f); e.setMasterGainDb(-4.f);
+        e.setPlaying(true);
+        e.exportBegin(44100);
+        int stems[AudioEngine::kTracks]; for (int k = 0; k < AudioEngine::kTracks; ++k) stems[k] = 1 + k;
+        // no files open: routing still captures, so peaks report what each stem would hold
+        e.exportRoute(0, stems);
+        float sp[AudioEngine::kTracks]; float maxS1 = 0, maxS2 = 0, other = 0;
+        for (int o = 0; o < 44100 * 2; o += 2048) {
+            e.exportRender(2048, sp); maxS1 = std::max(maxS1, sp[1]); maxS2 = std::max(maxS2, sp[2]);
+            for (int k = 3; k < AudioEngine::kTracks; ++k) other = std::max(other, sp[k]);
+        }
+        CHECK(maxS1 > 0.02f && maxS2 > 0.02f && other == 0.f, "stems: synth %.2f, drums %.2f, empty tracks silent", maxS1, maxS2);
+        // now into files: mix, synth stem, drum stem (24-bit WAV) — read back, the stems sum to the mix
+        const char* paths[3] = {"/tmp/ce_sum_mix.wav", "/tmp/ce_sum_1.wav", "/tmp/ce_sum_2.wav"};
+        for (int i = 0; i < 3; ++i) e.exportOpen(i, ::open(paths[i], O_RDWR | O_CREAT | O_TRUNC, 0600), 0, 24);
+        for (int& v : stems) { v = -1; }
+        stems[1] = 1; stems[2] = 2;
+        e.exportRoute(0, stems);
+        const int M = 2048 * 40;
+        for (int o = 0; o < M; o += 2048) e.exportRender(2048);
+        for (int i = 0; i < 3; ++i) e.exportClose(i);
+        e.exportEnd();
+        auto readWav = [](const char* p, int n) {
+            std::vector<int32_t> v; FILE* f = std::fopen(p, "rb"); if (!f) return v;
+            std::vector<uint8_t> b((size_t)n * 6 + 44); const size_t g = std::fread(b.data(), 1, b.size(), f); std::fclose(f);
+            if (g != b.size()) return v;
+            for (int i = 0; i < 2 * n; ++i) { const uint8_t* q = b.data() + 44 + 3 * (size_t)i; int32_t x = q[0] | q[1] << 8 | q[2] << 16; if (x & 0x800000) x -= 0x1000000; v.push_back(x); }
+            return v;
+        };
+        const auto mx = readWav(paths[0], M), s1 = readWav(paths[1], M), s2 = readWav(paths[2], M);
+        int worst = mx.size() == (size_t)2 * M && s1.size() == mx.size() && s2.size() == mx.size() ? 0 : 1 << 30;
+        int32_t big = 0;
+        for (size_t i = 0; worst < (1 << 30) && i < mx.size(); ++i) { worst = std::max(worst, std::abs(mx[i] - s1[i] - s2[i])); big = std::max(big, std::abs(mx[i])); }
+        CHECK(worst <= 2 && big > 100000, "stems sum to the mix (worst %d LSB of 24-bit, 44.1 kHz)", worst);
+        for (auto p : paths) std::remove(p);
     }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;

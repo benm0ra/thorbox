@@ -16,6 +16,7 @@
 #include "SamplerVoice.h"
 #include "SpscQueue.h"
 #include "Ducker.h"
+#include "Export.h"
 #include "Synth.h"
 #include "DrumSynth.h"
 #include "Sequencer.h"
@@ -153,6 +154,21 @@ public:
     int getScope(float* out, int n);                  // latest n synth samples, oldest first
 
     // ---- Oboe callbacks (audio thread) ----
+    // ---- EXPORT: offline (faster than real time) bounce, driven from the main thread ----
+    // exportBegin parks the live callback (it outputs silence) and makes the caller the audio thread;
+    // exportRender then renders `frames` at `sampleRate`, writing the mix (post master, no click) and
+    // any routed stems (per track, post fader/pan/duck/master gain, pre master FX) to the open writers.
+    // Commands sent meanwhile are applied between render calls. Main thread only.
+    static constexpr int kExportSlots = kTracks + 2;
+    static constexpr int kExportMaxFrames = 8192;
+    bool exportBegin(int sampleRate);
+    bool exportOpen(int slot, int fd, int format, int bits);   // takes ownership of fd
+    void exportRoute(int mixSlot, const int* stemSlots);       // kStrips entries, -1 = not written
+    float exportRender(int frames, float* stemPeaks = nullptr); // peak of what was rendered (mix + routed stems)
+    int64_t exportClose(int slot);                             // frames written, -1 = write error
+    void exportEnd();
+    bool exporting() const { return mOffline.load(std::memory_order_relaxed); }
+
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream* stream, void* audioData, int32_t numFrames) override;
     void onErrorAfterClose(oboe::AudioStream* stream, oboe::Result error) override;
 
@@ -279,7 +295,18 @@ private:
     bool mOutI16 = false;
     std::vector<float> mI16Scratch;                       // float render target when the device wants I16
     std::unique_ptr<oboe::LatencyTuner> mTuner;           // grows the buffer one burst at a time on underruns
-    void renderFloat(oboe::AudioStream* stream, float* out, int32_t numFrames);
+    void renderFloat(float sr, float* out, int32_t numFrames);
+    // EXPORT state (main thread while mOffline; the callback only reads the two flags)
+    std::atomic<bool> mOffline{false}, mInRender{false};
+    std::array<std::unique_ptr<exportfile::Writer>, kExportSlots> mExpW{};
+    int mExpMixSlot = -1;
+    std::array<int, kStrips> mExpStemSlot{};
+    bool mCapturing = false;
+    int mCapOff = 0;
+    float mExpRate = 48000.f;
+    std::vector<float> mCapMix, mExpOut;
+    std::array<std::vector<float>, kStrips> mCapStem{};
+    std::array<float, kChunk> mGainScratch{};
     bool mWantRunning = false;
 
     // Registry (main + worker threads)
