@@ -70,7 +70,7 @@ public:
     bool setPadRegion(int pad, int64_t startFrame, int64_t endFrame);
     bool setPadGain(int pad, float linear);
     bool setPadParam(int pad, int param, float value);
-    bool getWave(int sampleId, int buckets, float* out);   // [min, max, rms] × buckets; any thread
+    bool getWave(int sampleId, int buckets, float* out, int64_t from = 0, int64_t to = -1);   // [from, to) frames (to < 0: the end)   // [min, max, rms] × buckets; any thread
     bool stopPads(int track);                         // -1 = all tracks
     // Transient onsets of a loaded sample (frames, ascending, first is 0). Safe from any thread.
     int transients(int sampleId, float sensitivity, int maxSlices, int64_t* out);

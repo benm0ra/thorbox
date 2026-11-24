@@ -95,6 +95,16 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadRegion)(JNIEnv*, jobject, jint pad
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPadGain)(JNIEnv*, jobject, jint pad, jfloat g) {
     return gEngine && finite(g) && g >= 0.f && g <= 16.f && gEngine->setPadGain(pad, g);   // up to +24 dB (NORMALIZE on quiet chops)
 }
+// A stretch of the sample, for the zoomed waveform: [from, to) frames into out.length / 3 buckets.
+JNIEXPORT jboolean JNICALL JNI_FN(nativeGetWaveRange)(JNIEnv* env, jobject, jint sampleId, jlong from, jlong to, jfloatArray out) {
+    if (!gEngine || !out || from < 0 || to <= from) return JNI_FALSE;
+    const jsize n = env->GetArrayLength(out);
+    if (n < 3 || n % 3 != 0 || n > 3 * 16384) return JNI_FALSE;
+    std::unique_ptr<float[]> tmp(new (std::nothrow) float[(size_t)n]);
+    if (!tmp || !gEngine->getWave(sampleId, n / 3, tmp.get(), from, to)) return JNI_FALSE;
+    env->SetFloatArrayRegion(out, 0, n, tmp.get());
+    return JNI_TRUE;
+}
 JNIEXPORT jboolean JNICALL JNI_FN(nativeGetWave)(JNIEnv* env, jobject, jint sampleId, jfloatArray out) {
     if (!gEngine || !out) return JNI_FALSE;
     const jsize len = env->GetArrayLength(out);

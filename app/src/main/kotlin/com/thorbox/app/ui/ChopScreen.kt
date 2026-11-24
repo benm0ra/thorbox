@@ -179,30 +179,77 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
     val info by state.sample.collectAsState()
     val tel = state.telemetry
     val grabPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
+    val slop = androidx.compose.ui.platform.LocalViewConfiguration.current.touchSlop
 
-    fun xToFrame(x: Float) = (x / dims[0].coerceAtLeast(1) * frames).toLong()
+    // ZOOM: the window on screen, as fractions of the sample (two fingers pinch / slide it; double-tap or FIT resets)
+    var view by remember(frames) { androidx.compose.runtime.mutableStateOf(WaveView(0.0, 1.0)) }
+    val minSpan = if (frames > 0) (160.0 / frames).coerceIn(1e-7, 1.0) else 1.0      // ~160 samples across the screen at most
+    // zoomed in: the engine measures just the stretch on screen (a bit either side), so it stays sharp
+    var detail by remember(frames) { androidx.compose.runtime.mutableStateOf<WaveDetail?>(null) }
+    val sid = info?.engineId
+    androidx.compose.runtime.LaunchedEffect(view, sid, frames) {
+        if (view.span > 0.97 || sid == null || frames <= 0) { detail = null; return@LaunchedEffect }
+        if (detail?.covers(view, frames) == true) return@LaunchedEffect
+        kotlinx.coroutines.delay(40)                                   // let a pinch settle
+        val a = ((view.start - view.span * 0.5).coerceAtLeast(0.0) * frames).toLong()
+        val b = ((view.start + view.span * 1.5).coerceAtMost(1.0) * frames).toLong().coerceAtLeast(a + 1)
+        val cols = (dims[0].coerceIn(256, 2048) * 2)
+        val arr = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.thorbox.engine.NativeEngine.waveRange(sid, a, b, cols) }
+        if (arr != null) detail = WaveDetail(a, b, arr)
+    }
+
+    fun xToFrame(x: Float) = ((view.start + x / dims[0].coerceAtLeast(1) * view.span) * frames).toLong().coerceIn(0L, (frames - 1).coerceAtLeast(0L))
+    fun frameToX(f: Long) = ((f.toDouble() / frames - view.start) / view.span * dims[0]).toFloat()
     fun nearestMarker(x: Float): Int {
         var best = -1; var bd = grabPx
-        regions.forEachIndexed { i, r -> if (i > 0) { val mx = r.start.toFloat() / frames * dims[0]; val d = abs(mx - x); if (d < bd) { bd = d; best = i } } }
+        regions.forEachIndexed { i, r -> if (i > 0) { val mx = frameToX(r.start); val d = abs(mx - x); if (d < bd) { bd = d; best = i } } }
         return best
     }
+    // touch: [downX, start at down, pinch distance at start, span at start, focus (sample fraction), mode 0 none / 1 pinch / 2 pan, last tap time]
+    val touch = remember { DoubleArray(7) }
 
     Box(
         modifier.bezel()
             .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
             .pointerInteropFilter { ev ->
                 if (frames <= 0) return@pointerInteropFilter false   // empty: let the CHOOSE / RECORD buttons have the touch
+                val w = dims[0].coerceAtLeast(1).toDouble()
+                fun spread() = if (ev.pointerCount >= 2) kotlin.math.hypot((ev.getX(0) - ev.getX(1)).toDouble(), (ev.getY(0) - ev.getY(1)).toDouble()) else 1.0
+                fun focusX() = if (ev.pointerCount >= 2) (ev.getX(0) + ev.getX(1)) / 2.0 else ev.x.toDouble()
                 when (ev.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> { drag[0] = nearestMarker(ev.x); drag[1] = 0 }
-                    MotionEvent.ACTION_MOVE -> if (drag[0] > 0) { drag[1] = 1; sm.moveMarker(drag[0], xToFrame(ev.x)) }
-                    MotionEvent.ACTION_UP -> {
-                        if (drag[0] <= 0 || drag[1] == 0) {
-                            val f = xToFrame(ev.x)
-                            val i = regions.indexOfFirst { f >= it.start && f < it.end }
-                            if (i >= 0) { state.padDown(i, 0.85f); state.padUp(i) }   // audition + select
-                        }
-                        drag[0] = -1
+                    MotionEvent.ACTION_DOWN -> { drag[0] = nearestMarker(ev.x); drag[1] = 0; touch[0] = ev.x.toDouble(); touch[1] = view.start; touch[5] = 0.0 }
+                    MotionEvent.ACTION_POINTER_DOWN -> if (ev.pointerCount == 2) {
+                        // two fingers: zoom around the point between them (and slide with them)
+                        drag[0] = -1; touch[5] = 1.0
+                        touch[2] = spread().coerceAtLeast(1.0); touch[3] = view.span
+                        touch[4] = view.start + focusX() / w * view.span
                     }
+                    MotionEvent.ACTION_MOVE -> when {
+                        touch[5] == 1.0 && ev.pointerCount >= 2 -> {
+                            val span = (touch[3] * touch[2] / spread().coerceAtLeast(1.0)).coerceIn(minSpan, 1.0)
+                            view = WaveView((touch[4] - focusX() / w * span).coerceIn(0.0, 1.0 - span), span)
+                        }
+                        touch[5] == 1.0 -> Unit                              // a finger left: wait for the other
+                        drag[0] > 0 -> { drag[1] = 1; sm.moveMarker(drag[0], xToFrame(ev.x)) }
+                        view.span < 1.0 && (touch[5] == 2.0 || abs(ev.x - touch[0]) > slop) -> {    // zoomed: one finger scrolls
+                            touch[5] = 2.0
+                            view = WaveView((touch[1] - (ev.x - touch[0]) / w * view.span).coerceIn(0.0, 1.0 - view.span), view.span)
+                        }
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val now = android.os.SystemClock.uptimeMillis().toDouble()
+                        if (touch[5] == 0.0 && (drag[0] <= 0 || drag[1] == 0)) {
+                            if (now - touch[6] < 300 && view.span < 1.0) view = WaveView(0.0, 1.0)     // double-tap: the whole sample
+                            else {
+                                val f = xToFrame(ev.x)
+                                val i = regions.indexOfFirst { f >= it.start && f < it.end }
+                                if (i >= 0) { state.padDown(i, 0.85f); state.padUp(i) }   // audition + select
+                            }
+                            touch[6] = now
+                        }
+                        drag[0] = -1; touch[5] = 0.0
+                    }
+                    MotionEvent.ACTION_CANCEL -> { drag[0] = -1; touch[5] = 0.0 }
                 }
                 true
             }
@@ -215,20 +262,30 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                 val mid = wh / 2f; val amp = wh * 0.44f
                 val p = peaks
                 val nReg = regions.size
+                val v = view
+                val vf0 = v.start * frames; val vfPer = v.span * frames / w          // frame at x = vf0 + x * vfPer
+                fun xOf(f: Long) = ((f - vf0) / vfPer).toFloat()
+                // the sharpest data that covers the window: the engine's close-up, else the whole-sample peaks
+                val det = detail?.takeIf { it.covers(v, frames) }
+                val src: FloatArray? = det?.data ?: p
+                val s0 = det?.from ?: 0L; val s1 = det?.to ?: frames
                 // one outline (peaks) + one body (RMS, what you hear as loudness) per slice, coloured like its pad;
                 // index nReg = audio outside every slice
                 val outer = Array(nReg + 1) { Path() }; val inner = Array(nReg + 1) { Path() }
                 val clipMarks = Path()
                 var peakAbs = 0f
-                if (p != null && p.size >= 3 && frames > 0) {
-                    val buckets = p.size / 3; val cols = w.toInt().coerceAtLeast(1)
+                if (src != null && src.size >= 3 && frames > 0) {
+                    val buckets = src.size / 3; val cols = w.toInt().coerceAtLeast(1)
+                    val bPerFrame = buckets.toDouble() / (s1 - s0).coerceAtLeast(1L)
                     var ri = 0
                     for (x in 0 until cols) {
-                        val b0 = x * buckets / cols; val b1 = ((x + 1) * buckets / cols).coerceIn(b0 + 1, buckets)
+                        val fa = vf0 + x * vfPer; val fb = fa + vfPer
+                        val b0 = ((fa - s0) * bPerFrame).toInt().coerceIn(0, buckets - 1)
+                        val b1 = ((fb - s0) * bPerFrame).toInt().coerceIn(b0 + 1, buckets)
                         var mn = 0f; var mx = 0f; var sq = 0f
-                        for (bk in b0 until b1) { mn = minOf(mn, p[3 * bk]); mx = maxOf(mx, p[3 * bk + 1]); sq += p[3 * bk + 2] * p[3 * bk + 2] }
+                        for (bk in b0 until b1) { mn = minOf(mn, src[3 * bk]); mx = maxOf(mx, src[3 * bk + 1]); sq += src[3 * bk + 2] * src[3 * bk + 2] }
                         val rms = kotlin.math.sqrt(sq / (b1 - b0))
-                        val f = ((x + 0.5f) / w * frames).toLong()
+                        val f = (fa + vfPer * 0.5).toLong()
                         while (ri < nReg - 1 && f >= regions[ri + 1].start) ri++
                         val idx = if (nReg == 0 || f < regions[ri].start || f >= regions[ri].end) nReg else ri
                         val xx = x + 0.5f
@@ -245,15 +302,31 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                 // time ruler: the largest step that keeps labels ≥ 64 dp apart
                 val sr = (info?.sampleRate ?: 44100).coerceAtLeast(1)
                 val secs = frames.toDouble() / sr
-                val stepS = doubleArrayOf(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0)
-                    .firstOrNull { secs > 0 && it / secs * w >= 64.dp.toPx() } ?: 300.0
+                val vs0 = v.start * secs; val vSecs = v.span * secs                 // the seconds on screen
+                val stepS = doubleArrayOf(0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0)
+                    .firstOrNull { vSecs > 0 && it / vSecs * w >= 64.dp.toPx() } ?: 300.0
                 val ticks = ArrayList<Pair<Float, androidx.compose.ui.text.TextLayoutResult>>()
-                if (secs > 0) { var t = 0.0; while (t <= secs) { ticks += (t / secs * w).toFloat() to tm.measure(fmtTime(t, stepS), ruler); t += stepS } }
+                if (vSecs > 0) {
+                    var k = kotlin.math.ceil(vs0 / stepS).toLong()
+                    while (k * stepS <= vs0 + vSecs && ticks.size < 64) { val t = k * stepS; ticks += ((t - vs0) / vSecs * w).toFloat() to tm.measure(fmtTime(t, stepS), ruler); k++ }
+                }
                 // beat / bar grid from the detected tempo (bars every 4 beats from the start)
                 val bpm = info?.bpm
-                val beatPx = if (bpm != null && bpm > 0f && frames > 0) (60.0 / bpm * sr / frames * w).toFloat() else 0f
+                val beatFrames = if (bpm != null && bpm > 0f) 60.0 / bpm * sr else 0.0
+                val beatPx = if (beatFrames > 0 && frames > 0) (beatFrames / vfPer).toFloat() else 0f
                 val barEvery = generateSequence(1) { it * 2 }.first { beatPx * 4 * it >= 30.dp.toPx() || it >= 64 }
-                val barLabels = if (beatPx > 0f) List(((w / (beatPx * 4)).toInt() + 2).coerceAtMost(400)) { if (it % barEvery == 0) tm.measure("${it + 1}", barStyle) else null } else emptyList()
+                val firstBeat = if (beatFrames > 0) kotlin.math.ceil(vf0 / beatFrames).toLong() else 0L
+                val beatX0 = if (beatFrames > 0) ((firstBeat * beatFrames - vf0) / vfPer).toFloat() else 0f
+                // bar numbers for the bars on screen: (x, label)
+                val barLabels = ArrayList<Pair<Float, androidx.compose.ui.text.TextLayoutResult>>()
+                if (beatPx > 0f) {
+                    var bar = kotlin.math.ceil(vf0 / (beatFrames * 4)).toLong()
+                    while (barLabels.size < 200) {
+                        val x = ((bar * 4 * beatFrames - vf0) / vfPer).toFloat(); if (x > w) break
+                        if (bar % barEvery == 0L) barLabels += x to tm.measure("${bar + 1}", barStyle)
+                        bar++
+                    }
+                }
                 // the readout: length · rate · channels · peak
                 val infoText = if (frames > 0) tm.measure(buildString {
                     append(fmtTime(secs, 0.01)); append(" · ").append(String.format(Locale.US, "%.1f kHz", sr / 1000f))
@@ -268,16 +341,16 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     if (frames <= 0) return@onDrawBehind
                     // slice tints
                     regions.forEachIndexed { i, r ->
-                        val x0 = r.start.toFloat() / frames * w; val x1 = r.end.toFloat() / frames * w
-                        drawRect(Tb.Pads[i % Tb.Pads.size].copy(alpha = if (i == selected) 0.16f else 0.05f), Offset(x0, 0f), Size(x1 - x0, wh))
+                        val x0 = xOf(r.start).coerceAtLeast(0f); val x1 = xOf(r.end).coerceAtMost(w)
+                        if (x1 > x0) drawRect(Tb.Pads[i % Tb.Pads.size].copy(alpha = if (i == selected) 0.16f else 0.05f), Offset(x0, 0f), Size(x1 - x0, wh))
                     }
                     // beat + bar grid
                     if (beatPx >= 7.dp.toPx() || beatPx * 4 >= 7.dp.toPx()) {
-                        var k = 0; var x = 0f
-                        while (x <= w) {
-                            val bar = k % 4 == 0
+                        var k = 0; var x = beatX0
+                        while (x <= w && k < 4000) {
+                            val bar = (firstBeat + k) % 4 == 0L
                             if (bar || beatPx >= 7.dp.toPx()) drawLine(Tb.Text.copy(alpha = if (bar) 0.13f else 0.05f), Offset(x, 0f), Offset(x, wh), 1f)
-                            k++; x = k * beatPx
+                            k++; x = beatX0 + k * beatPx
                         }
                     }
                     drawLine(Tb.Line, Offset(0f, mid), Offset(w, mid), 1f)
@@ -290,7 +363,8 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     }
                     drawPath(clipMarks, Tb.Warn)                                    // clipping: red ticks along the top
                     regions.forEachIndexed { i, r ->
-                        val x = r.start.toFloat() / frames * w
+                        val x = xOf(r.start)
+                        if (x < -2f || x > w + 2f) return@forEachIndexed               // zoomed: off screen
                         val c = Tb.Pads[i % Tb.Pads.size]
                         drawLine(c, Offset(x, 0f), Offset(x, wh), if (i == selected) thick else thin)
                         // Keep the number tab on screen: a slice starting near the right edge used to
@@ -308,10 +382,11 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                         val lx = (x + 3.dp.toPx()).coerceAtLeast(9.dp.toPx()).coerceAtMost(w - lay.size.width - 9.dp.toPx())
                         if (lx >= 0f) drawText(lay, topLeft = Offset(lx, wh + rulerH - lay.size.height - 1f))
                     }
-                    barLabels.forEachIndexed { k, lay ->
-                        if (lay == null) return@forEachIndexed
-                        val x = k * 4 * beatPx
-                        if (x + lay.size.width < w) drawText(lay, topLeft = Offset(x + 2.dp.toPx(), wh + 1f))
+                    for ((x, lay) in barLabels) if (x >= 0f && x + lay.size.width < w) drawText(lay, topLeft = Offset(x + 2.dp.toPx(), wh + 1f))
+                    // zoomed: where the window is in the whole sample
+                    if (v.span < 1.0) {
+                        drawRect(Tb.Void.copy(alpha = 0.6f), Offset(0f, wh - 4.dp.toPx()), Size(w, 4.dp.toPx()))
+                        drawRect(Tb.Text, Offset((v.start * w).toFloat(), wh - 4.dp.toPx()), Size((v.span * w).toFloat().coerceAtLeast(3f), 4.dp.toPx()))
                     }
                     // readouts: the sample (top-right, under the tabs), the selected slice (bottom-left)
                     if (wh > 120.dp.toPx()) infoText?.let { t ->
@@ -327,8 +402,9 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                     }
                     tel.frame.longValue                    // only the playhead needs every frame
                     val ph = state.playhead.floatValue
-                    if (ph in 0f..1f) {
-                        val x = ph * w
+                    val phx = ((ph - v.start) / v.span * w).toFloat()
+                    if (ph in 0f..1f && phx in 0f..w) {
+                        val x = phx
                         drawLine(Tb.Text.copy(alpha = 0.18f), Offset(x, 0f), Offset(x, wh), phW * 4f)     // glow
                         drawLine(Tb.Text, Offset(x, 0f), Offset(x, wh), phW)
                         if (wh > 64.dp.toPx()) {                     // its time, just under the number tabs
@@ -341,6 +417,9 @@ private fun SliceWaveform(state: AppState, modifier: Modifier) {
                 }
             }
     ) {
+        if (view.span < 0.999 && frames > 0)
+            HwButton("FIT · ${(1.0 / view.span).let { if (it >= 10) it.toInt().toString() else String.format(Locale.US, "%.1f", it) }}×",
+                Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 30.dp), minHeight = 30.dp, fontSize = 11, hPad = 8.dp) { view = WaveView(0.0, 1.0) }
         // Empty state: the big dark box is where your first sample goes, so the ways to get one live here.
         if (frames <= 0 && state.loadingName.collectAsState().value == null) {
             androidx.compose.foundation.layout.Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally,
@@ -591,11 +670,19 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
 }
 
 /** m:ss.s for a time ruler / readout; [resolution] picks the decimals (0.01 → 2, 0.1 → 1, ≥ 1 → none). */
+/** The waveform's zoom window, as fractions of the sample: [start, start + span). */
+private data class WaveView(val start: Double, val span: Double)
+/** A close-up of frames [from, to) from the engine ([min, max, rms] per bucket). */
+private class WaveDetail(val from: Long, val to: Long, val data: FloatArray) {
+    fun covers(v: WaveView, frames: Long) = from <= (v.start * frames).toLong() && to >= ((v.start + v.span) * frames).toLong() &&
+        data.size / 3 >= 1 && (to - from) / (data.size / 3).toDouble() <= v.span * frames / 600.0      // fine enough for the window
+}
+
 private fun fmtTime(t: Double, resolution: Double): String {
     val m = (t / 60).toInt(); val sec = t - m * 60
-    val dec = when { resolution < 0.1 -> 2; resolution < 1.0 -> 1; else -> 0 }
-    val sf = when (dec) { 2 -> String.format(Locale.US, "%05.2f", sec); 1 -> String.format(Locale.US, "%04.1f", sec); else -> String.format(Locale.US, "%02d", sec.toInt()) }
-    return if (m > 0 || dec == 0) "$m:$sf" else String.format(Locale.US, if (dec == 2) "%.2fs" else "%.1fs", sec)
+    val dec = when { resolution < 0.01 -> 3; resolution < 0.1 -> 2; resolution < 1.0 -> 1; else -> 0 }
+    val sf = when (dec) { 3 -> String.format(Locale.US, "%06.3f", sec); 2 -> String.format(Locale.US, "%05.2f", sec); 1 -> String.format(Locale.US, "%04.1f", sec); else -> String.format(Locale.US, "%02d", sec.toInt()) }
+    return if (m > 0 || dec == 0) "$m:$sf" else String.format(Locale.US, when (dec) { 3 -> "%.3fs"; 2 -> "%.2fs"; else -> "%.1fs" }, sec)
 }
 
 private fun lerpC(a: androidx.compose.ui.graphics.Color, b: androidx.compose.ui.graphics.Color, t: Float) =

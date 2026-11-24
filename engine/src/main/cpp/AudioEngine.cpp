@@ -524,7 +524,7 @@ bool AudioEngine::getPeaks(int sampleId, int buckets, float* out) {
 
 // [min, max, rms] per bucket of the mono mix: the waveform view draws the peaks as the outline
 // and the RMS as the solid body (what you hear as loudness).
-bool AudioEngine::getWave(int sampleId, int buckets, float* out) {
+bool AudioEngine::getWave(int sampleId, int buckets, float* out, int64_t from, int64_t to) {
     std::shared_ptr<SampleBuffer> buf;
     {
         std::lock_guard<std::mutex> l(mRegMtx);
@@ -533,12 +533,15 @@ bool AudioEngine::getWave(int sampleId, int buckets, float* out) {
         buf = it->second.buf;
     }
     if (buckets <= 0 || buf->frames <= 0) return false;
+    if (to < 0 || to > buf->frames) to = buf->frames;
+    from = std::clamp<int64_t>(from, 0, std::max<int64_t>(0, to - 1));
+    const int64_t span = std::max<int64_t>(1, to - from);
     const int ch = buf->channels;
     const float inv = 1.f / (float)ch;
     const float* d = buf->data.data();
     for (int b = 0; b < buckets; ++b) {
-        const int64_t a = buf->frames * b / buckets;
-        const int64_t e = std::min(buf->frames, std::max(a + 1, buf->frames * (b + 1) / buckets));
+        const int64_t a = from + span * b / buckets;
+        const int64_t e = std::min(to, std::max(a + 1, from + span * (b + 1) / buckets));
         float mn = 0.f, mx = 0.f; double sq = 0.0;
         for (int64_t f = a; f < e; ++f) {
             float s = d[f * ch];

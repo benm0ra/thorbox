@@ -253,6 +253,11 @@ object NativeEngine {
     fun unloadSample(sampleId: Int) = nativeUnloadSample(sampleId)
 
     /** [min, max, rms] triples of the mono mix, [buckets] long (≤ 16384). Thread-safe. */
+    /** [min, max, rms] per bucket over frames [from, to): the zoomed waveform. Any thread. */
+    fun waveRange(sampleId: Int, from: Long, to: Long, buckets: Int): FloatArray? {
+        val out = FloatArray(3 * buckets.coerceIn(1, 16384))
+        return if (nativeGetWaveRange(sampleId, from, to, out)) out else null
+    }
     fun wave(sampleId: Int, buckets: Int): FloatArray? {
         val out = FloatArray(buckets * 3)
         return if (nativeGetWave(sampleId, out)) out else null
@@ -342,6 +347,7 @@ object NativeEngine {
     private external fun nativeSetPadRegion(pad: Int, start: Int, end: Int): Boolean
     private external fun nativeSetPadGain(pad: Int, g: Float): Boolean
     private external fun nativeGetWave(sampleId: Int, out: FloatArray): Boolean
+    private external fun nativeGetWaveRange(sampleId: Int, from: Long, to: Long, out: FloatArray): Boolean
     private external fun nativeSetPadParam(pad: Int, param: Int, v: Float): Boolean
     private external fun nativeStopPads(track: Int): Boolean
     private external fun nativeSetDuck(param: Int, v: Float): Boolean
