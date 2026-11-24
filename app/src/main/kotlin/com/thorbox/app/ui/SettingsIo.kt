@@ -45,10 +45,10 @@ internal fun AudioPage(state: AppState) {
     val a = state.audioSetup
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Section("OUTPUT", "Where the sound goes. Bluetooth works but adds delay: use the speaker, headphones or USB to play live.")
-        Choices(listOf("" to "SYSTEM") + a.outputs.value.map { it.key to "${it.kind}: ${it.name}" },
+        Choices(listOf("" to "SYSTEM") + a.outputs.value.map { it.key to devLabel(it) },
             a.outKey.value) { a.chooseOutput(it) }
         Section("INPUT", "What the field recorder (MIC) records from: the built-in mic, a headset or a USB interface.")
-        Choices(listOf("" to "SYSTEM") + a.inputs.value.map { it.key to "${it.kind}: ${it.name}" }, a.inKey.value) { a.chooseInput(it) }
+        Choices(listOf("" to "SYSTEM") + a.inputs.value.map { it.key to devLabel(it) }, a.inKey.value) { a.chooseInput(it) }
 
         Section("METRONOME", "CLK on STEPS (or Y on the controller) turns it on. Only you hear it: it's never recorded or exported.")
         Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -149,6 +149,9 @@ internal fun MidiPage(state: AppState) {
             color = Tb.Muted, fontSize = 11.sp)
     }
 }
+
+/** "USB: Scarlett 2i2", or just "SPEAKER" when the name says nothing more. */
+private fun devLabel(d: AudioSetup.Dev) = if (d.name.equals(d.kind, ignoreCase = true)) d.kind else "${d.kind}: ${d.name}"
 
 @Composable
 private fun Section(title: String, detail: String, modifier: Modifier = Modifier) {
