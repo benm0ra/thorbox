@@ -34,7 +34,7 @@ object CrashReporter {
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             runCatching {
                 val text = buildString {
-                    append("Thorbox ").append(versionName(app)).append('\n')
+                    append("Clamshell Beats ").append(versionName(app)).append('\n')
                     append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                         .append(" · Android ").append(Build.VERSION.RELEASE)
                         .append(" (API ").append(Build.VERSION.SDK_INT).append(")\n")
@@ -69,7 +69,7 @@ class CrashActivity : Activity() {
         val pad = (16 * resources.displayMetrics.density).toInt()
 
         val title = TextView(this).apply {
-            text = "Thorbox crashed"
+            text = "Clamshell Beats crashed"
             textSize = 22f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD)
         }
         val hint = TextView(this).apply {
@@ -82,7 +82,7 @@ class CrashActivity : Activity() {
                 text = "Copy"
                 setOnClickListener {
                     getSystemService(ClipboardManager::class.java)
-                        .setPrimaryClip(ClipData.newPlainText("Thorbox crash", report))
+                        .setPrimaryClip(ClipData.newPlainText("Clamshell Beats crash", report))
                     text = "Copied"
                 }
             })
@@ -91,6 +91,16 @@ class CrashActivity : Activity() {
                 setOnClickListener {
                     startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND)
                         .setType("text/plain").putExtra(Intent.EXTRA_TEXT, report), "Share crash report"))
+                }
+            })
+            addView(Button(context).apply {
+                text = "Save to Downloads"
+                setOnClickListener {
+                    val btn = this
+                    Thread {
+                        val name = LogExport.saveToDownloads(context, "ClamshellBeats-crash", report)
+                        btn.post { btn.text = if (name != null) "Saved ✓" else "Save failed" }
+                    }.start()
                 }
             })
             addView(Button(context).apply {

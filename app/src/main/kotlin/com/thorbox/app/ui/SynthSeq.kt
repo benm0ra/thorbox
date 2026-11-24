@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navModal
+import com.thorbox.app.input.navTarget
+
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -34,7 +33,6 @@ import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -48,15 +46,16 @@ import com.thorbox.engine.NativeEngine
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.runtime.getValue
 
 private val NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 private fun noteName(n: Int) = "${NAMES[n % 12]}${n / 12 - 1}"
 private val audition = Handler(Looper.getMainLooper())
 
 /** Short preview of a note you just drew (so the grid is never silent while you write). */
-private fun previewNote(n: Int) {
-    NativeEngine.synthNoteOn(n, 0.75f)
-    audition.postDelayed({ NativeEngine.synthNoteOff(n) }, 180)
+private fun previewNote(track: Int, n: Int) {
+    NativeEngine.synthNoteOn(track, n, 0.75f)
+    audition.postDelayed({ NativeEngine.synthNoteOff(track, n) }, 180)
 }
 
 /**
@@ -70,7 +69,7 @@ private fun previewNote(n: Int) {
 @Composable
 fun NoteGrid(state: AppState, modifier: Modifier) {
     val g = state.groove
-    val clip = g.clips.value[1]
+    val clip = g.clips.value[g.synthT]
     val rows = g.gridRows()
     val steps = Steps.count(clip.lengthTicks)
     val pages = ((steps + 15) / 16).coerceAtLeast(1)
@@ -81,11 +80,29 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
     val dims = remember { IntArray(2) }
     val gesture = remember { FloatArray(6) }     // downX, downY, mode (0 none, 1 resize, 2 move), tick, note, moved
     val slop = LocalViewConfiguration.current.touchSlop
-    val tm = rememberTextMeasurer()
-    val label = remember { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+    val tm = rememberTextMeasurer(cacheSize = 64)
+    val label = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
     val nameCol = with(androidx.compose.ui.platform.LocalDensity.current) { 34.dp.toPx() }   // note-name column
     val rowOf = remember(rows.contentHashCode()) { HashMap<Int, Int>(rows.size * 2).apply { rows.forEachIndexed { i, n -> put(n, i) } } }
+    // NAV: A enters the roll, the D-pad walks steps (◀▶) and notes (▲▼), A adds / removes a note, X makes it a step longer
+    val navCell = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val rollGrid = com.thorbox.app.input.NavGrid(16, rows.size,
+        get = { navCell.intValue.coerceIn(0, rows.size * 16 - 1) }, set = { navCell.intValue = it },
+        down = { c ->
+            val step = first + c % 16; val note = rows[(c / 16).coerceIn(0, rows.size - 1)]
+            if (c % 16 < visible) {
+                val adding = clip.notes.none { it.note == note && it.tick == step * STEP_TICKS }
+                g.gridToggle(step, note); if (adding) previewNote(g.synthT, note)
+            }
+        },
+        alt = { c ->
+            val t = (first + c % 16) * STEP_TICKS; val note = rows[(c / 16).coerceIn(0, rows.size - 1)]
+            clip.notes.firstOrNull { it.note == note && t >= it.tick && t < it.tick + maxOf(it.lengthTicks, STEP_TICKS / 2) }
+                ?.let { g.gridResize(it.tick, it.note, it.lengthTicks + STEP_TICKS) }
+        },
+        describe = { c -> "${noteName(rows[(c / 16).coerceIn(0, rows.size - 1)])} · step ${first + c % 16 + 1}" },
+        verb = "note on/off", altVerb = "longer", tag = "pianoroll")
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth().height(36.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -98,8 +115,9 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 modifier = Modifier.align(Alignment.CenterVertically))
         }
         Canvas(
-            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Tb.Black.copy(alpha = 0.8f))
+            Modifier.weight(1f).fillMaxWidth().bezel()
                 .onSizeChanged { dims[0] = it.width; dims[1] = it.height }
+                .navTarget("PIANO ROLL", grid = rollGrid, corner = 14f)
                 .pointerInteropFilter { ev ->
                     val cw = (dims[0] - nameCol) / 16f
                     val rh = dims[1].coerceAtLeast(1) / rows.size.toFloat()
@@ -123,7 +141,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                                 gesture[5] = 1f
                             } else if (gesture[2] == 2f) {
                                 val newNote = rows[rowAt(ev.y)]
-                                if (newNote != gesture[4].toInt()) { g.gridMove(gesture[3].toInt(), gesture[4].toInt(), newNote); gesture[4] = newNote.toFloat(); previewNote(newNote) }
+                                if (newNote != gesture[4].toInt()) { g.gridMove(gesture[3].toInt(), gesture[4].toInt(), newNote); gesture[4] = newNote.toFloat(); previewNote(g.synthT, newNote) }
                                 gesture[5] = 1f
                             }
                         }
@@ -131,7 +149,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                             val step = stepAt(ev.x); val note = rows[rowAt(ev.y)]
                             val adding = gesture[2] == 0f
                             g.gridToggle(step, note)
-                            if (adding) previewNote(note)
+                            if (adding) previewNote(g.synthT, note)
                         }
                     }
                     true
@@ -145,7 +163,8 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 val tonic = state.keyLock.value && Math.floorMod(n - key.root.ordinal, 12) == 0
                 drawRect(if (tonic) Tb.EncOrange.copy(alpha = 0.12f) else if (r % 2 == 0) Tb.Panel.copy(alpha = 0.6f) else Tb.Black.copy(alpha = 0f),
                     Offset(nameCol, r * rh), Size(size.width - nameCol, rh))
-                if (rh > 11.dp.toPx()) drawText(tm, noteName(n), Offset(3.dp.toPx(), r * rh + (rh - 11.dp.toPx()) / 2), if (tonic) label.copy(color = Tb.EncOrange) else label)
+                // 7 dp in: clear of the frame's rounded corners (the top and bottom names were clipped)
+                if (rh > 11.dp.toPx()) drawTextSafe(tm, noteName(n), Offset(7.dp.toPx(), r * rh + (rh - 11.dp.toPx()) / 2), if (tonic) label.copy(color = Tb.EncOrange) else label)
             }
             for (s in 0..16) {
                 val x = nameCol + s * cw
@@ -163,6 +182,10 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
                 if (e.ratchet > 1 || e.condEvery > 1 || e.locks.isNotEmpty())
                     drawCircle(Tb.Text, 2.5f.dp.toPx(), Offset(x0 + 6.dp.toPx(), r * rh + rh / 2))     // has step components
             }
+            if (com.thorbox.app.input.Nav.enteredTag() == "pianoroll") {      // NAV cell cursor
+                val c = navCell.intValue
+                drawRect(Tb.Text, Offset(nameCol + (c % 16) * cw, (c / 16) * rh), Size(cw, rh), style = Stroke(2.dp.toPx()))
+            }
             // playhead
             val pos = g.stepPosition(1)
             if (pos in first until first + 16) {
@@ -175,7 +198,7 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
 
 
 /**
- * Deck 3: STEP, OP-XY-style. Top: 16 in-key notes. Bottom: 16 steps of the current bar.
+ * Deck 3: STEP. Top: 16 in-key notes. Bottom: 16 steps of the current bar.
  *   tap a step = toggle it · HOLD a step + play keys = write those notes into it (a chord if you press several)
  *   HOLD a step = its components open on the top screen (ratchet, condition, nudge, velocity, p-locks)
  * Keys with no step held play live (and record while REC is on).
@@ -184,29 +207,51 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
 @Composable
 fun StepDeck(state: AppState, modifier: Modifier) {
     val g = state.groove
-    val clip = g.clips.value[1]
+    val clip = g.clips.value[g.synthT]
     val steps = Steps.count(clip.lengthTicks)
     val pages = ((steps + 15) / 16).coerceAtLeast(1)
     val page = g.gridPage.intValue.coerceIn(0, pages - 1)
     val tel = state.telemetry
-    val tm = rememberTextMeasurer()
-    val small = remember { TextStyle(color = Tb.Text, fontSize = 10.sp, fontWeight = FontWeight.Black) }
+    val tm = rememberTextMeasurer(cacheSize = 64)
+    val small = remember(Tb.palette) { TextStyle(color = Tb.Text, fontSize = 10.sp, fontWeight = FontWeight.Black) }
     val keyDims = remember { IntArray(2) }
     val stepDims = remember { IntArray(2) }
     val keyFingers = remember { HashMap<Int, IntArray>() }
     val byStep = remember(clip) { Steps.byStep(clip.notes, clip.lengthTicks) }      // once per edit, not per frame
-    val keyNotes = remember(state.keyOctave.value, state.keyLock.value, state.chordMode.value, state.lockKey()) { IntArray(16) { state.notesForKey(it)[0] } }
+    val keyNotes = remember(state.keyOctave.intValue, state.keyLock.value, state.chordMode.value, state.lockKey()) { IntArray(16) { state.notesForKey(it)[0] } }
     val stepFingers = remember { HashMap<Int, Pair<Int, Long>>() }
+    // NAV grids: the keys (2 × 8, low row at the bottom) and the steps (2 × 8 for this bar)
+    val keyCur = remember { androidx.compose.runtime.mutableIntStateOf(8) }
+    val navHeld = remember { IntArray(16) }
+    val stepDownAt = remember { LongArray(1) }
+    fun keyOf(c: Int) = (1 - c / 8) * 8 + c % 8
+    val keysGrid = com.thorbox.app.input.NavGrid(8, 2,
+        get = { keyCur.intValue }, set = { keyCur.intValue = it },
+        down = { c ->
+            val notes = state.notesForKey(keyOf(c))
+            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(g.synthT, notes[0]) }
+            else { notes.copyInto(navHeld, 0, 0, minOf(notes.size, 15)); navHeld[15] = notes.size; state.keyDown(notes, 0.85f) }
+        },
+        up = { _ -> if (navHeld[15] > 0) { state.keyUp(navHeld.copyOf(navHeld[15])); navHeld[15] = 0 } },
+        describe = { c -> noteName(keyNotes[keyOf(c)]) }, tag = "stepkeys")
+    val stepsGrid = com.thorbox.app.input.NavGrid(8, 2,
+        get = { (g.cursor.intValue - page * 16).coerceIn(0, 15) },
+        set = { c -> g.cursor.intValue = page * 16 + c },
+        down = { c -> val st = page * 16 + c; if (st < steps) { stepDownAt[0] = android.os.SystemClock.uptimeMillis(); g.holdStep(st) } },
+        up = { c -> val st = page * 16 + c; if (st < steps) g.releaseStep(st, tapped = android.os.SystemClock.uptimeMillis() - stepDownAt[0] < 350) },
+        describe = { c -> "step ${page * 16 + c + 1}" }, verb = "toggle · hold edit", tag = "stepdeck", slide = false)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             HwButton("OCT−", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(-1) }
             HwButton("OCT+", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(+1) }
+            Box(Modifier.width(6.dp))
+            PatternDice(state, g.synthT, height = 40.dp, fontSize = 12)
             Box(Modifier.weight(1f))
             for (p in 0 until 4) {
                 val exists = p < pages
                 HwButton("${p + 1}", Modifier.fillMaxHeight(), active = p == page && exists, enabled = true, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12) {
-                    if (!exists) g.setLength(1, (p + 1) * 16)          // tapping a bar that doesn't exist extends the pattern
+                    if (!exists) g.setLength(g.synthT, (p + 1) * 16)          // tapping a bar that doesn't exist extends the pattern
                     g.gridPage.intValue = p
                 }
             }
@@ -215,6 +260,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
         Canvas(
             Modifier.weight(1f).fillMaxWidth()
                 .onSizeChanged { keyDims[0] = it.width; keyDims[1] = it.height }
+                .navTarget("KEYS", grid = keysGrid, corner = 8f)
                 .pointerInteropFilter { ev ->
                     fun keyAt(x: Float, y: Float): Int {
                         val c = (x / keyDims[0].coerceAtLeast(1) * 8).toInt().coerceIn(0, 7)
@@ -225,7 +271,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                     when (ev.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                             val notes = state.notesForKey(keyAt(ev.getX(i), ev.getY(i)))
-                            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(notes[0]) }
+                            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(g.synthT, notes[0]) }
                             else { keyFingers[ev.getPointerId(i)] = notes; state.keyDown(notes, 0.85f) }
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> keyFingers.remove(ev.getPointerId(i))?.let(state::keyUp)
@@ -242,13 +288,18 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val o = Offset((k % 8) * cw + gap, (1 - k / 8) * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
                 val tonic = state.keyLock.value && Math.floorMod(n - key.root.ordinal, 12) == 0
                 drawRoundRect(if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r)
-                drawText(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
+                drawTextSafe(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
+            }
+            if (com.thorbox.app.input.Nav.enteredTag() == "stepkeys") {      // NAV cell cursor
+                val c = keyCur.intValue
+                drawRoundRect(Tb.Text, Offset((c % 8) * cw + gap, (c / 8) * ch + gap), Size(cw - 2 * gap, ch - 2 * gap), r, style = Stroke(2.5f.dp.toPx()))
             }
         }
         // ---- steps: 2 × 8 for the current bar ----
         Canvas(
             Modifier.height(96.dp).fillMaxWidth()
                 .onSizeChanged { stepDims[0] = it.width; stepDims[1] = it.height }
+                .navTarget("STEPS", grid = stepsGrid, corner = 6f)
                 .pointerInteropFilter { ev ->
                     fun stepAt(x: Float, y: Float): Int {
                         val c = (x / stepDims[0].coerceAtLeast(1) * 8).toInt().coerceIn(0, 7)
@@ -283,12 +334,16 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val e = byStep.getOrNull(s)
                 if (e != null && (e.ratchet > 1 || e.condEvery > 1 || e.locks.isNotEmpty())) drawCircle(Tb.Black, 3.dp.toPx(), o + Offset(sz.width - 7.dp.toPx(), 7.dp.toPx()))
             }
+            if (com.thorbox.app.input.Nav.enteredTag() == "stepdeck") {      // NAV cell cursor
+                val k = (g.cursor.intValue - page * 16).coerceIn(0, 15)
+                drawRoundRect(Tb.Text, Offset((k % 8) * cw + 1f, (k / 8) * ch + 1f), Size(cw - 2f, ch - 2f), r, style = Stroke(2.dp.toPx()))
+            }
         }
     }
 }
 
 /**
- * Shown on the top screen while a step is held (OP-XY style "hold step, turn knob").
+ * Shown on the top screen while a step is held ("hold step, turn knob").
  * Row 1: step components. Row 2: parameter locks: turn to lock that sound to this step only,
  * double-tap to clear. Locks hold until the next step without them.
  */
@@ -299,7 +354,7 @@ fun StepDetail(state: AppState, modifier: Modifier = Modifier) {
     if (step < 0) return
     val evs = g.stepEvents(step)
     val e = evs.firstOrNull()
-    Column(modifier.glass(state, 16.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.navModal { state.groove.heldStep.intValue = -1 }.glass(state, 16.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("STEP ${step + 1}", color = Tb.EncGreen, fontWeight = FontWeight.Black, fontSize = 18.sp, letterSpacing = 1.sp)
             Text(if (evs.isEmpty()) "empty: play keys to write notes" else evs.joinToString(" + ") { noteName(it.note) },

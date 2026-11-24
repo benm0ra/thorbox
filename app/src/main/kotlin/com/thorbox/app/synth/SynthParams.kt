@@ -23,7 +23,9 @@ object SynthId {
     const val FENV_A = 14; const val FENV_D = 15; const val FENV_S = 16; const val FENV_R = 17
     const val LFO_RATE = 18; const val LFO_DEPTH = 19; const val LFO_SHAPE = 20; const val LFO_TARGET = 21
     const val GAIN = 22
-    const val COUNT = 23
+    const val PENV_AMT = 23; const val PENV_DECAY = 24; const val GLIDE = 25; const val MONO = 26
+    const val DRIVE = 27; const val NOISE = 28
+    const val COUNT = 29
 }
 
 /** One knob: normalized 0..1 position ↔ patch field, with a display string. */
@@ -35,7 +37,7 @@ class Knob(
     val format: (SynthPatch) -> String,
 )
 
-enum class SynthPage(val label: String) { OSC("OSC"), FILTER("FILTER"), AMP("AMP"), FENV("F·ENV"), LFO("LFO") }
+enum class SynthPage(val label: String) { OSC("OSC"), FILTER("FILTER"), AMP("AMP"), FENV("F·ENV"), LFO("LFO"), PITCH("PITCH"), VOICE("VOICE") }
 
 object SynthParams {
     // ---- curves (normalized ↔ physical) ----
@@ -87,6 +89,26 @@ object SynthParams {
                 { p, n -> p.copy(lfo = p.lfo.copy(target = LfoTarget.entries[(n * 3f).roundToInt().coerceIn(0, 3)])) },
                 { it.lfo.target.name }),
         ),
+        SynthPage.PITCH to listOf(
+            Knob("P.ENV", EncoderColor.BLUE, { (it.voice.pitchEnvSemis + 48f) / 96f },
+                { p, n -> p.copy(voice = p.voice.copy(pitchEnvSemis = (n * 96f - 48f).roundToInt().toFloat())) },
+                { String.format(Locale.US, "%+dst", it.voice.pitchEnvSemis.roundToInt()) }),
+            Knob("P.DECAY", EncoderColor.GREEN, { nFromMs(it.voice.pitchEnvDecayMs.coerceAtMost(5000f)) },
+                { p, n -> p.copy(voice = p.voice.copy(pitchEnvDecayMs = msFromN(n).coerceAtMost(5000f))) }, { fmtMs(it.voice.pitchEnvDecayMs) }),
+            Knob("OCT 1", EncoderColor.WHITE, { (it.osc1.octave + 3) / 6f },
+                { p, n -> p.copy(osc1 = p.osc1.copy(octave = (n * 6f).roundToInt() - 3)) }, { String.format(Locale.US, "%+d", it.osc1.octave) }),
+            Knob("OCT 2", EncoderColor.ORANGE, { (it.osc2.octave + 3) / 6f },
+                { p, n -> p.copy(osc2 = p.osc2.copy(octave = (n * 6f).roundToInt() - 3)) }, { String.format(Locale.US, "%+d", it.osc2.octave) }),
+        ),
+        SynthPage.VOICE to listOf(
+            Knob("GLIDE", EncoderColor.BLUE, { cbrt(it.voice.glideMs / 2000f) },
+                { p, n -> p.copy(voice = p.voice.copy(glideMs = if (n < 0.02f) 0f else 2000f * n * n * n)) },
+                { if (it.voice.glideMs <= 0f) "OFF" else fmtMs(it.voice.glideMs) }),
+            Knob("MONO", EncoderColor.GREEN, { if (it.voice.mono) 1f else 0f },
+                { p, n -> p.copy(voice = p.voice.copy(mono = n >= 0.5f)) }, { if (it.voice.mono) "MONO" else "POLY" }),
+            Knob("DRIVE", EncoderColor.WHITE, { it.voice.drive }, { p, n -> p.copy(voice = p.voice.copy(drive = n)) }, { pct(it.voice.drive) }),
+            Knob("NOISE", EncoderColor.ORANGE, { it.voice.noise }, { p, n -> p.copy(voice = p.voice.copy(noise = n)) }, { pct(it.voice.noise) }),
+        ),
     )
 
     private fun adsrKnobs(amp: Boolean): List<Knob> {
@@ -125,6 +147,12 @@ object SynthParams {
         out[SynthId.LFO_SHAPE] = p.lfo.shape.ordinal.toFloat()
         out[SynthId.LFO_TARGET] = p.lfo.target.ordinal.toFloat()
         out[SynthId.GAIN] = p.gainDb.coerceIn(-40f, 6f)
+        out[SynthId.PENV_AMT] = p.voice.pitchEnvSemis.coerceIn(-48f, 48f)
+        out[SynthId.PENV_DECAY] = p.voice.pitchEnvDecayMs.coerceIn(1f, 5000f)
+        out[SynthId.GLIDE] = p.voice.glideMs.coerceIn(0f, 2000f)
+        out[SynthId.MONO] = if (p.voice.mono) 1f else 0f
+        out[SynthId.DRIVE] = p.voice.drive.coerceIn(0f, 1f)
+        out[SynthId.NOISE] = p.voice.noise.coerceIn(0f, 1f)
     }
 
     /** Same morph as the C++ oscillator (without band-limiting), for drawing. t in [0,1). */

@@ -15,6 +15,24 @@ object ChopLogic {
     const val PADS = 16
     private const val MIN_SLICE = 256L   // frames (~5 ms): markers can't cross or collapse
 
+    /**
+     * SEQ CHOPS: where each slice lands on a 1/16 grid of [totalSteps] steps that spans the whole
+     * sample, so the pattern plays the chops back in their original order and timing. Two slices that
+     * round onto one step: the later one moves to the next free step (or is dropped if there's none).
+     * Returns a step per slice (-1 = didn't fit).
+     */
+    fun chopSteps(regions: List<Region>, frames: Long, totalSteps: Int, maxSteps: Int = 64): IntArray {
+        val out = IntArray(regions.size) { -1 }
+        if (frames <= 0 || totalSteps <= 0) return out
+        val taken = BooleanArray(maxSteps)
+        regions.forEachIndexed { i, r ->
+            var s = (r.start.toDouble() / frames * totalSteps).roundToInt()
+            while (s < maxSteps && taken[s]) s++
+            if (s in 0 until maxSteps) { taken[s] = true; out[i] = s }
+        }
+        return out
+    }
+
     /** n equal slices across the sample. */
     fun equal(frames: Long, n: Int): List<Region> {
         val k = n.coerceIn(1, PADS)

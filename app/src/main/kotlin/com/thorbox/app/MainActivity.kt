@@ -11,7 +11,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -20,10 +19,13 @@ import com.thorbox.app.ui.RoleContent
 import com.thorbox.app.ui.SingleScreenContent
 import com.thorbox.app.ui.ThorboxTheme
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
+    private val topOnly = androidx.compose.runtime.mutableStateOf(false)
     private lateinit var screens: DualScreenController
     private val state get() = appState
+    private val askMic = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok -> state.onMicPermission(ok) }
 
     private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { state.setLibraryRoot(it) }
@@ -39,18 +41,101 @@ class MainActivity : ComponentActivity() {
                 state.folderPickRequests.collect { pickFolder.launch(null) }
             }
         }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                state.micPermissionRequests.collect { askMic.launch(android.Manifest.permission.RECORD_AUDIO) }
+            }
+        }
         if (state.library.root.value != null && state.library.items.value.isEmpty()) state.rescanLibrary()
 
         setContent {
             ThorboxTheme {
                 val second by screens.secondShowing.collectAsState()
-                if (second) RoleContent(screens.activityRole(), state)
+                // debug `--ez toponly true`: draw just the top screen, as the Thor's wide panel does
+                if (topOnly.value) RoleContent(ScreenRole.SESSION, state)
+                else if (second) RoleContent(screens.activityRole(), state)
                 else SingleScreenContent(screens.activityRole(), state)
             }
         }
+        // The physical controls drive the screens from the start (the NAV cursor lands on the top screen);
+        // SELECT + A switches to PLAY, where they play the instrument. ⚙ → CONTROLS → START IN NAV.
+        if (savedInstanceState == null && state.navDefault.value) state.input.setNav(true)
+        applyLaunchExtras(intent)
         // Only after setContent: before it the window has no DecorView, and asking for its insets
         // controller crashes (NPE inside PhoneWindow) on Android 13.
         hideSystemBars()
+    }
+
+    // Touching the other screen moves window focus there, and Android brings the status bar back on
+    // this one. Hide it again whenever focus changes, in either direction.
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); hideSystemBars() }
+    override fun onResume() { super.onResume(); hideSystemBars() }
+
+    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); applyLaunchExtras(intent) }
+
+    /** `--es view DRUM --es deck FX`: open a given view/deck (used by the emulator smoke test; harmless otherwise). */
+    private fun applyLaunchExtras(i: android.content.Intent?) {
+        // The launcher activity is exported: in release builds no other app may drive it with extras.
+        if (!BuildConfig.DEBUG) return
+        i?.getStringExtra("view")?.let { v -> TopView.entries.firstOrNull { it.name == v }?.let(state::selectTop) }
+        i?.getStringExtra("deck")?.let { d -> com.thorbox.model.Deck.entries.firstOrNull { it.name == d }?.let(state::selectDeck) }
+        i?.getStringExtra("add")?.let { k -> com.thorbox.model.TrackKind.entries.firstOrNull { it.name == k }?.let(state::addTrack) }
+        // CI: load a file from the app's own external folder through the real load path (decoder → analysis → chop)
+        i?.getStringExtra("loadfile")?.let { p -> val f = java.io.File(p); state.load(android.net.Uri.fromFile(f), f.name) }
+        if (i?.hasExtra("fx") == true) i.getIntExtra("fx", -1).let { id -> if (id >= 0) state.groove.fxDown(id, 0.6f, 0.6f) else for (k in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.fxUp(k) }
+        if (i?.hasExtra("nav") == true) state.input.setNav(i.getBooleanExtra("nav", false))
+        if (i?.hasExtra("settings") == true) i.getIntExtra("settings", -1).let { t -> state.showSettings.value = t >= 0; if (t >= 0) state.settingsTab.intValue = t }
+        if (i?.getBooleanExtra("scratch", false) == true) { state.projects.enterScratch(); state.showWelcome.value = false }   // tours never touch your projects
+        if (i?.getBooleanExtra("demo", false) == true) state.loadDemo()
+        if (i?.getBooleanExtra("dice", false) == true) {                                    // fill every track with a pattern
+            for (t in 0 until com.thorbox.model.TRACK_COUNT) if (state.trackKind(t) != com.thorbox.model.TrackKind.EMPTY) state.groove.diceNotes(t)
+        }
+        i?.getStringExtra("synth")?.let { n ->
+            val name = n.replace('_', ' ')
+            if (name == "INIT") state.loadSynthPreset(com.thorbox.model.SynthPreset("INIT", com.thorbox.model.SynthCategory.KEYS, com.thorbox.model.SynthPatch()))
+            else state.presets.allSynth().firstOrNull { it.name == name }?.let(state::loadSynthPreset)
+        }
+        i?.getStringExtra("kit")?.let { n -> state.presets.allKits().firstOrNull { it.name == n.replace('_', ' ') }?.let(state.drums::loadKit) }
+        if (i?.hasExtra("drumpage") == true) state.drums.page.intValue = i.getIntExtra("drumpage", 0).coerceIn(0, 2)
+        if (i?.hasExtra("latch") == true) i.getIntExtra("latch", -1).let { id -> if (id in 0 until com.thorbox.engine.NativeEngine.Fx.COUNT) state.groove.toggleLatch(id, 0.3f, 0.7f) }
+        if (i?.getBooleanExtra("dry", false) == true) state.groove.stopAll()
+        // recorder test hooks: open the sheet + start / stop a take (the mic permission must already be granted)
+        if (i?.getBooleanExtra("recstart", false) == true) { state.showMic.value = true; if (!state.mic.recording.value) state.toggleMicRecording() }
+        if (i?.getBooleanExtra("recstop", false) == true && state.mic.recording.value) state.toggleMicRecording()
+        i?.getStringExtra("levels")?.let { m -> com.thorbox.app.levels.LevelMode.entries.firstOrNull { it.name == m }?.let(state::setLevels) }
+        if (i?.hasExtra("fxxy") == true) state.groove.fxXyMode.value = i.getBooleanExtra("fxxy", false)
+        if (i?.hasExtra("meters") == true) state.setMiniMeters(i.getBooleanExtra("meters", false))
+        if (i?.hasExtra("controlmap") == true) state.showControllerMap.value = i.getBooleanExtra("controlmap", false)
+        if (i?.hasExtra("padedit") == true) i.getIntExtra("padedit", -1).let { pg -> state.showPadEdit.value = pg >= 0; if (pg >= 0) state.padEditPage.intValue = pg.coerceIn(0, 4) }
+        if (i?.hasExtra("mic") == true) state.showMic.value = i.getBooleanExtra("mic", false)
+        // `--ez duckdemo true`: DUCK keyed off the drum track's kick, the sampler + synth dipping (BOOM BAP POCKET)
+        if (i?.getBooleanExtra("duckdemo", false) == true) state.groove.setDuck {
+            com.thorbox.model.DuckSettings(source = state.drumTrack.intValue, sourceSlot = 0,
+                targets = (1 shl state.samplerTrack.intValue) or (1 shl state.synthTrack.intValue)).withPreset(com.thorbox.model.DuckPresets.all[0])
+        }
+        i?.getStringExtra("duckpreset")?.let { n -> com.thorbox.model.DuckPresets.all.firstOrNull { it.name == n.replace('_', ' ') }?.let { p -> state.groove.setDuck { it.withPreset(p) } } }
+        // `--ez songdemo true`: patterns 2 and 3 copied from 1, a 4-step song (1 ×2 · 2 · 3) · `--ez keylock true|false`
+        if (i?.getBooleanExtra("songdemo", false) == true) {
+            val g = state.groove
+            g.copyPattern(0, 1); g.copyPattern(0, 2)
+            g.song.value = emptyList(); g.addSongStep(0); g.setRepeats(0, 2); g.addSongStep(1); g.addSongStep(2); g.addSongStep(0)
+            g.setSongMode(true)
+        }
+        if (i?.hasExtra("keylock") == true) state.setLockAll(i.getBooleanExtra("keylock", false))
+        if (i?.hasExtra("keysheet") == true) state.showKeySheet.value = i.getBooleanExtra("keysheet", false)
+        if (i?.hasExtra("exportsheet") == true) state.exporter.showSheet.value = i.getBooleanExtra("exportsheet", false)
+        // `--es exportnow pattern|song[-flac][-stems][-fx][-midi]`: start an export right away (CI checks the files)
+        i?.getStringExtra("exportnow")?.let { k ->
+            val o = com.thorbox.app.export.Exporter.Options(
+                what = if (k.contains("song")) com.thorbox.app.export.Exporter.What.SONG else com.thorbox.app.export.Exporter.What.PATTERN, loops = 2,
+                format = if (k.contains("flac")) com.thorbox.app.export.Exporter.Format.FLAC else com.thorbox.app.export.Exporter.Format.WAV,
+                stems = k.contains("stems"), fxOnStems = k.contains("fx"), midi = k.contains("midi"))
+            state.exporter.start(o)?.let { android.util.Log.w("Thorbox", "export: not started: $it") }
+        }
+        if (i?.hasExtra("toponly") == true) topOnly.value = i.getBooleanExtra("toponly", false)
+        i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
+        if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
+        if (i?.hasExtra("play") == true && !i.getBooleanExtra("play", true) && state.groove.playing.value) state.groove.togglePlay()
     }
 
     override fun onStart() {

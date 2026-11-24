@@ -14,7 +14,7 @@ data class LibraryItem(val uri: Uri, val name: String, val folder: String, val s
 
 /**
  * A "watched" samples folder: you grant one folder once (Storage Access Framework) and it's
- * browsable instantly from then on, with no picker per import. That fits the Koala flow better.
+ * browsable instantly from then on, with no picker per import. That keeps the flow fast.
  * Uses DocumentsContract queries directly (much faster than DocumentFile for big folders).
  */
 class SampleLibrary(private val context: Context) {
@@ -70,7 +70,7 @@ class SampleLibrary(private val context: Context) {
                     if (depth < maxDepth && !name.startsWith(".")) {
                         walk(tree, id, if (folder.isEmpty()) name else "$folder/$name", depth + 1, maxDepth, out)
                     }
-                } else if (name.substringAfterLast('.', "").lowercase() in AUDIO_EXT) {
+                } else if (isAudioName(name)) {
                     out += LibraryItem(DocumentsContract.buildDocumentUriUsingTree(tree, id), name, folder, c.getLong(3))
                 }
             }
@@ -81,5 +81,13 @@ class SampleLibrary(private val context: Context) {
         private const val KEY_ROOT = "root"
         // The spec asks for wav + mp3. The platform decoder handles the rest for free.
         val AUDIO_EXT = setOf("wav", "mp3", "flac", "ogg", "m4a", "aif", "aiff")
+
+        /**
+         * A sample worth listing. Hidden files are skipped, above all macOS's "._name.wav" AppleDouble
+         * files: a Mac copies one next to every sample on a FAT/exFAT card or USB stick. They carry
+         * the audio's extension but hold only Finder metadata, so they can never load.
+         */
+        fun isAudioName(name: String): Boolean =
+            !name.startsWith(".") && name.substringAfterLast('.', "").lowercase() in AUDIO_EXT
     }
 }

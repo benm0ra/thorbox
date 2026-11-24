@@ -10,3 +10,12 @@
     public static int v(...);
     public static int d(...);
 }
+
+# Presets / models (kotlinx.serialization): the library ships R8 rules and our serializers are referenced
+# directly, but saved presets must never silently stop loading after a minifier change, so be explicit.
+-keepclassmembers @kotlinx.serialization.Serializable class com.thorbox.model.** {
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep class com.thorbox.model.**$$serializer { *; }
+-keepclassmembers enum com.thorbox.model.** { *; }

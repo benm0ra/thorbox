@@ -68,6 +68,40 @@ int main() {
         l.render(out.data(), dev / 2, dev);
         CHECK(l.active() && l.position() >= dev && l.position() <= dev + dev / 8, "loop mode wraps inside the slice");
     }
+    { // PAD EDIT options on a voice: reverse, pan, decay, filter, the pad's own release
+        SampleBuffer rb; rb.sampleRate = dev; rb.channels = 1; rb.frames = dev; rb.data.resize(dev);
+        for (int i = 0; i < dev; ++i) rb.data[i] = (float)i / dev;               // a ramp 0 → 1
+        VoiceOpts o; o.reverse = true;
+        SamplerVoice v; std::vector<float> out(1000 * 2, 0.f);
+        v.start(&rb, 0, 1.f, 1.f, PlayMode::OneShot, dev, 1, 0, -1, o);
+        v.render(out.data(), 1000, dev);
+        CHECK(out[2 * 200] > 0.9f && out[2 * 900] < out[2 * 200], "reverse starts from the end and walks back");
+        VoiceOpts pl; pl.pan = -1.f;
+        SamplerVoice pv; std::fill(out.begin(), out.end(), 0.f);
+        pv.start(&b, 0, 1.f, 1.f, PlayMode::OneShot, dev, 1, 0, -1, pl);
+        pv.render(out.data(), 1000, dev);
+        double lsum = 0, rsum = 0; for (int i = 0; i < 1000; ++i) { lsum += std::fabs(out[2 * i]); rsum += std::fabs(out[2 * i + 1]); }
+        CHECK(rsum < 1e-3 && lsum > 100.0, "pan hard left: nothing on the right");
+        VoiceOpts dc; dc.decayMs = 100.f;
+        SamplerVoice dv; std::vector<float> o3(dev / 2 * 2, 0.f);
+        dv.start(&b, 0, 1.f, 1.f, PlayMode::OneShot, dev, 1, 0, -1, dc);
+        dv.render(o3.data(), dev / 2, dev);
+        CHECK(!dv.active(), "decay 100 ms: the hit is gone well before the 2 s sample ends");
+        SampleBuffer hi; hi.sampleRate = dev; hi.channels = 1; hi.frames = dev; hi.data.resize(dev);
+        for (int i = 0; i < dev; ++i) hi.data[i] = (float)std::sin(2 * M_PI * 8000.0 * i / dev);
+        auto level = [&](float cutoff) {
+            VoiceOpts f; f.cutoff = cutoff; SamplerVoice fv; std::vector<float> o4(4800 * 2, 0.f);
+            fv.start(&hi, 0, 1.f, 1.f, PlayMode::OneShot, dev, 1, 0, -1, f); fv.render(o4.data(), 4800, dev);
+            double s = 0; for (int i = 2400; i < 4800; ++i) s += o4[2 * i] * o4[2 * i]; return std::sqrt(s / 2400);
+        };
+        CHECK(level(0.35f) < level(1.f) * 0.05, "filter at ~230 Hz takes an 8 kHz tone down > 26 dB");
+        VoiceOpts rl; rl.releaseMs = 500.f;
+        SamplerVoice gv; std::vector<float> o5(dev * 2, 0.f);
+        gv.start(&b, 0, 1.f, 1.f, PlayMode::Gate, dev, 1, 0, -1, rl);
+        gv.render(o5.data(), 480, dev); gv.release(dev); gv.render(o5.data(), dev / 5, dev);    // 200 ms in: still fading
+        const bool mid = gv.active(); gv.render(o5.data(), dev / 2, dev);                      // 700 ms: done
+        CHECK(mid && !gv.active(), "note-off fades over the pad's own release (500 ms)");
+    }
     { // SPSC under contention
         SpscQueue<int, 64> q; long long sum = 0; const int N = 2000000;
         std::thread prod([&] { for (int i = 1; i <= N; ) if (q.push(i)) ++i; });

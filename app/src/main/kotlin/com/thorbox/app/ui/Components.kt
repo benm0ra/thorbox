@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navClickable
+
+import com.thorbox.app.input.navAdjustable
+
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -19,15 +21,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.runtime.getValue
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
 
 /** Flat, finger-sized button. Fires on tap, with no long-press delays or ripples to wait for. */
 @Composable
@@ -36,28 +41,34 @@ fun HwButton(
     modifier: Modifier = Modifier,
     active: Boolean = false,
     enabled: Boolean = true,
-    accent: Color = Tb.Pads[0],
-    minHeight: Dp = 44.dp,
+    accent: Color = Tb.Key,
+    minHeight: Dp = Heights.touch,
     fontSize: Int = 14,
+    hPad: Dp = 12.dp,
     onClick: () -> Unit,
 ) {
     Box(
         modifier
             .heightIn(min = minHeight)
             .widthIn(min = 44.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(Radius.control))
             .background(if (active) accent else Tb.Raised)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
+            // NAV cursor: reachable with the D-pad on either screen; A presses it (and landing explains it).
+            .navClickable(enabled = enabled, label = GLYPH_NAMES[text] ?: text, corner = Radius.control.value) { Info.show(text); onClick() }
+            .padding(horizontal = hPad),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text,
-            color = when { !enabled -> Tb.Dim; active -> Tb.Black; else -> Tb.Text },
-            fontWeight = FontWeight.Black, fontSize = fontSize.sp, maxLines = 1,
-        )
+        // shrinks to fit rather than being cut off ("DRUMS" not "DRU") on narrow screens
+        FitText(text, TextStyle(color = when { !enabled -> Tb.Dim; active -> Tb.on(accent); else -> Tb.Text },
+            fontWeight = FontWeight.Black, fontSize = fontSize.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
     }
 }
+
+/** What a symbol-only button is called (for the NAV status line). */
+private val GLYPH_NAMES = mapOf(
+    "✕" to "CLOSE", "‹" to "PREVIOUS", "›" to "NEXT", "↶" to "UNDO", "■" to "STOP", "▶" to "PLAY", "●" to "REC",
+    "−" to "DOWN", "+" to "UP", "×2" to "DOUBLE", "÷2" to "HALVE", "½×" to "HALF-TIME",
+)
 
 /** Segmented control. Every option is visible and one tap away. */
 @Composable
@@ -66,14 +77,6 @@ fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, accent: C
         options.forEach { o ->
             HwButton(label(o), Modifier.weight(1f).fillMaxHeight(), active = o == selected, accent = accent) { onSelect(o) }
         }
-    }
-}
-
-/** Thin horizontal confidence / level bar. */
-@Composable
-fun Bar(fraction: Float, color: Color, modifier: Modifier = Modifier) {
-    Box(modifier.height(4.dp).clip(RoundedCornerShape(2.dp)).background(Tb.Raised)) {
-        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(color))
     }
 }
 
@@ -87,20 +90,43 @@ fun DragValue(
     pxPerUnit: Float = 300f,
     onDelta: (Float) -> Unit,
     onReset: (() -> Unit)? = null,
+    /** One line ("FEEL 100%") for short strips where the two-line version would be clipped. */
+    compact: Boolean = false,
+    /** NAV: how much one fine D-pad step changes the value (default: about 1/100 of a full drag). */
+    navFine: Float? = null,
 ) {
     val delta by androidx.compose.runtime.rememberUpdatedState(onDelta)
     val reset by androidx.compose.runtime.rememberUpdatedState(onReset)
+    val sweepPx = with(androidx.compose.ui.platform.LocalDensity.current) { 160.dp.toPx() }
+    val navScale = navFine?.let { it / com.thorbox.app.input.Nav.FINE } ?: (sweepPx / pxPerUnit)
+    if (compact) {
+        Row(
+            modifier
+                .clip(RoundedCornerShape(Radius.control))
+                .background(Tb.Raised)
+                .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
+                .navAdjustable(label, onReset = { reset?.invoke() }, corner = 6f) { d -> delta(d * navScale) }
+                .padding(horizontal = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            FitText(label, Tb.Label.copy(color = accent), minSize = 7f)
+            FitText(value, Type.value, minSize = 8f)
+        }
+        return
+    }
     androidx.compose.foundation.layout.Column(
         modifier
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(Tb.Raised)
-            .androidxPointer(pxPerUnit, { delta(it) }, { reset?.invoke() })
+            .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
+            .navAdjustable(label, onReset = { reset?.invoke() }, corner = 6f) { d -> delta(d * navScale) }
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(label, style = Tb.Label, color = accent, maxLines = 1)
-        Text(value, color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1)
+        FitText(label, Tb.Label.copy(color = accent), minSize = 7f)
+        FitText(value, Type.valueLg, minSize = 9f)
     }
 }
 
@@ -123,7 +149,7 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
             .background(if (held) accent else Tb.Raised)
             .pointerInteropFilter { ev ->
                 when (ev.actionMasked) {
-                    android.view.MotionEvent.ACTION_DOWN -> cb(true)
+                    android.view.MotionEvent.ACTION_DOWN -> { Info.show(text); cb(true) }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> cb(false)
                 }
                 true
@@ -131,6 +157,30 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (held) Tb.Black else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+        Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+    }
+}
+
+/** SETTINGS: a drawn gear (same on every theme and firmware, no icon font). Lights up while the sheet is open. */
+@Composable
+fun GearButton(active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.height(36.dp).clip(RoundedCornerShape(6.dp)).background(if (active) Tb.Key else Tb.Raised)
+            .navClickable(label = "SETTINGS") { Info.show("SETTINGS"); onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        val ink = if (active) Tb.on(Tb.Key) else Tb.Text
+        androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
+            val c = center; val r = size.minDimension / 2f
+            val teeth = 8
+            for (i in 0 until teeth) {
+                rotate(i * 360f / teeth, c) {
+                    drawRoundRect(ink, androidx.compose.ui.geometry.Offset(c.x - r * 0.17f, c.y - r), androidx.compose.ui.geometry.Size(r * 0.34f, r * 0.45f),
+                        androidx.compose.ui.geometry.CornerRadius(r * 0.06f))
+                }
+            }
+            drawCircle(ink, r * 0.72f, c)
+            drawCircle(if (active) Tb.Key else Tb.Raised, r * 0.3f, c)
+        }
     }
 }

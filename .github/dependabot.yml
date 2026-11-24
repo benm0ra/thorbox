@@ -1,9 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Weekly, grouped: one PR for routine updates per ecosystem, and a separate one for major versions
+# (AGP, Gradle, Kotlin majors can need code changes, so they're easy to hold back without blocking the rest).
 version: 2
 updates:
   - package-ecosystem: gradle
     directory: "/"
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 3
+    groups:
+      gradle-minor:
+        update-types: [minor, patch]
+      gradle-major:
+        update-types: [major]
   - package-ecosystem: github-actions
     directory: "/"
-    schedule: { interval: weekly }
+    schedule: { interval: weekly, day: monday }
+    groups:
+      actions:
+        patterns: ["*"]

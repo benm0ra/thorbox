@@ -25,6 +25,8 @@ class SecondScreenActivity : ComponentActivity() {
         hideSystemBars()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); hideSystemBars() }
+
     // androidx.core marks ComponentActivity.dispatchKeyEvent @RestrictTo, so lint flags the plain
     // super call. It's a known false positive: we only forward to the framework implementation.
     @android.annotation.SuppressLint("RestrictedApi")

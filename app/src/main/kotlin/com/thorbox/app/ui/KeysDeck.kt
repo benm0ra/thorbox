@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app.ui
 
+import com.thorbox.app.input.navTarget
 import android.view.MotionEvent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -31,11 +31,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
+import androidx.compose.runtime.getValue
 
 private val NOTE_NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 /**
- * Deck 2, the scale keyboard: a 4×4 grid laid out like an MPC/Koala (bottom-left is lowest).
+ * Deck 2, the scale keyboard: a 4×4 grid laid out like MPC pads (bottom-left is lowest).
  * With LOCK on, every pad is in key (the loaded sample's detected key), so there are no wrong notes.
  * Pads light from the engine's real sounding-note mask, so release tails glow.
  *
@@ -50,7 +51,7 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
     val key = state.lockKey()
     val lock = state.keyLock.value
     val chord = state.chordMode.value
-    val octave = state.keyOctave.value
+    val octave = state.keyOctave.intValue
     val tel = state.telemetry
     val gridSize = remember { IntArray(2) }
     val fingers = remember { HashMap<Int, Pair<Int, IntArray>>() }   // pointerId → (cell, notes)
@@ -71,13 +72,24 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically) {
             HwButton("OCT−", minHeight = 44.dp, fontSize = 12) { state.shiftOctave(-1) }
-            Text(String.format(java.util.Locale.US, "%+d", octave), color = Tb.Text, fontFamily = Tb.Mono,
-                fontWeight = FontWeight.Black, fontSize = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
+            // octave readout: a fixed, centred slot, so the row doesn't shift as the number changes
+            Column(Modifier.width(46.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("OCT", color = Tb.Muted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, lineHeight = 10.sp)
+                Text(String.format(java.util.Locale.US, "%+d", octave), color = Tb.Text, fontFamily = Tb.Mono,
+                    fontWeight = FontWeight.Black, fontSize = 17.sp, lineHeight = 18.sp)
+            }
             HwButton("OCT+", minHeight = 44.dp, fontSize = 12) { state.shiftOctave(+1) }
-            Box(Modifier.weight(1f))
+            // "no sample key" hint: only when there's room for the whole line (it used to clip to a lone "n")
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
+                if (sample?.key == null && lock && maxWidth >= 150.dp)
+                    Text("no sample key · using ${key.label()}", color = Tb.Muted, fontSize = 11.sp, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(end = 6.dp))
+            }
             HwButton("CHORD", active = chord, accent = Tb.EncGreen, minHeight = 44.dp, fontSize = 12) { state.chordMode.value = !chord }
             HwButton(if (lock) key.label().uppercase() else "CHROM", active = lock, accent = Tb.Key, minHeight = 44.dp, fontSize = 12) {
-                state.releaseAllKeys(); state.keyLock.value = !lock
+                // KEY LOCK holds the keys in scale: say so instead of going chromatic
+                if (state.lockAll.value) Info.toast("KEY LOCK", "The project is locked to ${key.label()} (SONG page or tap the key)")
+                else { state.releaseAllKeys(); state.keyLock.value = !lock }
             }
         }
 
@@ -122,7 +134,11 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
                             val isTonic = lock && ((root - key.root.ordinal) % 12 + 12) % 12 == 0
                             val base = if (isTonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised
                             Box(
-                                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(10.dp))
+                                Modifier.weight(1f).fillMaxHeight()
+                                    .navTarget("${NOTE_NAMES[root % 12]}${root / 12 - 1}", corner = 10f,
+                                        action = { state.keyDown(state.notesForKey(cell), 0.85f) },
+                                        release = { state.keyUp(state.notesForKey(cell)) })
+                                    .clip(RoundedCornerShape(10.dp))
                                     .drawBehind {
                                         tel.frame.longValue                // light from engine state, draw-only
                                         val on = notes.any { tel.isNoteOn(it) }
@@ -136,10 +152,6 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-            }
-            if (sample?.key == null && lock) {
-                Text("no sample key: using C MIN", color = Tb.Muted, fontSize = 10.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).background(Tb.Black).padding(horizontal = 4.dp))
             }
         }
     }

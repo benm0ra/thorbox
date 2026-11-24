@@ -34,7 +34,7 @@ const val PADS_PER_BANK = 16
 data class MusicalKey(val root: PitchClass, val mode: ScaleMode) {
     // Formats as "C# Min" or "F Maj".
     fun label(): String = root.name.replace("s", "#") + " " +
-        when (mode) { ScaleMode.MAJOR -> "Maj"; ScaleMode.MINOR -> "Min"; else -> mode.name.lowercase() }
+        when (mode) { ScaleMode.MAJOR -> "major"; ScaleMode.MINOR -> "minor"; else -> mode.name.lowercase() }
 }
 
 // ---------- Sample ----------
@@ -88,7 +88,7 @@ data class Adsr(
 
 @Serializable
 data class Pad(
-    val index: Int,                  // 0..15. Row-major from the top-left, like Koala and the MPC layout.
+    val index: Int,                  // 0..15. Row-major from the top-left, like the MPC layout.
     val sampleId: SampleId? = null,
     val sliceId: SliceId? = null,    // Null plays the whole (trimmed) sample
     val trimStart: Long = 0,         // Frames, relative to the slice or sample start
@@ -144,7 +144,108 @@ data class SynthPatch(
     val filterEnv: Adsr = Adsr(attackMs = 2f, decayMs = 350f, sustain = 0.15f, releaseMs = 300f),
     val lfo: Lfo = Lfo(),
     val gainDb: Float = -9f,
+    val voice: VoiceMod = VoiceMod(),
 )
+
+/** Per-voice behaviour added in 0.7 (defaults keep older saved patches sounding the same). */
+@Serializable
+data class VoiceMod(
+    val pitchEnvSemis: Float = 0f,     // -48..48: start this far off and fall back (808 boom, zaps)
+    val pitchEnvDecayMs: Float = 80f,  // 1..5000
+    val glideMs: Float = 0f,           // 0..2000
+    val mono: Boolean = false,         // last-note priority; legato when glide > 0
+    val drive: Float = 0f,             // 0..1
+    val noise: Float = 0f,             // 0..1
+)
+
+// ---------- Drum synth ----------
+// Order matches the engine's drums::Model.
+@Serializable enum class DrumModel(val label: String) {
+    KICK("KICK"), SNARE("SNARE"), CLAP("CLAP"), HAT("HAT"), TOM("TOM"), RIM("RIM"),
+    COWBELL("BELL"), CYMBAL("CYMB"), ZAP("ZAP"), SHAKER("SHAKE")
+}
+
+@Serializable
+data class DrumVoice(
+    val name: String,
+    val model: DrumModel,
+    val tune: Float = 0f,        // semitones -24..24
+    val decayMs: Float = 400f,   // 5..4000
+    val tone: Float = 0.5f,      // 0..1
+    val snap: Float = 0.5f,      // 0..1
+    val drive: Float = 0f,       // 0..1
+    val levelDb: Float = 0f,     // -40..6
+    val pan: Float = 0f,         // -1..1
+    val choke: Int = 0,          // 0 none, 1..4
+)
+
+const val DRUM_SLOTS = 16                 // 16 pads, MPC-style (kits from before this had 8: see DrumKit.full)
+
+/** What a track plays. Ordinals match the engine's TrackType. */
+@Serializable enum class TrackKind(val label: String) { EMPTY("EMPTY"), SAMPLER("SAMPLER"), SYNTH("SYNTH"), DRUMS("DRUMS") }
+@Serializable data class TrackInfo(val kind: TrackKind, val name: String)
+const val TRACK_COUNT = 8
+
+/**
+ * The kit's character bus (DUST page), all 0..1, 0 = off: CRUNCH (sample-rate + bit reduction),
+ * MUFFLE (low-pass), TAPE (saturation), DUST (vinyl crackle + hiss while playing).
+ */
+@Serializable
+data class DrumBus(val crunch: Float = 0f, val muffle: Float = 0f, val tape: Float = 0f, val dust: Float = 0f)
+
+@Serializable
+data class DrumKit(val name: String = "INIT KIT", val voices: List<DrumVoice> = DefaultKit.voices, val bus: DrumBus = DrumBus()) {
+    /** Always 16 pads: kits made with 8 (factory kits, older saves) get pads 9–16 grown from their own sounds. */
+    fun full(): DrumKit = if (voices.size >= DRUM_SLOTS) (if (voices.size == DRUM_SLOTS) this else copy(voices = voices.take(DRUM_SLOTS)))
+        else copy(voices = DefaultKit.extend(voices))
+}
+
+/**
+ * The 16-pad layout (pad 1 = bottom-left on the deck):
+ *  1 KICK · 2 SNARE · 3 CLAP · 4 C.HAT · 5 O.HAT · 6 TOM · 7 PERC · 8 CYMBAL   (what the beat dice writes)
+ *  9 KICK 2 · 10 SNARE 2 · 11 SHAKER · 12 PEDAL HAT · 13 TOM HI · 14 BELL · 15 RIDE · 16 FX
+ */
+object DefaultKit {
+    private val first8 = listOf(
+        DrumVoice("KICK", DrumModel.KICK, decayMs = 450f),
+        DrumVoice("SNARE", DrumModel.SNARE, decayMs = 220f),
+        DrumVoice("CLAP", DrumModel.CLAP, decayMs = 260f),
+        DrumVoice("C.HAT", DrumModel.HAT, decayMs = 60f, choke = 1),
+        DrumVoice("O.HAT", DrumModel.HAT, decayMs = 420f, tone = 0.6f, choke = 1),
+        DrumVoice("TOM", DrumModel.TOM, decayMs = 380f),
+        DrumVoice("RIM", DrumModel.RIM, decayMs = 70f),
+        DrumVoice("CYMBAL", DrumModel.CYMBAL, decayMs = 1400f),
+    )
+    val voices: List<DrumVoice> = extend(first8)
+
+    /**
+     * Pads 9–16 from a kit's first 8, in the same character: a shorter, lower second kick, a tighter
+     * ghost snare, a shaker, a pedal hat (chokes with the hats), a high tom, a bell, a ride and a zap.
+     */
+    fun extend(v: List<DrumVoice>): List<DrumVoice> {
+        if (v.size >= DRUM_SLOTS) return v.take(DRUM_SLOTS)
+        val base = v + first8.drop(v.size).take((8 - v.size).coerceAtLeast(0))
+        fun pick(i: Int) = base.getOrElse(i) { first8[i] }
+        val kick = pick(0); val snare = pick(1); val hat = pick(3); val tom = pick(5); val cym = pick(7)
+        val extra = listOf(
+            kick.copy(name = "KICK 2", tune = (kick.tune - 5f).coerceIn(-24f, 24f), decayMs = (kick.decayMs * 0.6f).coerceIn(5f, 4000f), snap = (kick.snap + 0.2f).coerceAtMost(1f), levelDb = kick.levelDb - 1f),
+            snare.copy(name = "SNARE 2", tune = (snare.tune + 3f).coerceIn(-24f, 24f), decayMs = (snare.decayMs * 0.7f).coerceIn(5f, 4000f), levelDb = snare.levelDb - 6f),
+            DrumVoice("SHAKER", DrumModel.SHAKER, decayMs = 120f, tone = hat.tone, snap = 0.4f, drive = hat.drive, levelDb = -6f, pan = -0.2f),
+            hat.copy(name = "PEDAL", decayMs = 30f, tone = (hat.tone - 0.1f).coerceAtLeast(0f), levelDb = hat.levelDb - 3f, choke = if (hat.choke > 0) hat.choke else 1),
+            tom.copy(name = "TOM HI", tune = (tom.tune + 7f).coerceIn(-24f, 24f), decayMs = (tom.decayMs * 0.8f).coerceIn(5f, 4000f)),
+            DrumVoice("BELL", DrumModel.COWBELL, decayMs = 280f, snap = 0.4f, drive = kick.drive * 0.5f, levelDb = -5f, pan = 0.2f),
+            cym.copy(name = "RIDE", decayMs = (cym.decayMs * 0.7f).coerceIn(5f, 4000f), tone = (cym.tone * 0.7f), levelDb = cym.levelDb - 2f, pan = -cym.pan),
+            DrumVoice("ZAP", DrumModel.ZAP, decayMs = 200f, snap = 0.6f, levelDb = -6f),
+        )
+        val ext = base.take(8) + extra
+        return if (v.size > 8) (v + ext.drop(v.size)).take(DRUM_SLOTS) else ext
+    }
+}
+
+// ---------- Presets ----------
+@Serializable enum class SynthCategory(val label: String) { BASS("BASS"), SUB808("808"), LEAD("LEAD"), KEYS("KEYS"), PAD("PAD"), PLUCK("PLUCK"), WEIRD("WEIRD") }
+@Serializable data class SynthPreset(val name: String, val category: SynthCategory, val patch: SynthPatch, val user: Boolean = false)
+@Serializable data class KitPreset(val name: String, val kit: DrumKit, val user: Boolean = false)
 
 // ---------- Tracks ----------
 @Serializable
@@ -179,7 +280,7 @@ data class NoteEvent(
     val note: Int,                   // Sampler: pad index 0..15. Synth: MIDI note 0..127.
     val velocity: Float,             // 0..1
     val probability: Float = 1f,
-    // OP-XY-style step components
+    // Step components
     val ratchet: Int = 1,            // 1..4 retriggers within the note
     val condEvery: Int = 1,          // play on loop condPhase+1 of every condEvery loops (1 = always)
     val condPhase: Int = 0,
@@ -250,4 +351,4 @@ sealed interface Selection {
 }
 
 enum class AppMode { DAW, PERFORMANCE }
-enum class Deck { PADS, KEYS, STEP, FX, STRUM }
+enum class Deck { PADS, KEYS, DRUMS, STEP, FX, STRUM }

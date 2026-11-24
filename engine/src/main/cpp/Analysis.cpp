@@ -144,7 +144,7 @@ void detectKey(const std::vector<float>& mono, int sr, AnalysisResult& r) {
     if (best >= 0.55f) { r.keyRoot = bestRoot; r.keyMode = bestMode; }
 }
 
-void detectTempo(const std::vector<float>& mono, int sr, AnalysisResult& r) {
+void detectTempo(const std::vector<float>& mono, int sr, AnalysisResult& r, bool snapToLength = true) {
     const double duration = (double)mono.size() / sr;
     if (duration < 2.5) return;                              // one-shots and short hits: no tempo
 
@@ -234,7 +234,7 @@ void detectTempo(const std::vector<float>& mono, int sr, AnalysisResult& r) {
             if (err < bestErr) { bestErr = err; snapped = cand / mult; } // keep the estimate's octave
         }
     }
-    if (snapped > 0.0) { bpm = snapped; conf = std::max(conf, 0.8f); }
+    if (snapToLength && snapped > 0.0) { bpm = snapped; conf = std::max(conf, 0.8f); }
 
     while (bpm < 70.0) bpm *= 2.0;
     while (bpm >= 180.0) bpm *= 0.5;
@@ -246,17 +246,46 @@ void detectTempo(const std::vector<float>& mono, int sr, AnalysisResult& r) {
 
 } // namespace
 
+// Up to this long, the whole file is analysed (loops, breaks, one-shots, short recordings).
+static constexpr double kFullAnalysisSeconds = 75.0;
+
 AnalysisResult analyzeAudio(const float* x, int64_t frames, int channels, int sampleRate) {
     AnalysisResult r;
     if (!x || frames <= 0 || channels <= 0 || sampleRate <= 0) return r;
-    std::vector<float> mono((size_t)frames);
-    for (int64_t i = 0; i < frames; ++i) {
-        float s = 0.f;
-        for (int c = 0; c < channels; ++c) s += x[i * channels + c];
-        mono[(size_t)i] = s / (float)channels;
+    // Mono of [from, from + n) frames, appended to [dst].
+    auto mixInto = [&](std::vector<float>& dst, int64_t from, int64_t n) {
+        from = std::clamp<int64_t>(from, 0, frames); n = std::clamp<int64_t>(n, 0, frames - from);
+        const size_t base = dst.size();
+        dst.resize(base + (size_t)n);
+        for (int64_t i = 0; i < n; ++i) {
+            float s = 0.f;
+            const float* f = x + (from + i) * channels;
+            for (int c = 0; c < channels; ++c) s += f[c];
+            dst[base + (size_t)i] = s / (float)channels;
+        }
+    };
+    const double seconds = (double)frames / sampleRate;
+    if (seconds <= kFullAnalysisSeconds) {
+        std::vector<float> mono;
+        mono.reserve((size_t)frames);
+        mixInto(mono, 0, frames);
+        if (seconds >= 0.4) detectKey(mono, sampleRate, r);
+        detectTempo(mono, sampleRate, r);
+        return r;
     }
-    if ((double)frames / sampleRate >= 0.4) detectKey(mono, sampleRate, r);
-    detectTempo(mono, sampleRate, r);
+    // A long file (a whole song): listen to excerpts instead of all of it. Key: three 25 s slices
+    // spread across the track (intro, middle, late). Tempo: 90 s from a quarter of the way in.
+    // Same answers on real music, at a fraction of the time (a 4-minute song: ~5x faster, 10 minutes ~12x).
+    // The loop-length snap is off: an excerpt's length says nothing about the bar length.
+    const int64_t keyLen = (int64_t)(25.0 * sampleRate);
+    std::vector<float> keyMono;
+    keyMono.reserve((size_t)keyLen * 3);
+    for (double at : {0.15, 0.45, 0.75}) mixInto(keyMono, (int64_t)(at * (double)frames) - keyLen / 2, keyLen);
+    detectKey(keyMono, sampleRate, r);
+    std::vector<float> tempoMono;
+    const int64_t tLen = (int64_t)(90.0 * sampleRate);
+    mixInto(tempoMono, std::min<int64_t>((int64_t)(0.25 * (double)frames), frames - tLen), tLen);
+    detectTempo(tempoMono, sampleRate, r, false);
     return r;
 }
 
@@ -270,7 +299,9 @@ int detectTransients(const float* x, int64_t frames, int channels, int sr, float
         for (int c = 0; c < channels; ++c) s += x[i * channels + c];
         mono[(size_t)i] = s / (float)channels;
     }
-    const size_t n = 1024, hop = 256;
+    // Long files (whole songs) at half the frame rate: twice as fast, slices still land within ~6 ms
+    // before the zero-crossing snap below.
+    const size_t n = 1024, hop = (double)frames / sr > 90.0 ? 512 : 256;
     std::vector<float> prev(n / 2 + 1, 0.f), flux;
     stft(mono, n, hop, [&](size_t, const std::vector<float>& mag) {
         float f = 0.f;

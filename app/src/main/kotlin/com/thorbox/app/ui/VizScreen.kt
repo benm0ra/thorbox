@@ -9,12 +9,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,8 +44,9 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import androidx.compose.runtime.getValue
 
-enum class VizMode(val label: String) { SPECTRA("SPECTRA"), ORBIT("ORBIT"), PLASMA("PLASMA") }
+enum class VizMode(val label: String) { ANALYZER("ANALYZER"), SPECTRA("SPECTRA"), ORBIT("ORBIT"), PLASMA("PLASMA") }
 
 /*
  * VIZ view: full-screen, music-reactive visuals for when the master is playing.
@@ -55,36 +57,39 @@ enum class VizMode(val label: String) { SPECTRA("SPECTRA"), ORBIT("ORBIT"), PLAS
 @Composable
 fun VizScreen(state: AppState) {
     val mode = state.vizMode.value
-    Box(
-        Modifier.fillMaxSize().background(Tb.Black)
-            .pointerInput(Unit) { detectTapGestures(onTap = { state.cycleViz() }) }
-    ) {
-        when (mode) {
-            VizMode.SPECTRA -> Spectra(state, Modifier.fillMaxSize())
-            VizMode.ORBIT -> Orbit(state, Modifier.fillMaxSize())
-            VizMode.PLASMA -> Plasma(state, Modifier.fillMaxSize())
-        }
-        // Info chip: what's playing, in glass
-        val g = state.groove
-        val s by state.sample.collectAsState()
-        Row(
-            Modifier.align(Alignment.TopStart).padding(12.dp).height(44.dp).glass(state, 22.dp).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(mode.label, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
-            Text(String.format(Locale.US, "%.1f BPM", g.groove.value.bpm), color = Tb.Tempo, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
-            Text(state.lockKey().label().uppercase(), color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
-            s?.let { Text(it.name.substringBeforeLast('.'), color = Tb.Muted, fontSize = 12.sp, maxLines = 1) }
-        }
-        // Look settings live here: glass level (FULL / SUBTLE / OFF) and visualizer auto-start.
-        Row(Modifier.align(Alignment.BottomStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            HwButton("GLASS ${state.glass.value.name}", Modifier.glass(state, 8.dp), fontSize = 11) { state.cycleGlass() }
-            HwButton(if (state.vizAuto.value) "AUTO ON" else "AUTO OFF", Modifier.glass(state, 8.dp), active = state.vizAuto.value, accent = Tb.EncBlue, fontSize = 11) {
-                state.vizAuto.value = !state.vizAuto.value
+    Box(Modifier.fillMaxSize().background(Tb.Void)) {
+        if (mode == VizMode.ANALYZER) {
+            // Measuring: the panels take touches (spectrum readout), so no tap-to-cycle here.
+            Analyzer(state, Modifier.fillMaxSize().padding(top = 40.dp))
+        } else {
+            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures(onTap = { state.cycleViz() }) }) {
+                when (mode) {
+                    VizMode.SPECTRA -> Spectra(state, Modifier.fillMaxSize())
+                    VizMode.ORBIT -> Orbit(state, Modifier.fillMaxSize())
+                    else -> Plasma(state, Modifier.fillMaxSize())
+                }
+                Column(Modifier.align(Alignment.BottomEnd).padding(14.dp), horizontalAlignment = Alignment.End) {
+                    Text("tap to change", color = Tb.Dim, fontSize = 10.sp)
+                }
+                // Look settings live here: glass level (FULL / SUBTLE / OFF).
+                Row(Modifier.align(Alignment.BottomStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HwButton("GLASS ${state.glass.value.name}", Modifier.glass(state, 8.dp), fontSize = 11) { state.cycleGlass() }
+                }
             }
         }
-        Column(Modifier.align(Alignment.BottomEnd).padding(14.dp), horizontalAlignment = Alignment.End) {
-            Text("tap to change", color = Tb.Dim, fontSize = 10.sp)
+        // Header: what's playing + the mode switch
+        val g = state.groove
+        val s by state.sample.collectAsState()
+        Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).height(34.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (LocalWide.current) SectionTag(state, Section.VISUAL)
+            Text(String.format(Locale.US, "%.1f BPM", g.groove.value.bpm), color = Tb.Tempo, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
+            Text(state.lockKey().label().uppercase(), color = Tb.Key, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
+            s?.let { Text(it.name.substringBeforeLast('.'), color = Tb.Muted, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false)) }
+            Box(Modifier.weight(1f))
+            VizMode.entries.forEach { m ->
+                HwButton(m.label, Modifier.fillMaxHeight(), active = m == mode, accent = Section.VISUAL.color, minHeight = 30.dp, fontSize = 10, hPad = 8.dp) { state.vizMode.value = m }
+            }
         }
     }
 }

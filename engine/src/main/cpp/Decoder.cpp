@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Decoder.h"
+#include <algorithm>
+#include <new>
+#include "PcmFile.h"
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaFormat.h>
 #include <android/log.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cmath>
@@ -13,7 +17,7 @@
 
 namespace {
 // android.media.AudioFormat encodings
-constexpr int32_t kPcm16 = 2, kPcmFloat = 4, kPcm24Packed = 21, kPcm32 = 22;
+constexpr int32_t kPcm8 = 3, kPcm16 = 2, kPcmFloat = 4, kPcm24Packed = 21, kPcm32 = 22;
 constexpr int64_t kMaxSeconds = 10 * 60;            // Hard cap: 10 min stereo at 48k ≈ 230 MB of float
 constexpr off_t   kMaxFileBytes = 1024LL * 1024 * 1024; // Refuse >1 GB inputs before touching the parser
 constexpr int32_t kMinRate = 8000, kMaxRate = 384000, kMaxChannels = 32;
@@ -26,15 +30,18 @@ struct FmtGuard { AMediaFormat* p; ~FmtGuard() { if (p) AMediaFormat_delete(p); 
 
 // Appends decoded PCM, folding >2 channels down to the first two.
 void appendPcm(const uint8_t* src, size_t bytes, int32_t enc, int srcCh, int dstCh, std::vector<float>& dst) {
-    if (enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return;  // unknown: skip
-    const int bps = enc == kPcm16 ? 2 : enc == kPcm24Packed ? 3 : 4;
+    if (enc != kPcm8 && enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return;  // unknown: skip
+    const int bps = enc == kPcm8 ? 1 : enc == kPcm16 ? 2 : enc == kPcm24Packed ? 3 : 4;
     const size_t frames = bytes / (size_t)(bps * srcCh);
-    dst.reserve(dst.size() + frames * dstCh);
+    // No reserve() here: reserving exactly "size + this buffer" on every codec buffer defeats the
+    // vector's doubling and copies the whole sample each time (O(n²): a 10-minute MP3 took ~40 s).
+    // The caller reserves the expected length once up front.
     for (size_t f = 0; f < frames; ++f) {
         for (int c = 0; c < dstCh; ++c) {
             const uint8_t* p = src + (f * srcCh + c) * bps;
             float v;
             switch (enc) {
+                case kPcm8: v = (p[0] - 128) / 128.f; break;
                 case kPcm16: { int16_t s; std::memcpy(&s, p, 2); v = s / 32768.f; break; }
                 case kPcm24Packed: { int32_t s = (p[0] << 8) | (p[1] << 16) | (p[2] << 24); v = (s >> 8) / 8388608.f; break; }
                 case kPcm32: { int32_t s; std::memcpy(&s, p, 4); v = (float)(s / 2147483648.0); break; }
@@ -47,13 +54,31 @@ void appendPcm(const uint8_t* src, size_t bytes, int32_t enc, int srcCh, int dst
 }
 } // namespace
 
-std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
+std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut, DecodeProgress* prog) {
     auto fail = [&](const char* why) -> std::unique_ptr<SampleBuffer> { if (errOut) *errOut = why; LOGE("%s", why); return nullptr; };
     FdGuard fdg{fd};
     struct stat st{};
     if (fstat(fd, &st) != 0 || st.st_size <= 0) return fail("cannot stat file");
     if (!S_ISREG(st.st_mode)) return fail("not a regular file");
     if (st.st_size > kMaxFileBytes) return fail("file too large");
+
+    // WAV / AIFF: read directly (the platform has no AIFF and skips 8-bit / 64-bit-float WAV).
+    if (void* m = mmap(nullptr, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0); m != MAP_FAILED) {
+        madvise(m, (size_t)st.st_size, MADV_SEQUENTIAL);
+        const char* why = nullptr;
+        bool tryPlatform = false;
+        bool cut = false; double total = 0;
+        const std::function<bool(float)>* rep = prog && prog->report ? &prog->report : nullptr;
+        auto pcmOut = pcm::decode(static_cast<const uint8_t*>(m), (size_t)st.st_size, kMaxSeconds, &why, &tryPlatform, &cut, &total, rep);
+        if (prog) { prog->truncated = cut; prog->sourceSeconds = total; }
+        munmap(m, (size_t)st.st_size);
+        if (pcmOut) {
+            __android_log_print(ANDROID_LOG_INFO, "ThorboxDecoder", "read WAV/AIFF directly: %d Hz, %d ch, %lld frames%s",
+                                pcmOut->sampleRate, pcmOut->channels, (long long)pcmOut->frames, cut ? " (first 10 min)" : "");
+            return pcmOut;
+        }
+        if (!tryPlatform) return fail(why ? why : "unreadable WAV/AIFF");
+    }
 
     ExGuard ex{AMediaExtractor_new()};
     if (AMediaExtractor_setDataSourceFd(ex.p, fd, 0, st.st_size) != AMEDIA_OK) return fail("unsupported or corrupt file");
@@ -75,6 +100,9 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
     int32_t sr = 0, ch = 0;
     AMediaFormat_getInt32(fmt.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);
     AMediaFormat_getInt32(fmt.p, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &ch);
+    int64_t durUs = 0;
+    AMediaFormat_getInt64(fmt.p, AMEDIAFORMAT_KEY_DURATION, &durUs);
+    if (prog && durUs > 0) prog->sourceSeconds = durUs / 1e6;
     // Ask for float output. Decoders that can't do it ignore this and report the real encoding.
     AMediaFormat_setInt32(fmt.p, AMEDIAFORMAT_KEY_PCM_ENCODING, kPcmFloat);
 
@@ -91,54 +119,89 @@ std::unique_ptr<SampleBuffer> decodeAudioFd(int fd, const char** errOut) {
     }
 
     auto out = std::make_unique<SampleBuffer>();
-    bool inEos = false, outEos = false;
+    // Reserve the whole (capped) length once, so the decode never copies the sample as it grows.
+    if (durUs > 0 && sr > 0 && ch > 0) {
+        const double secs = std::min<double>(durUs / 1e6, (double)kMaxSeconds) + 0.5;
+        const size_t want = (size_t)(secs * sr) * (size_t)(ch > 2 ? 2 : ch);
+        if (want < (size_t)kMaxSeconds * kMaxRate * 2) {
+            out->data.reserve(want);   // bounded above by the 10-minute cap
+        }
+    }
+    const int64_t capUs = kMaxSeconds * 1000000LL;
+    bool inEos = false, outEos = false, stop = false;
     int idleSpins = 0;
-    while (!outEos) {
-        if (!inEos) {
-            ssize_t ib = AMediaCodec_dequeueInputBuffer(codec.p, 2000);
-            if (ib >= 0) {
-                size_t cap = 0;
-                uint8_t* buf = AMediaCodec_getInputBuffer(codec.p, (size_t)ib, &cap);
-                ssize_t n = AMediaExtractor_readSampleData(ex.p, buf, cap);
-                if (n < 0) {
-                    AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
-                    inEos = true;
-                } else {
-                    AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, (size_t)n, AMediaExtractor_getSampleTime(ex.p), 0);
-                    AMediaExtractor_advance(ex.p);
-                }
+    int reportEvery = 0;
+    // Feed every free input buffer and drain every ready output buffer each pass, without waiting.
+    // Only when a whole pass moved nothing do we block (briefly) for the codec. The old loop took one
+    // buffer each way per pass and waited 2 ms twice, which capped MP3/AAC decoding at ~10-15x
+    // realtime (a 4-minute song took 15-20 s); this runs as fast as the decoder itself.
+    while (!outEos && !stop) {
+        bool moved = false;
+        while (!inEos) {
+            const ssize_t ib = AMediaCodec_dequeueInputBuffer(codec.p, 0);
+            if (ib < 0) break;
+            moved = true;
+            size_t cap = 0;
+            uint8_t* buf = AMediaCodec_getInputBuffer(codec.p, (size_t)ib, &cap);
+            ssize_t n = buf ? AMediaExtractor_readSampleData(ex.p, buf, cap) : -1;
+            const int64_t t = AMediaExtractor_getSampleTime(ex.p);
+            if (n >= 0 && t > capUs) {                        // past 10 minutes: keep what we have
+                n = -1;
+                if (prog) prog->truncated = true;
+            }
+            if (prog && prog->report && ++reportEvery >= 32) {
+                reportEvery = 0;
+                const float frac = durUs > 0 ? (float)std::min(1.0, (double)t / (double)std::min(durUs, capUs)) : -1.f;
+                if (!prog->report(frac)) return fail("cancelled");
+            }
+            if (n < 0) {
+                AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
+                inEos = true;
+            } else {
+                AMediaCodec_queueInputBuffer(codec.p, (size_t)ib, 0, (size_t)n, t, 0);
+                AMediaExtractor_advance(ex.p);
             }
         }
-        AMediaCodecBufferInfo info{};
-        ssize_t ob = AMediaCodec_dequeueOutputBuffer(codec.p, &info, 2000);
-        if (ob >= 0) {
-            idleSpins = 0;
-            if (info.size > 0) {
-                size_t sz = 0;
-                const uint8_t* p = AMediaCodec_getOutputBuffer(codec.p, (size_t)ob, &sz);
-                // Never trust codec-reported offsets: they must lie inside the buffer we were given.
-                const bool inBounds = p && info.offset >= 0 &&
-                    (size_t)info.offset + (size_t)info.size <= sz;
-                const bool fmtOk = ch >= 1 && ch <= kMaxChannels;
-                if (inBounds && fmtOk) appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data);
+        while (!outEos) {
+            AMediaCodecBufferInfo info{};
+            const ssize_t ob = AMediaCodec_dequeueOutputBuffer(codec.p, &info, moved ? 0 : 5000);
+            if (ob >= 0) {
+                moved = true; idleSpins = 0;
+                if (info.size > 0) {
+                    size_t sz = 0;
+                    const uint8_t* p = AMediaCodec_getOutputBuffer(codec.p, (size_t)ob, &sz);
+                    // Never trust codec-reported offsets: they must lie inside the buffer we were given.
+                    const bool inBounds = p && info.offset >= 0 &&
+                        (size_t)info.offset + (size_t)info.size <= sz;
+                    const bool fmtOk = ch >= 1 && ch <= kMaxChannels;
+                    if (inBounds && fmtOk) appendPcm(p + info.offset, (size_t)info.size, enc, ch, ch > 2 ? 2 : ch, out->data);
+                }
+                if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) outEos = true;
+                AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false);
+                if (sr > 0 && ch > 0 && (int64_t)out->data.size() / (ch > 2 ? 2 : ch) > kMaxSeconds * sr) {
+                    // the length wasn't known up front: stop here, keep the first 10 minutes
+                    out->data.resize((size_t)(kMaxSeconds * sr) * (size_t)(ch > 2 ? 2 : ch));
+                    if (prog) prog->truncated = true;
+                    stop = true;
+                    break;
+                }
+            } else if (ob == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+                FmtGuard of{AMediaCodec_getOutputFormat(codec.p)};
+                AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);
+                AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &ch);
+                int32_t e; if (AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_PCM_ENCODING, &e)) enc = e;
+            } else if (ob == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+                continue;
+            } else {                                          // TRY_AGAIN_LATER (or an error)
+                if (!moved && inEos && ++idleSpins > 200) stop = true;   // ~1 s with no output after EOS
+                break;
             }
-            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) outEos = true;
-            AMediaCodec_releaseOutputBuffer(codec.p, (size_t)ob, false);
-            if (sr > 0 && ch > 0 && (int64_t)out->data.size() / (ch > 2 ? 2 : ch) > kMaxSeconds * sr)
-                return fail("file longer than 10 minutes");
-        } else if (ob == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-            FmtGuard of{AMediaCodec_getOutputFormat(codec.p)};
-            AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sr);
-            AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &ch);
-            int32_t e; if (AMediaFormat_getInt32(of.p, AMEDIAFORMAT_KEY_PCM_ENCODING, &e)) enc = e;
-        } else if (ob == AMEDIACODEC_INFO_TRY_AGAIN_LATER && inEos) {
-            if (++idleSpins > 500) break;                     // ~1 s with no output after EOS: give up gracefully
         }
     }
 
     if (sr < kMinRate || sr > kMaxRate) return fail("unsupported sample rate");
     if (ch < 1 || ch > kMaxChannels || out->data.empty()) return fail("decoded no audio");
-    if (enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return fail("unsupported PCM encoding");
+    if (enc != kPcm8 && enc != kPcm16 && enc != kPcmFloat && enc != kPcm24Packed && enc != kPcm32) return fail("unsupported PCM encoding");
     out->sampleRate = sr;
     out->channels = ch > 2 ? 2 : ch;
     out->frames = (int64_t)out->data.size() / out->channels;

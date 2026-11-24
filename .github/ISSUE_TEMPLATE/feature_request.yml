@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Idea / feature request
+description: Something you'd like it to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The music you're making and where the app gets in the way. That matters more than the solution.
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you'd like it to work. Sketches and photos of hardware you love are welcome.
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Fit
+      options:
+        - label: It keeps core actions one tap away (no menus inside menus)
+        - label: I'd like to help build it

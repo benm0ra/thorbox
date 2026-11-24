@@ -12,7 +12,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.thorbox.app"
+        applicationId = "com.clamshellbeats.app"   // code packages stay com.thorbox.* (internal name)
         minSdk = 33
         targetSdk = 35
         // CI/release set these from git (commit count = always-increasing versionCode, tag = name),
@@ -30,6 +30,18 @@ android {
     fun ks(key: String, env: String): String? = ksProps.getProperty(key) ?: System.getenv(env)
     val releaseStore = ks("storeFile", "THORBOX_KEYSTORE")
     signingConfigs {
+        // A fixed, PUBLIC debug key checked into the repo (tools/dev-debug.keystore, password "android"),
+        // so every CI debug build carries the same signature and installs over the last one without
+        // wiping the app's data. It protects nothing: real releases are signed with the private key.
+        getByName("debug") {
+            val dev = rootProject.file("tools/dev-debug.keystore")
+            if (dev.exists()) {
+                storeFile = dev
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (releaseStore != null) create("release") {
             storeFile = file(releaseStore)
             storePassword = ks("storePassword", "THORBOX_KEYSTORE_PASSWORD")
@@ -91,4 +103,6 @@ dependencies {
     // and scroll without first-run jank (Play does this automatically; sideloads need this).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    testImplementation(kotlin("test-junit"))
 }

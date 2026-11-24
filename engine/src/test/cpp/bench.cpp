@@ -4,14 +4,17 @@
 //       ../../main/cpp/AudioEngine.cpp ../../main/cpp/Analysis.cpp bench.cpp -o bench && ./bench
 // Reports µs per 192-frame callback and the share of the real-time budget (4 ms at 48 kHz).
 #include "AudioEngine.h"
+#include "Decoder.h"
 #include "Synth.h"
 #include "Sequencer.h"
 #include "MasterFx.h"
+#include "DrumSynth.h"
+#include "Loudness.h"
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <vector>
-std::unique_ptr<SampleBuffer> decodeAudioFd(int, const char**) { return nullptr; }
+std::unique_ptr<SampleBuffer> decodeAudioFd(int, const char**, DecodeProgress*) { return nullptr; }
 
 using clk = std::chrono::steady_clock;
 static double usPer(auto&& fn, int iters) {
@@ -49,10 +52,26 @@ int main() {
     { fx::MasterFx m; for (size_t i = 0; i < out.size(); ++i) out[i] = (float)std::sin(i * 0.01);
       for (int id = 0; id < fx::kCount; ++id) m.engage(id, 0.7f, 0.6f);
       double us = usPer([&] { m.process(out.data(), N, 48000, 140, 0, 0.04); }, 20000);
-      std::printf("master FX, all 7 engaged     %7.2f µs  (%5.2f%%)\n", us, 100 * us / budget);
+      std::printf("master FX, all 12 engaged    %7.2f µs  (%5.2f%%)\n", us, 100 * us / budget);
       fx::MasterFx m2;
       double us2 = usPer([&] { m2.process(out.data(), N, 48000, 140, 0, 0.04); }, 20000);
       std::printf("master FX, all off           %7.2f µs  (%5.2f%%)\n", us2, 100 * us2 / budget); }
+
+    { // drum machine: all 16 voices ringing, then the same with the DUST bus fully on
+      drums::DrumSynth d; d.setSampleRate(48000);
+      for (int s = 0; s < drums::kSlots; ++s) d.setParam(s, drums::Decay, 4000);
+      auto hitAll = [&] { for (int s = 0; s < drums::kSlots; ++s) d.trigger(s, 1.f); };
+      hitAll(); int n = 0;
+      double us = usPer([&] { if (++n % 100 == 0) hitAll(); std::fill(out.begin(), out.end(), 0.f); d.render(out.data(), N); }, 20000);
+      std::printf("drums, 16 voices             %7.2f µs  (%5.2f%%)\n", us, 100 * us / budget);
+      for (int k = 0; k < drums::kBusParamCount; ++k) d.setParam(drums::kBusSlot, k, 0.6f);
+      double us2 = usPer([&] { if (++n % 100 == 0) hitAll(); std::fill(out.begin(), out.end(), 0.f); d.render(out.data(), N); }, 20000);
+      std::printf("drums, 16 voices + DUST bus  %7.2f µs  (%5.2f%%)\n", us2, 100 * us2 / budget); }
+
+    { meter::Loudness m; m.setSampleRate(48000);
+      for (size_t i = 0; i < out.size(); ++i) out[i] = (float)std::sin(i * 0.01) * 0.3f;
+      double us = usPer([&] { for (int i = 0; i < N; ++i) m.process(out[2 * i], out[2 * i + 1]); }, 20000);
+      std::printf("loudness meter (R128)        %7.2f µs  (%5.2f%%)\n", us, 100 * us / budget); }
 
     { // Whole engine callback: 16 pads (via the sequencer) + 8 synth voices + all FX + mixer + taps
       AudioEngine e; oboe::AudioStream st;

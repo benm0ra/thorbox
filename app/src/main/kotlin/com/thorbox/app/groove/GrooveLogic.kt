@@ -166,48 +166,305 @@ class PatternGen(seed: Int) {
     private fun vel(h: Float, accent: Boolean) =
         ((if (accent) 0.95f else 0.72f) + (rnd.nextFloat() * 2f - 1f) * 0.25f * h).coerceIn(0.2f, 1f)
     private fun prob(spread: Boolean) = if (!spread) 1f else listOf(1f, 1f, 1f, 0.75f, 0.5f, 0.25f).random(rnd)
+    private fun chance(p: Float) = rnd.nextFloat() < p
+    private fun <T> pick(vararg xs: T): T = xs[rnd.nextInt(xs.size)]
 
-    /** Drums (sampler track): Euclidean rhythm with a random rotation, accents on beats. */
+    /** What the last roll came out as (TRAP, HOOK, EUCLID 5/16 …); the die shows it for a moment. */
+    var style = ""
+        private set
+    var beatStyle: BeatStyle? = null
+        private set
+    var melodyStyle: MelodyStyle? = null
+        private set
+
+    // ------------------------------------------------------------------ sampler pad
+
+    /**
+     * One pad's steps (sampler track). Three different ways to roll, picked at random each time, so
+     * consecutive rolls really differ: a rotated Euclidean rhythm, a short motif repeated with a
+     * twist at the end, or weighted syncopation (offbeats favoured). Step 1 is kept when anchored.
+     */
     fun drums(steps: Int, p: GenParams, pad: Int = 0): List<NoteEvent> {
-        val hits = (p.density * steps).roundToInt().coerceIn(1, steps)
-        val rot = if (p.anchorRoot) 0 else rnd.nextInt(steps)
-        val pattern = euclid(hits, steps, rot)
-        if (p.anchorRoot) pattern[0] = true
-        return pattern.indices.filter { pattern[it] }.map { s ->
+        val on = BooleanArray(steps)
+        val target = ((p.density * steps).roundToInt() + rnd.nextInt(-2, 3)).coerceIn(1, steps)
+        when (rnd.nextInt(3)) {
+            0 -> {
+                val base = euclid(target, steps)
+                // rotate so that a random onset (or any step, unanchored) lands on step 1
+                val onsets = base.indices.filter { base[it] }
+                val shift = if (p.anchorRoot) onsets[rnd.nextInt(onsets.size)] else rnd.nextInt(steps)
+                for (i in 0 until steps) on[i] = base[(i + shift) % steps]
+                if (steps >= 8 && chance(0.5f)) on[rnd.nextInt(steps)] = true          // one stray hit
+                style = "EUCLID $target/$steps"
+            }
+            1 -> {
+                val m = if (steps >= 8) pick(4, 8).coerceAtMost(steps) else steps
+                val motif = rhythm(m, (target.toFloat() / steps).coerceIn(0.1f, 1f), p.anchorRoot)
+                for (i in 0 until steps) on[i] = motif[i % m]
+                if (steps >= 2 * m) {                                                   // answer: vary the last repeat
+                    val from = steps - m
+                    for (i in from until steps) if (chance(0.35f)) on[i] = !on[i]
+                }
+                style = "MOTIF $m"
+            }
+            else -> {
+                val w = FloatArray(4) { 0.4f + rnd.nextFloat() * 0.8f }; w[2] += 0.3f     // favour the "and"
+                for (i in 0 until steps) on[i] = rnd.nextFloat() < p.density * w[i % 4] * 1.3f
+                style = "SYNCO"
+            }
+        }
+        if (p.anchorRoot) on[0] = true
+        if (on.none { it }) on[0] = true
+        return on.indices.filter { on[it] }.map { s ->
             NoteEvent(tick = s * STEP_TICKS, lengthTicks = STEP_TICKS / 2, note = pad,
                 velocity = vel(p.humanize, s % 4 == 0), probability = if (s == 0) 1f else prob(p.probSpread))
         }
     }
 
-    /**
-     * Melody (synth track): always in [key]. Chord tones (degrees 0, 2, 4) are twice as likely,
-     * steps move mostly by small intervals so lines sound sung, not sprayed, and gates vary.
-     */
-    fun melody(steps: Int, p: GenParams, key: MusicalKey, base: Int): List<NoteEvent> {
-        val size = Scales.steps(key.mode).size
-        val span = size * p.rangeOctaves.coerceIn(1, 3)
-        val out = ArrayList<NoteEvent>()
-        var deg = 0
-        for (s in 0 until steps) {
-            val on = (s == 0 && p.anchorRoot) || rnd.nextFloat() < p.density
-            if (!on) continue
-            deg = if (s == 0 && p.anchorRoot) 0 else nextDegree(deg, size, span)
-            val gate = listOf(0.5f, 0.5f, 1f, 1f, 2f, 3f).random(rnd)
-            out += NoteEvent(tick = s * STEP_TICKS, lengthTicks = (STEP_TICKS * gate).roundToInt(),
-                note = Scales.noteOf(key, base, deg), velocity = vel(p.humanize, s % 4 == 0),
-                probability = if (s == 0) 1f else prob(p.probSpread))
-        }
+    /** A rhythm of [m] steps: weighted onsets (downbeats > 8ths > 16ths) scaled to [density]. */
+    private fun rhythm(m: Int, density: Float, anchor: Boolean): BooleanArray {
+        val w = floatArrayOf(1f, 0.45f + rnd.nextFloat() * 0.4f, 0.6f + rnd.nextFloat() * 0.5f, 0.35f + rnd.nextFloat() * 0.5f)
+        val out = BooleanArray(m) { rnd.nextFloat() < density * w[it % 4] * 1.5f }
+        if (anchor) out[0] = true
+        if (out.none { it }) out[rnd.nextInt(m)] = true
         return out
     }
 
-    private fun nextDegree(prev: Int, size: Int, span: Int): Int {
-        val r = rnd.nextFloat()
-        val cand = when {
-            r < 0.45f -> prev + listOf(-2, -1, 1, 2).random(rnd)       // stepwise motion
-            r < 0.8f -> listOf(0, 2, 4, size, size + 2).random(rnd)    // chord tones
-            else -> rnd.nextInt(span)                                  // leap
+    // ------------------------------------------------------------------ drum machine beat
+
+    /** Beat styles. [feel] is the groove the style is meant to be played with (set on roll if the track is straight). */
+    enum class BeatStyle(val label: String, val feel: GrooveTemplate?) {
+        BOOM_BAP("BOOM BAP", GrooveTemplate.BOOMBAP), TRAP("TRAP", GrooveTemplate.TRAP), HOUSE("HOUSE", GrooveTemplate.HOUSE),
+        BREAKS("BREAKS", GrooveTemplate.MPC60), DEMBOW("DEMBOW", null), LOFI("LO-FI", GrooveTemplate.LAZY),
+        /** Soul-sample swing: kicks that skip around the 16ths, snare + clap stacked, loose hats. */
+        DRUNK("DRUNK", GrooveTemplate.DRUNK),
+        /** Sparse and heavy: a few hard kicks, a cracking snare, quiet or no hats (often a ride instead). */
+        DUSTY("DUSTY", GrooveTemplate.LAZY),
+        /** Raw and off-kilter: unpredictable kicks, loud snares with stray extras, rough 16th hats, a low thud. */
+        VILLAIN("VILLAIN", GrooveTemplate.GRIT),
+        /** Sped-up soul: bouncy kick, snare + big clap + tambourine on 2 and 4, steady 8th hats. */
+        SOUL_CHOP("SOUL CHOP", GrooveTemplate.BOOMBAP),
+    }
+
+    /**
+     * A whole beat for the drum machine (slots: 0 kick, 1 snare, 2 clap, 3 closed hat, 4 open hat,
+     * 5 tom, 6 perc, 7 cymbal). Each roll picks a style (never the same one twice in a row unless
+     * asked), then its kick placement, hat feel, ghosts and fills are rolled inside that style.
+     * Loops longer than a bar get a varied 2nd bar and a fill into the top.
+     */
+    fun beat(steps: Int, p: GenParams, avoid: BeatStyle? = null, force: BeatStyle? = null): List<NoteEvent> {
+        val st = force ?: BeatStyle.entries.filter { it != avoid }.let { it[rnd.nextInt(it.size)] }
+        style = st.label; beatStyle = st
+        val out = ArrayList<NoteEvent>()
+        val d = p.density.coerceIn(0.05f, 1f)
+        fun hit(step: Int, slot: Int, vel: Float, prob: Float = 1f, ratchet: Int = 1) {
+            if (step !in 0 until steps) return
+            if (out.any { it.note == slot && it.tick == step * STEP_TICKS }) return
+            out += NoteEvent(tick = step * STEP_TICKS, lengthTicks = STEP_TICKS / 2, note = slot,
+                velocity = (vel + (rnd.nextFloat() * 2f - 1f) * 0.12f * p.humanize).coerceIn(0.2f, 1f), probability = prob, ratchet = ratchet)
         }
-        return Math.floorMod(cand, span)
+        fun extras(pool: List<Int>, n: Int) = pool.shuffled(rnd).take(n.coerceIn(0, pool.size)).toSet()
+        val bars = ((steps + 15) / 16).coerceAtLeast(1)
+        // one kick/hat idea for the loop; later bars re-roll a little of it
+        var kicks = emptySet<Int>()
+        val hatRate = when (st) {
+            BeatStyle.TRAP -> pick(1, 1, 2); BeatStyle.HOUSE, BeatStyle.DEMBOW -> pick(1, 2)
+            BeatStyle.VILLAIN -> pick(1, 2); BeatStyle.SOUL_CHOP, BeatStyle.DRUNK, BeatStyle.DUSTY -> 2
+            else -> if (chance(0.3f + 0.4f * d)) 1 else 2
+        }
+        val noHats = st == BeatStyle.DUSTY && chance(0.45f)                      // naked drums, ride keeps time
+        val openOff = chance(when (st) { BeatStyle.HOUSE -> 0.85f; BeatStyle.SOUL_CHOP, BeatStyle.DUSTY -> 0.15f; else -> 0.35f })
+        val clap = when (st) { BeatStyle.DRUNK, BeatStyle.SOUL_CHOP -> true; BeatStyle.DUSTY, BeatStyle.VILLAIN -> chance(0.2f); else -> chance(0.5f) }
+        val ghosty = st in setOf(BeatStyle.BREAKS, BeatStyle.BOOM_BAP, BeatStyle.LOFI, BeatStyle.DRUNK, BeatStyle.VILLAIN)
+        val rollSteps = if (st == BeatStyle.TRAP) extras((0 until 16).filter { it % 2 == 1 || it in setOf(6, 14) }, 1 + (d * 3).roundToInt()) else emptySet()
+        val loose16 = if (st == BeatStyle.DRUNK) extras(listOf(3, 7, 9, 13, 15), 1 + (d * 2).roundToInt()) else emptySet()   // drunk hat pickups
+        val stray = if (st == BeatStyle.VILLAIN && chance(0.6f)) setOf(pick(7, 10, 15)) else emptySet()                      // the odd extra snare
+        for (bar in 0 until bars) {
+            if (bar == 0 || chance(0.5f)) kicks = when (st) {
+                BeatStyle.BOOM_BAP -> setOf(0) + extras(listOf(3, 7, 8, 10, 11, 14), 1 + (d * 2.5f).roundToInt())
+                BeatStyle.TRAP -> setOf(0) + extras(listOf(3, 6, 7, 10, 11, 13, 14), 1 + (d * 3).roundToInt())
+                BeatStyle.HOUSE -> setOf(0, 4, 8, 12) + (if (chance(0.3f * d)) setOf(pick(3, 7, 14, 15)) else emptySet())
+                BeatStyle.BREAKS -> setOf(0, 10) + extras(listOf(2, 6, 7, 11, 13), (d * 2f).roundToInt())
+                BeatStyle.DEMBOW -> setOf(0, 4, 8, 12)
+                BeatStyle.LOFI -> setOf(0) + extras(listOf(5, 7, 9, 10, 13), 1 + (d * 1.5f).roundToInt())
+                // skippy kicks on the 16ths around beat 3, often doubled
+                BeatStyle.DRUNK -> setOf(0) + extras(listOf(3, 6, 7, 9, 10, 11, 14), 2 + (d * 1.5f).roundToInt()).let {
+                    if (chance(0.5f)) it + pick(10, 11) + pick(10, 11) else it }
+                BeatStyle.DUSTY -> setOf(0) + extras(listOf(7, 8, 10, 11, 14), 1 + (if (chance(d)) 1 else 0))
+                BeatStyle.VILLAIN -> setOf(0) + extras(listOf(2, 3, 6, 8, 10, 13), 1 + (d * 2f).roundToInt())
+                BeatStyle.SOUL_CHOP -> setOf(0) + extras(listOf(6, 8, 10, 11), 1 + (if (chance(d)) 1 else 0))
+            }
+            val fill = bars > 1 && bar == bars - 1 && chance(0.6f)
+            for (b in 0 until 16) {
+                val s = bar * 16 + b
+                if (s >= steps) break
+                if (fill && b >= 12) {                                   // fill into the top of the loop
+                    hit(s, pick(1, 1, 5), 0.6f + 0.1f * (b - 12), ratchet = if (b == 15 && chance(0.4f)) 2 else 1)
+                    continue
+                }
+                if (b in kicks) hit(s, 0, if (b == 0) 1f else if (st == BeatStyle.DRUNK) 0.7f + rnd.nextFloat() * 0.2f else 0.82f)
+                when (st) {
+                    BeatStyle.TRAP -> if (b == 8) { hit(s, 1, 0.95f); if (clap) hit(s, 2, 0.85f) }
+                    BeatStyle.DEMBOW -> if (b in setOf(3, 6, 11, 14)) hit(s, 1, 0.9f)
+                    else -> if (b == 4 || b == 12) {
+                        hit(s, 1, if (st == BeatStyle.DUSTY || st == BeatStyle.VILLAIN) 1f else 0.95f)
+                        if (clap || st == BeatStyle.HOUSE) hit(s, 2, if (st == BeatStyle.SOUL_CHOP) 0.95f else 0.8f)
+                        if (st == BeatStyle.SOUL_CHOP) hit(s, 6, 0.75f)                  // tambourine on the backbeat
+                    }
+                }
+                if (b in stray) hit(s, 1, 0.62f)
+                // ghosts: quiet snares in the cracks
+                if (ghosty && b in setOf(7, 9, 15) && chance(0.35f * d)) hit(s, 1, 0.35f, prob = if (p.probSpread) 0.6f else 1f)
+                // hats (or the ride)
+                if (noHats) { if (b % 2 == 0) hit(s, 7, if (b % 4 == 0) 0.55f else 0.4f) }
+                else {
+                    val open = openOff && b % 4 == 2 && st != BeatStyle.TRAP
+                    if (open) hit(s, 4, 0.8f)
+                    else if (st == BeatStyle.LOFI && b % 2 == 1 && chance(0.6f)) Unit         // lazy, gappy hats
+                    else if (b % hatRate == 0 || b in loose16) {
+                        val ratchet = if (b in rollSteps) pick(2, 3, 3, 4) else if (hatRate == 1 && chance(0.06f * d)) 2 else 1
+                        val vel = when (st) {
+                            BeatStyle.VILLAIN -> 0.35f + rnd.nextFloat() * 0.55f                // rough, uneven
+                            BeatStyle.DUSTY -> if (b % 4 == 0) 0.6f else 0.42f                  // quiet
+                            BeatStyle.DRUNK -> if (b in loose16) 0.4f else if (b % 4 == 0) 0.75f else 0.55f
+                            else -> if (b % 4 == 0) 0.85f else 0.55f + rnd.nextFloat() * 0.15f
+                        }
+                        hit(s, 3, vel, ratchet = ratchet)
+                    }
+                }
+                if ((st == BeatStyle.TRAP || st == BeatStyle.DRUNK) && b == 14 && chance(0.4f)) hit(s, 4, 0.7f)
+                // colour
+                when (st) {
+                    BeatStyle.VILLAIN -> if (b in setOf(10, 14) && chance(0.3f)) hit(s, 5, 0.8f)                   // low thud
+                    BeatStyle.DRUNK -> if (b % 4 == 2 && chance(0.5f * d)) hit(s, 6, 0.45f)                         // shaker on the "and"
+                    BeatStyle.SOUL_CHOP -> if (b % 4 == 2 && chance(0.4f)) hit(s, 6, 0.5f)                           // tambourine 8ths
+                    BeatStyle.DUSTY -> if (b == 14 && chance(0.3f)) hit(s, 6, 0.6f)                                  // one rim knock
+                    else -> {
+                        if (chance(0.06f * d)) hit(s, 5, 0.75f, prob = 0.75f)
+                        if (chance((if (st == BeatStyle.HOUSE || st == BeatStyle.DEMBOW) 0.14f else 0.07f) * d)) hit(s, 6, 0.7f, prob = if (p.probSpread) 0.5f else 1f)
+                    }
+                }
+            }
+            if (bar == 0 && !noHats && chance(if (st == BeatStyle.DUSTY || st == BeatStyle.DRUNK) 0.2f else 0.4f)) hit(0, 7, 0.7f)
+        }
+        return out.sortedBy { it.tick }
+    }
+
+    // ------------------------------------------------------------------ synth melody
+
+    enum class MelodyStyle(val label: String) { HOOK("HOOK"), ARP("ARP"), BASS("BASSLINE"), RIFF("RIFF") }
+
+    /**
+     * Melody (synth track), always in [key]. Each roll picks a style and a chord movement:
+     *  - HOOK: a 4/8-step motif sung over the chords, answered differently at the end
+     *  - ARP: chord tones in a rolled order (up / down / up-down / shuffled) at 1/16 or 1/8
+     *  - BASSLINE: an octave down, roots and fifths with octave pops and approach notes
+     *  - RIFF: a stepwise motif repeated near-exactly (loop-friendly)
+     * Patterns repeat with variation, because loops that repeat are what make a beat.
+     */
+    fun melody(steps: Int, p: GenParams, key: MusicalKey, base: Int, avoid: MelodyStyle? = null, force: MelodyStyle? = null): List<NoteEvent> {
+        val st = force ?: MelodyStyle.entries.filter { it != avoid }.let { it[rnd.nextInt(it.size)] }
+        melodyStyle = st
+        val size = Scales.steps(key.mode).size
+        val span = size * p.rangeOctaves.coerceIn(1, 3)
+        val d = p.density.coerceIn(0.05f, 1f)
+        // chord roots (scale degrees), one per chord length
+        val progs = if (size == 7) listOf(intArrayOf(0, 0, 0, 0), intArrayOf(0, 5, 3, 4), intArrayOf(0, 3, 4, 4), intArrayOf(0, 5, 2, 6),
+            intArrayOf(0, 4, 5, 3), intArrayOf(0, 6, 5, 6), intArrayOf(0, 3, 0, 4)) else listOf(intArrayOf(0, 0, 0, 0), intArrayOf(0, 0, fourth(key), 0))
+        val prog = if (chance(0.25f)) progs[0] else progs[rnd.nextInt(progs.size)]
+        val chordLen = if (steps <= 16) 8.coerceAtMost(steps) else steps / 4
+        fun chordAt(s: Int) = prog[(s / chordLen.coerceAtLeast(1)) % prog.size]
+        style = st.label + if (prog.any { it != 0 }) "" else " · DRONE"
+
+        val out = ArrayList<NoteEvent>()
+        fun note(s: Int, deg: Int, gate: Float, accent: Boolean = s % 4 == 0) {
+            out += NoteEvent(tick = s * STEP_TICKS, lengthTicks = (STEP_TICKS * gate).roundToInt().coerceAtLeast(30),
+                note = Scales.noteOf(key, base, deg), velocity = vel(p.humanize, accent),
+                probability = if (s == 0) 1f else prob(p.probSpread))
+        }
+        when (st) {
+            MelodyStyle.ARP -> {
+                val rate = if (d > 0.55f) 1 else pick(1, 2)
+                val order = rnd.nextInt(4)
+                val octs = if (span > size) 2 else pick(1, 2)
+                val gate = pick(0.5f, 0.75f, 1f)
+                val shuf = (0 until 3 * octs).shuffled(rnd)        // one rolled order, kept for the whole loop
+                var i = 0
+                for (s in 0 until steps step rate) {
+                    if (s != 0 && d < 0.5f && chance(0.5f - d)) { i++; continue }  // gaps at low density
+                    val tones = triad(key, chordAt(s)).let { t -> (0 until octs).flatMap { o -> t.map { it + o * size } } }
+                    val seq = when (order) { 0 -> tones; 1 -> tones.reversed(); 2 -> tones + tones.reversed().drop(1).dropLast(1); else -> shuf.map { tones[it] } }
+                    note(s, seq[i % seq.size], gate * rate)
+                    i++
+                }
+            }
+            MelodyStyle.BASS -> {
+                val r = rhythm(if (steps >= 8) 8 else steps, (d * 0.9f).coerceIn(0.15f, 0.8f), true)
+                for (s in 0 until steps) {
+                    val chord = chordAt(s)
+                    val nextChord = chordAt(s + 1)
+                    if (!r[s % r.size] && !(s == 0 && p.anchorRoot)) continue
+                    val deg = when {
+                        nextChord != chord && s % chordLen.coerceAtLeast(1) == chordLen - 1 -> nextChord - size + pick(-1, 1)   // approach
+                        chance(0.6f) || s == 0 -> chord - size                                                            // root, low
+                        chance(0.5f) -> chord                                                                              // octave pop
+                        else -> triad(key, chord)[2] - size                                                                // fifth
+                    }
+                    note(s, deg, pick(0.75f, 1f, 1.5f, 2f))
+                }
+            }
+            MelodyStyle.HOOK, MelodyStyle.RIFF -> {
+                val m = if (steps >= 8) (if (st == MelodyStyle.RIFF) pick(4, 8) else 8).coerceAtMost(steps) else steps
+                val rhy = rhythm(m, d, p.anchorRoot)
+                // motif pitches relative to the chord root
+                val contour = rnd.nextInt(5)          // 0 up, 1 down, 2 arch, 3 valley, 4 wander
+                val motif = IntArray(m)
+                var deg = if (p.anchorRoot) 0 else pick(0, 2, 4)
+                var k = 0; val hits = rhy.count { it }.coerceAtLeast(1)
+                for (i in 0 until m) {
+                    if (!rhy[i]) continue
+                    val t = k.toFloat() / hits
+                    val dir = when (contour) { 0 -> 1; 1 -> -1; 2 -> if (t < 0.5f) 1 else -1; 3 -> if (t < 0.5f) -1 else 1; else -> pick(-1, 1) }
+                    if (k > 0) deg += dir * (if (st == MelodyStyle.RIFF) pick(1, 1, 2) else pick(1, 2, 2, 3)) + (if (chance(0.15f)) pick(-size / 2, size / 2) else 0)
+                    if (st == MelodyStyle.HOOK && i % 4 == 0 && chance(0.6f)) deg = nearestChordTone(key, deg)
+                    deg = deg.coerceIn(-2, span)
+                    motif[i] = deg; k++
+                }
+                val gates = FloatArray(m) { pick(0.5f, 0.75f, 1f, 1f, 2f) }
+                for (s in 0 until steps) {
+                    val i = s % m
+                    if (!rhy[i]) continue
+                    val rep = s / m; val lastRep = (steps - 1) / m
+                    var dg = motif[i] + (if (st == MelodyStyle.HOOK) chordAt(s) else 0)
+                    // the answer phrase: the last repeat resolves differently (home, or up to the 5th)
+                    if (rep == lastRep && rep > 0 && i >= m / 2) {
+                        dg = if (i == m - 1 || rhy.indexOfLast { it } == i) pick(0, triad(key, 0)[2]) else dg + pick(-1, 1, 2)
+                    } else if (st == MelodyStyle.RIFF && rep > 0 && chance(0.08f)) dg += pick(-1, 1)
+                    note(s, Math.floorMod(dg + 2, span + 2) - 2, gates[i])
+                }
+                style = (if (st == MelodyStyle.HOOK) "HOOK" else "RIFF $m") + if (prog.any { it != 0 }) "" else " · DRONE"
+            }
+        }
+        return out.sortedBy { it.tick }
+    }
+
+    /** Degrees of the triad on [root] (root, 3rd, 5th) in this scale, found by interval so any mode works. */
+    private fun triad(key: MusicalKey, root: Int): IntArray {
+        val r = Scales.noteOf(key, 60, root)
+        var third = root + 2; var fifth = root + 4
+        for (dd in 1..12) { val iv = Scales.noteOf(key, 60, root + dd) - r; if (iv in 3..4) { third = root + dd; break } }
+        for (dd in 1..12) { val iv = Scales.noteOf(key, 60, root + dd) - r; if (iv == 7) { fifth = root + dd; break } else if (iv > 7) { fifth = root + dd - 1; break } }
+        return intArrayOf(root, third, fifth)
+    }
+    private fun nearestChordTone(key: MusicalKey, deg: Int): Int {
+        val t = triad(key, 0); val size = Scales.steps(key.mode).size
+        val oct = Math.floorDiv(deg, size); val local = Math.floorMod(deg, size)
+        val best = (t.toList() + (t[0] + size)).minBy { abs(it - local) }
+        return oct * size + best
+    }
+    private fun fourth(key: MusicalKey): Int {
+        for (dd in 1..12) if (Scales.noteOf(key, 60, dd) - Scales.noteOf(key, 60, 0) >= 5) return dd
+        return 0
     }
 
     /** Mutate: keep the groove, nudge ~[amount] of it. Notes move by scale steps; a few hits move or toggle. */

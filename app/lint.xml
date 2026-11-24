@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Lint findings that don't apply to this app, so anything new stands out. Say why for each. -->
+<lint>
+    <!-- The app is English-only for now; text in code is fine. Revisit when it gets translations. -->
+    <issue id="SetTextI18n" severity="ignore" />
+    <!-- Built for the AYN Thor (arm64-v8a); CI adds x86_64 only for the emulator. No ChromeOS target. -->
+    <issue id="ChromeOsAbiSupport" severity="ignore" />
+    <!-- Dependency and SDK versions are bumped through Dependabot PRs (grouped, weekly), not lint. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="OldTargetApi" severity="ignore" />
+</lint>

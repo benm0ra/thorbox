@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer (Android 13+): one colour. Screen outlined with the note inside; controller solid with
+     the D-pad and buttons cut out. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.6"
+        android:pathData="M36,25.3 H72 A4.7,4.7 0 0 1 76.7,30 V44 A4.7,4.7 0 0 1 72,48.7 H36 A4.7,4.7 0 0 1 31.3,44 V30 A4.7,4.7 0 0 1 36,25.3 Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M43.46,45.02 A3.3,2.5 -18 1,1 49.74,42.98 A3.3,2.5 -18 1,1 43.46,45.02 Z
+                          M56.46,43.02 A3.3,2.5 -18 1,1 62.74,40.98 A3.3,2.5 -18 1,1 56.46,43.02 Z
+                          M48.6,31 H50.5 V44 H48.6 Z M61.6,29 H63.5 V42 H61.6 Z
+                          M48.6,31 L63.5,28.6 L63.5,32 L48.6,34.4 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M43,52 H65 V54 H43 Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M36,56 H72 A6,6 0 0 1 78,62 V76 A6,6 0 0 1 72,82 H36 A6,6 0 0 1 30,76 V62 A6,6 0 0 1 36,56 Z
+                          M35,67 H39 V63 H43 V67 H47 V71 H43 V75 H39 V71 H35 Z
+                          M65,65 A2,2 0 1,1 69,65 A2,2 0 1,1 65,65 Z M65,73 A2,2 0 1,1 69,73 A2,2 0 1,1 65,73 Z
+                          M61,69 A2,2 0 1,1 65,69 A2,2 0 1,1 61,69 Z M69,69 A2,2 0 1,1 73,69 A2,2 0 1,1 69,69 Z" />
+</vector>

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
-// Offline time-stretch + pitch-shift for KEY MATCH and BPM SYNC (Serato-style "keep tempo when
+// Offline time-stretch + pitch-shift for KEY MATCH and BPM SYNC ("keep tempo when
 // you change key, keep key when you change tempo").
 //
 // Method: WSOLA (waveform-similarity overlap-add) changes duration without changing pitch, then a

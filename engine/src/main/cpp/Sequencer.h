@@ -21,7 +21,7 @@
 namespace seq {
 
 constexpr int kPpqn = 960;
-constexpr int kTracks = 2;            // 0 = sampler (note = pad index), 1 = synth (note = MIDI)
+constexpr int kTracks = 8;            // any mix of sampler (note = pad), synth (note = MIDI) and drum (note = slot) tracks
 constexpr int kMaxEvents = 512;       // per pattern
 constexpr int kMaxPendingOffs = 256;
 constexpr int kMaxRepeats = 16;
@@ -34,7 +34,7 @@ struct Event {
     int16_t note = 0;
     float velocity = 0.8f; // 0..1
     float probability = 1.f;
-    // OP-XY-style step components
+    // Step components
     int8_t ratchet = 1;    // 1..4 retriggers spread across the note's length
     int8_t condEvery = 1;  // play on loop `condPhase` of every `condEvery` loops (1 = always)
     int8_t condPhase = 0;
@@ -67,7 +67,7 @@ public:
         mSwingGrid = (gridTicks == 480) ? 480 : 240;
     }
     void setPlaying(bool p) {
-        if (p && !mPlaying) { mTick = 0.0; for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }
+        if (p && !mPlaying) { mTick = 0.0; mOrigin = 0.0; for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }
         if (!p && mPlaying) mFlushOffs = true;   // stop → release everything the pattern started
         mPlaying = p;
     }
@@ -80,6 +80,34 @@ public:
         return old;
     }
     const Pattern* pattern(int track) const { return (track >= 0 && track < kTracks) ? mPattern[track] : nullptr; }
+
+    // ---- scenes: a whole set of patterns that changes together, exactly on a loop boundary ----
+    // stage() parks a track's next pattern (nullptr = empty); commit() arms the change for the next
+    // multiple of [loopTicks] counted from the current pattern's start (the origin), and tags it so
+    // the app can tell when it happened. Stopped, or loopTicks <= 0: the change is immediate. Every
+    // pattern this lets go of (the replaced ones, an overwritten stage) is handed out by retired().
+    void stage(int track, const Pattern* p) {
+        if (track < 0 || track >= kTracks) { retire(p); return; }
+        if (mStaged[track]) retire(mStage[track]);
+        mStage[track] = p; mStaged[track] = true;
+    }
+    void commit(int loopTicks, int tag) {
+        if (tag < 0) {                                           // cancel: drop what's staged
+            for (int t = 0; t < kTracks; ++t) if (mStaged[t]) { retire(mStage[t]); mStage[t] = nullptr; mStaged[t] = false; }
+            mArmed = false; return;
+        }
+        mQueueTag = tag;
+        if (!mPlaying || loopTicks <= 0) { swapScene(mPlaying ? mTick : 0.0); return; }
+        const double k = std::ceil((mTick - mOrigin) / loopTicks - 1e-9);
+        mQueueAt = mOrigin + std::max(0.0, k) * loopTicks;
+        mArmed = true;
+    }
+    double origin() const { return mOrigin; }
+    int sceneTag() const { return mSceneTag; }
+    int queuedTag() const { return mArmed ? mQueueTag : -1; }
+    double queuedAt() const { return mArmed ? mQueueAt : -1.0; }
+    /** Patterns let go of since the last call (the caller frees them off the audio thread). */
+    const Pattern* retired() { return mRetiredCount > 0 ? mRetired[--mRetiredCount] : nullptr; }
 
     void repeatOn(int track, int note, int rateTicks, float vel) {
         if (track < 0 || track >= kTracks) return;
@@ -137,12 +165,13 @@ public:
             else ++i;
         }
 
-        if (mPlaying) {
+        // Pattern events in [a, b), each track's loop counted from the scene's origin.
+        auto patterns = [&](double a, double b) {
             for (int tr = 0; tr < kTracks; ++tr) {
                 const Pattern* p = mPattern[tr];
-                if (!p || p->lengthTicks <= 0) continue;
+                if (!p || p->lengthTicks <= 0 || b <= a) continue;
                 const double len = p->lengthTicks;
-                const int64_t k0 = (int64_t)std::floor(t0 / len), k1 = (int64_t)std::floor(t1 / len);
+                const int64_t k0 = (int64_t)std::floor((a - mOrigin) / len), k1 = (int64_t)std::floor((b - mOrigin) / len);
                 for (int e = 0; e < p->count; ++e) {
                     const Event& ev = p->events[e];
                     const double st = swung(ev.tick);
@@ -151,11 +180,11 @@ public:
                     const double sub = std::max(10.0, (double)ev.length / rat);   // ratchet spacing
                     for (int64_t k = k0 - 1; k <= k1; ++k) {
                         if (k < 0) continue;
-                        // Trig condition: loop k plays if k mod every == phase (loops count from bar 1 = 0).
+                        // Trig condition: loop k plays if k mod every == phase (loops count from the scene's start = 0).
                         if (ev.condEvery > 1 && (k % ev.condEvery) != std::clamp<int>(ev.condPhase, 0, ev.condEvery - 1)) continue;
                         for (int r = 0; r < rat; ++r) {
-                            const double at = (double)k * len + st + r * sub;
-                            if (at < t0 || at >= t1) continue;
+                            const double at = mOrigin + (double)k * len + st + r * sub;
+                            if (at < a || at >= b) continue;
                             if (r == 0 && ev.note >= 0 && ev.note < 128 && at - mLastLive[tr][ev.note] < 240.0 && at >= mLastLive[tr][ev.note]) continue;
                             // Probability is decided once per step (on its first hit); ratchet hits follow it.
                             if (r == 0) mStepPass[tr] = !(ev.probability < 1.f && rand01() >= ev.probability);
@@ -169,6 +198,15 @@ public:
                     }
                 }
             }
+        };
+        if (mPlaying) {
+            if (mArmed && mQueueAt < t1) {
+                // the scene changes inside this block: the old patterns up to the boundary, the new ones after
+                const double cut = std::max(mQueueAt, t0);
+                patterns(t0, cut);
+                swapScene(mQueueAt);
+                patterns(cut, t1);
+            } else patterns(t0, t1);
             if (mMetro) {
                 for (int64_t b = (int64_t)std::ceil(t0 / kPpqn); (double)b * kPpqn < t1; ++b)
                     emit((double)b * kPpqn, -1, true, (b % 4 == 0) ? 1 : 0, 1.f);
@@ -231,13 +269,26 @@ private:
     float mSwing = 0.5f;
     int mSwingGrid = 240;
     bool mPlaying = false, mMetro = false, mFlushOffs = false;
-    const Pattern* mPattern[kTracks] = {nullptr, nullptr};
+    const Pattern* mPattern[kTracks] = {};
     Off mOffs[kMaxPendingOffs];
     int mOffCount = 0;
     Repeat mRepeats[kMaxRepeats];
     double mLastLive[kTracks][128];
     uint32_t mRng = 0xC0FFEEu;
-    bool mStepPass[kTracks] = {true, true};
+    bool mStepPass[kTracks] = {true, true, true, true, true, true, true, true};
+    // scenes
+    double mOrigin = 0.0, mQueueAt = 0.0;
+    bool mArmed = false;
+    int mQueueTag = 0, mSceneTag = 0;
+    const Pattern* mStage[kTracks] = {};
+    bool mStaged[kTracks] = {};
+    const Pattern* mRetired[4 * kTracks] = {};
+    int mRetiredCount = 0;
+    void retire(const Pattern* p) { if (p && mRetiredCount < 4 * kTracks) mRetired[mRetiredCount++] = p; }   // (full: leak, never a use-after-free)
+    void swapScene(double at) {
+        for (int t = 0; t < kTracks; ++t) if (mStaged[t]) { retire(mPattern[t]); mPattern[t] = mStage[t]; mStage[t] = nullptr; mStaged[t] = false; }
+        mOrigin = at; mSceneTag = mQueueTag; mArmed = false;
+    }
 
 public:
     Sequencer() { for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }
