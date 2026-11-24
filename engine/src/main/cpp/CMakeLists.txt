@@ -6,6 +6,8 @@ find_package(oboe REQUIRED CONFIG)
 
 add_library(thorbox_engine SHARED
     AudioEngine.cpp
+    AudioRender.cpp
+    AudioExport.cpp
     Analysis.cpp
     Decoder.cpp
     jni_bridge.cpp
@@ -18,7 +20,7 @@ target_compile_options(thorbox_engine PRIVATE
     -fvisibility=hidden -fvisibility-inlines-hidden
     -ffunction-sections -fdata-sections)
 # -ffast-math only for DSP translation units: it must never affect parsing/validation code.
-set_source_files_properties(AudioEngine.cpp Analysis.cpp PROPERTIES COMPILE_OPTIONS "-ffast-math")
+set_source_files_properties(AudioEngine.cpp AudioRender.cpp AudioExport.cpp Analysis.cpp PROPERTIES COMPILE_OPTIONS "-ffast-math")
 target_link_options(thorbox_engine PRIVATE
     -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
     -Wl,--exclude-libs,ALL -Wl,--gc-sections

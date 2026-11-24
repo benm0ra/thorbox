@@ -232,7 +232,6 @@ private:
         int scSrc = -1; float scAmount = 0.f, scReleaseMs = 150.f;   // sidechain
         float scEnv = 0.f, scGainMin = 1.f;
     };
-    std::array<float, kStrips> mScKey{};
     duck::Ducker mDuck;
     std::array<float, kChunk> mDuckKey{}, mDuckGain{};
     std::atomic<float> mDuckGrMax{0.f}, mDuckGrNow{0.f}, mDuckKeyPk{0.f};

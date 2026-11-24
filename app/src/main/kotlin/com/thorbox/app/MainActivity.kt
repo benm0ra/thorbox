@@ -11,7 +11,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -20,6 +19,7 @@ import com.thorbox.app.ui.RoleContent
 import com.thorbox.app.ui.SingleScreenContent
 import com.thorbox.app.ui.ThorboxTheme
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     private val topOnly = androidx.compose.runtime.mutableStateOf(false)

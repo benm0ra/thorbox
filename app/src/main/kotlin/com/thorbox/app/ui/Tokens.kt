@@ -14,10 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -36,6 +34,8 @@ import com.thorbox.app.input.navTarget
 import androidx.compose.ui.focus.focusRequester
 import com.thorbox.model.Deck
 import com.thorbox.model.TrackKind
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /*
  * Design tokens: the one place sizes, corners, type and section colours come from, so every

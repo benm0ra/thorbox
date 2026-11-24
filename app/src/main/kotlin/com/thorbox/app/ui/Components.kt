@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -28,12 +27,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
 
 /** Flat, finger-sized button. Fires on tap, with no long-press delays or ripples to wait for. */
 @Composable
@@ -78,14 +77,6 @@ fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, accent: C
         options.forEach { o ->
             HwButton(label(o), Modifier.weight(1f).fillMaxHeight(), active = o == selected, accent = accent) { onSelect(o) }
         }
-    }
-}
-
-/** Thin horizontal confidence / level bar. */
-@Composable
-fun Bar(fraction: Float, color: Color, modifier: Modifier = Modifier) {
-    Box(modifier.height(4.dp).clip(RoundedCornerShape(2.dp)).background(Tb.Raised)) {
-        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(color))
     }
 }
 
@@ -169,7 +160,6 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
         Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
     }
 }
-
 
 /** SETTINGS: a drawn gear (same on every theme and firmware, no icon font). Lights up while the sheet is open. */
 @Composable

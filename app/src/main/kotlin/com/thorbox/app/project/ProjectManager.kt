@@ -134,6 +134,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
         app.postInfo("NEW PROJECT", "Blank session. It saves itself as soon as you make something.")
     }
 
+    @android.annotation.SuppressLint("ApplySharedPref")   // the crash guard below must be on disk first
     fun open(id: String, quiet: Boolean = false) {
         if (id != currentId.value) saveIfChanged()
         scope.launch {
@@ -141,7 +142,9 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
             val text = withContext(Dispatchers.IO) { runCatching { File(dir, "project.json").readText() }.getOrNull() }
             val p = text?.let(ProjectCodec::decode)
             if (p == null) { app.setError("Couldn't open that project (its file is missing or damaged)."); refreshList(); return@launch }
-            prefs.edit().putBoolean("opening", true).commit()          // crash guard: cleared once it's applied
+            // crash guard, cleared once the project is applied. commit(), not apply(): it must be on disk
+            // before applyProject runs, or a crash while opening would leave no trace to skip it next launch.
+            prefs.edit().putBoolean("opening", true).commit()
             runCatching { app.applyProject(p) { name -> File(File(dir, "samples"), name).takeIf { it.isFile } } }
                 .onFailure { Log.e(TAG, "applying project failed", it); app.setError("That project couldn't be fully opened.") }
             prefs.edit().putBoolean("opening", false).putString("current", id).putString("currentName", p.name).apply()

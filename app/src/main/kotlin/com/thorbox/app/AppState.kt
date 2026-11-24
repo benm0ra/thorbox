@@ -491,13 +491,6 @@ class AppState(private val app: Application) {
         sampler.projectChanged()
     }
 
-    /** Tempo octave fix: detection can't always tell 87 from 174. One tap fixes it. */
-    fun scaleBpm(factor: Float) {
-        val s = _sample.value ?: return
-        val nb = (s.bpm ?: return) * factor
-        if (nb in 40f..300f) { _sample.value = s.copy(bpm = nb); sampler.info = _sample.value }
-    }
-
     // ================= Synth =================
 
     fun knobValue(page: SynthPage, i: Int): Float = SynthParams.pages.getValue(page)[i].get(_patch.value)
@@ -754,11 +747,6 @@ class AppState(private val app: Application) {
             else -> Unit
         }
         if (groove.seqTrack.intValue == t) groove.seqTrack.intValue = other
-    }
-    fun renameTrack(t: Int, name: String) {
-        if (trackKind(t) == com.thorbox.model.TrackKind.EMPTY) return
-        tracks.value = tracks.value.toMutableList().also { it[t] = it[t].copy(name = name.trim().uppercase().take(12).ifEmpty { it[t].name }) }
-        groove.nameChannel(t, tracks.value[t].name)
     }
 
     // ================= Synth presets + dice ==================

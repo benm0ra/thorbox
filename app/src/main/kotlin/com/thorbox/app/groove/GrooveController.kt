@@ -489,10 +489,6 @@ class GrooveController(private val app: AppState) {
 
     // ================= drum machine grid (TR style: one row per drum slot) =================
 
-    fun drumHas(step: Int, slot: Int): Boolean {
-        val c = clips.value[drumT]
-        return c.notes.any { it.note == slot && Steps.stepOf(it, c.lengthTicks) == step }
-    }
     /** Toggle one cell of the TR grid. Accent (velocity) cycles on a second tap? No: tap = on/off, kept simple. */
     fun drumToggle(step: Int, slot: Int) = update(drumT) { c ->
         val hit = c.notes.firstOrNull { it.note == slot && Steps.stepOf(it, c.lengthTicks) == step }
@@ -833,7 +829,6 @@ class GrooveController(private val app: AppState) {
         } else if (fxHeld.intValue and bit == 0) NativeEngine.fxOff(id)
     }
     fun fxActiveMask(): Int = transport[12].toInt()
-    fun fxHeldOrLatched(id: Int) = (fxHeld.intValue or fxLatched.intValue or autoFx) and (1 shl id) != 0
 
     // ================= mixer =================
 

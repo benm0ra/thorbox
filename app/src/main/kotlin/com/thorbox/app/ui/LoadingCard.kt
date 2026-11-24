@@ -17,11 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +35,8 @@ import com.thorbox.app.AppState
 import com.thorbox.app.LoadJob
 import com.thorbox.engine.NativeEngine
 import java.util.Locale
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Where a load is: the four steps the card shows, in order. */
 enum class LoadStep(val label: String) { OPEN("OPEN"), DECODE("DECODE"), ANALYSE("KEY + TEMPO"), CHOP("CHOP") }

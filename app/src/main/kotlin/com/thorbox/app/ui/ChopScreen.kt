@@ -23,10 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -50,12 +48,13 @@ import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
 import com.thorbox.app.input.navClickable
 import com.thorbox.app.sampler.StretchMode
-import com.thorbox.app.sampler.ChopLogic
 import com.thorbox.app.sampler.ChopMode
 import com.thorbox.model.PlayMode
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * The sampler's top screen: chopping.

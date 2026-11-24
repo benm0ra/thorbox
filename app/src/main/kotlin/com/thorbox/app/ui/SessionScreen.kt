@@ -2,9 +2,7 @@
 package com.thorbox.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,8 +31,8 @@ import com.thorbox.app.LoadedSample
 import com.thorbox.app.TopView
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
-import com.thorbox.model.PlayMode
 import java.util.Locale
+import androidx.compose.runtime.getValue
 
 /** The whole top screen: a slim mode rail plus the contextual view. */
 @Composable
@@ -163,49 +160,3 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
 internal fun metaLine(s: LoadedSample) = String.format(
     Locale.US, "%.2f s · %.1f kHz · %s", s.seconds, s.sampleRate / 1000f, if (s.channels == 2) "stereo" else "mono")
 
-@Composable
-internal fun KeyBadge(s: LoadedSample?) {
-    Column(Modifier.width(150.dp)) {
-        Text("KEY", style = Tb.Label)
-        Text(s?.key?.label() ?: "—", style = Tb.Readout, color = if (s?.key != null) Tb.Key else Tb.Dim, maxLines = 1)
-        Bar(s?.keyConfidence ?: 0f, Tb.Key, Modifier.fillMaxWidth())
-    }
-}
-
-@Composable
-internal fun BpmBadge(s: LoadedSample?, onHalf: () -> Unit, onDouble: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Column(Modifier.width(110.dp)) {
-            Text("BPM", style = Tb.Label)
-            Text(s?.bpm?.let { String.format(Locale.US, if (it % 1f == 0f) "%.0f" else "%.1f", it) } ?: "—",
-                style = Tb.Readout, color = if (s?.bpm != null) Tb.Tempo else Tb.Dim, maxLines = 1)
-            Bar(s?.bpmConfidence ?: 0f, Tb.Tempo, Modifier.fillMaxWidth())
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            HwButton("×2", minHeight = 36.dp, enabled = s?.bpm != null, onClick = onDouble)
-            HwButton("÷2", minHeight = 36.dp, enabled = s?.bpm != null, onClick = onHalf)
-        }
-    }
-}
-
-@Composable
-internal fun ProbeFooter(state: AppState) {
-    val st by state.stats.collectAsState()
-    val displays by state.displays.collectAsState()
-    val mode by state.secondScreenMode.collectAsState()
-    val input by state.lastInput.collectAsState()
-    val audio = st?.let {
-        String.format(Locale.US, "%s %s · %d Hz · burst %d · buf %d (%.1f ms) · out latency %s · xruns %d",
-            if (it.aaudio) "AAudio" else "OpenSL", if (it.exclusive) "EXCLUSIVE" else "shared",
-            it.sampleRate, it.framesPerBurst, it.bufferFrames, it.bufferMs,
-            if (it.latencyMs >= 0) String.format(Locale.US, "%.1f ms", it.latencyMs) else "n/a", it.xruns)
-    } ?: "audio: stopped"
-    val disp = displays.joinToString("   ") {
-        "#${it.id}${if (it.isDefault) "*" else ""} ${it.widthPx}×${it.heightPx} ${it.refreshHz.toInt()}Hz " +
-            "${it.role}${if (it.presentationFlag) " [PRES]" else ""} ${it.state}"
-    }
-    Column {
-        Text(audio, color = if ((st?.xruns ?: 0) > 0) Tb.Warn else Tb.Muted, fontFamily = Tb.Mono, fontSize = 11.sp, maxLines = 1)
-        Text("displays: $disp  ·  2nd: $mode  ·  input: $input", color = Tb.Muted, fontFamily = Tb.Mono, fontSize = 11.sp, maxLines = 2)
-    }
-}

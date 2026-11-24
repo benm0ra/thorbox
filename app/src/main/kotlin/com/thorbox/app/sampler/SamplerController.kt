@@ -146,8 +146,6 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         } else renderWarps()
     }
 
-    fun isStretchResult(requestId: Int) = requestId >= 1_000_000
-
     fun onStretchLoaded(requestId: Int, sampleId: Int, frames: Long) {
         warpPending.remove(requestId)?.let { pad -> onWarpLoaded(pad, sampleId, frames); return }
         if (requestId != pendingStretch) { NativeEngine.unloadSample(sampleId); return }   // superseded
@@ -316,7 +314,6 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         if (on && !keyMatch.value) { keyMatch.value = true; keyMatchByLock = true; rerender() }
         else if (!on && keyMatchByLock) { keyMatch.value = false; keyMatchByLock = false; rerender() }
     }
-    fun toggleBpmSync() = setStretch(if (stretch.value == StretchMode.SYNC) StretchMode.OFF else StretchMode.SYNC)
     fun setStretch(m: StretchMode, bars: Int = fitBars.intValue) {
         stretch.value = m; fitBars.intValue = bars.coerceIn(1, 16); rerender()
     }

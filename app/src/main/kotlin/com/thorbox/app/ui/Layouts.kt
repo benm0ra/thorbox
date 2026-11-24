@@ -59,9 +59,10 @@ fun SingleScreenContent(role: ScreenRole, state: AppState) = NavWindow(state, in
 private fun NavWindow(state: AppState, roles: IntArray, content: @Composable () -> Unit) {
     val screen = roles.first()
     androidx.compose.runtime.CompositionLocalProvider(com.thorbox.app.input.LocalNavScreen provides screen) {
-        Box(Modifier.fillMaxSize().then(onSizeChangedModifier(screen))) { content() }
+        Box(Modifier.fillMaxSize().reportsNavSize(screen)) { content() }
     }
 }
 
-private fun onSizeChangedModifier(screen: Int): Modifier =
-    Modifier.onSizeChanged { com.thorbox.app.input.Nav.screenSize[screen] = androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) }
+/** Tells NAV how big screen [screen] is (it keeps the cursor on it). */
+private fun Modifier.reportsNavSize(screen: Int): Modifier =
+    this.onSizeChanged { com.thorbox.app.input.Nav.screenSize[screen] = androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) }

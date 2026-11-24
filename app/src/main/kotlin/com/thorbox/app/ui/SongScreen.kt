@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -146,25 +147,30 @@ private fun songTime(g: GrooveController): String {
     val t = secs.toInt(); return "%d:%02d".format(t / 60, t % 60)
 }
 
-/** What's happening, in words (redrawn per frame: the repeat count moves on its own). */
+/**
+ * What's happening, in words. The repeat count moves on its own, so this follows the frame clock, but
+ * through derivedStateOf: the Text only recomposes when the wording changes, not every frame.
+ */
 @Composable
 private fun NowPlaying(state: AppState) {
     val g = state.groove
-    state.telemetry.frame.longValue
-    val cur = g.patternIdx.intValue
-    val steps = g.song.value
-    val pos = g.songPos.intValue
-    val queued = g.queuedPattern.intValue
-    val txt = when {
-        g.playing.value && g.songMode.value && pos in steps.indices -> {
-            val st = steps[pos]
-            val rep = (g.loopTick / g.patternTicks(st.pattern).coerceAtLeast(1)).toInt().coerceIn(0, st.repeats - 1) + 1
-            "▶ PART ${pos + 1}/${steps.size} · ${g.patternName(st.pattern)}" + if (st.repeats > 1) " ($rep of ${st.repeats})" else ""
+    val txt by androidx.compose.runtime.remember(state) { androidx.compose.runtime.derivedStateOf {
+        state.telemetry.frame.longValue
+        val cur = g.patternIdx.intValue
+        val steps = g.song.value
+        val pos = g.songPos.intValue
+        val queued = g.queuedPattern.intValue
+        when {
+            g.playing.value && g.songMode.value && pos in steps.indices -> {
+                val st = steps[pos]
+                val rep = (g.loopTick / g.patternTicks(st.pattern).coerceAtLeast(1)).toInt().coerceIn(0, st.repeats - 1) + 1
+                "▶ PART ${pos + 1}/${steps.size} · ${g.patternName(st.pattern)}" + if (st.repeats > 1) " ($rep of ${st.repeats})" else ""
+            }
+            g.playing.value && queued >= 0 -> "▶ ${g.patternName(cur)} → ${g.patternName(queued)}"
+            g.playing.value -> "▶ LOOPING ${g.patternName(cur)}"
+            else -> "■ STOPPED"
         }
-        g.playing.value && queued >= 0 -> "▶ ${g.patternName(cur)} → ${g.patternName(queued)}"
-        g.playing.value -> "▶ LOOPING ${g.patternName(cur)}"
-        else -> "■ STOPPED"
-    }
+    } }
     Text(txt, style = Type.value, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
 }
 

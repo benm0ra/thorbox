@@ -579,8 +579,8 @@ private fun DrawScope.rat(pose: RatPose, now: Float, slice: Path, tail: Path) {
     slice.reset()                                       // (the slice's path, borrowed for the snout first)
     val sn = pose.sniff * 1.2f
     slice.moveTo(headX + 8f, headY - 7f)
-    slice.quadraticBezierTo(headX + 27f + sn, headY - 2f, headX + 26f + sn, headY + 3f)
-    slice.quadraticBezierTo(headX + 18f, headY + 8f, headX + 6f, headY + 7f)
+    slice.quadraticTo(headX + 27f + sn, headY - 2f, headX + 26f + sn, headY + 3f)
+    slice.quadraticTo(headX + 18f, headY + 8f, headX + 6f, headY + 7f)
     slice.close()
     drawPath(slice, FUR)
     drawCircle(PINK, 3.2f, Offset(headX + 26f + sn, headY + 1.5f))                                    // nose (sniffs)

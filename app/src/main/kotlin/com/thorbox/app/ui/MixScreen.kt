@@ -6,11 +6,8 @@ import com.thorbox.app.input.navAdjustable
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -44,6 +41,8 @@ import com.thorbox.app.input.navClickable
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.sqrt
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 /** Fader law: 0 dB sits at 75% travel; the bottom quarter is a gentle fade to −60 (off). */
 fun dbToFader(db: Float): Float = if (db >= 0f) 0.75f + db / 6f * 0.25f else 0.75f * (1f - sqrt((-db / 60f).coerceIn(0f, 1f)))
