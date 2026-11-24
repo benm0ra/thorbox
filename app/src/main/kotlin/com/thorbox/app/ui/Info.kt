@@ -81,7 +81,7 @@ object Glossary {
         "STEPS" to "The step sequencer: write patterns for each track, step by step.",
         "MIXER" to "Volume, pan, mute and solo for each track, plus the master level.",
         "VISUAL" to "A full-screen visualizer that dances to whatever is playing. B or tap to leave.",
-        "THEME" to "Change how Clamshell Beats looks: Genesis, Studio, Cyberpunk, Pastel, Terminal or Grayscale.",
+        "THEME" to "Change how Clamshell Beats looks: eight themes, dark and light. ⚙ → LOOK shows each one live.",
         "STRETCH" to "Time-stretch the whole sample, pitch kept: SYNC to the tempo, half or double time, or FIT it to 1, 2, 4 or 8 bars.",
         "16 LEVELS" to "Spread the selected sound across all 16 pads, graded by velocity, tune, decay or tone. Pad 1 is lowest.",
         "VEL" to "16 LEVELS by velocity: pad 1 softest, pad 16 hardest.",

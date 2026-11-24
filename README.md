@@ -10,35 +10,13 @@ Inspired by the MPC way of working: chop it, put it on 16 pads, play it in, swin
 
 📖 **[User manual (PDF)](docs/Clamshell-Beats-Manual.pdf)**: every screen, button and feature, with screenshots. Its source is [docs/MANUAL.md](docs/MANUAL.md); `python3 tools/build-manual.py --shots <ci-shots folder>` rebuilds it.
 
-## New in this round
+## Latest
 
-- **A clearer SONG page.** Patterns (your loops) on the left, the song (the order they play in) on the right and as a timeline across the top, with the play button's job and what's playing spelled out in words.
-- **EXPORT to WAV / FLAC, with stems.** Bounce the song (or a stretch of it, or a pattern × N) faster than real time: WAV or FLAC, 24 / 16-bit, 48 / 44.1 kHz, and optionally a stem per track (dry, so they sum to the mix, or with the master FX printed on each) and a MIDI file of the same bars. It renders the same song steps, automation and ducking as live playback, sample for sample (host-tested), and our own FLAC encoder is checked bit-exact against a decoder and ffmpeg. Files go to *Music/Clamshell Beats/Exports* and **SHARE** sends them on. Automation is now kept per pattern.
-- **PATTERNS + SONG.** There are 16 patterns per project, each a pattern for every track (MPC-style sequences). Launch one and it changes exactly on the bar line: the engine swaps it in at the right sample, so it's never late. Chain patterns into a **song** (× repeats, reorder, loop or stop at the end), copy a pattern to start a variation, and save it all with the project.
-- **KEY LOCK.** Pick a key and lock it. Every sampler track key-matches to it (new samples too), synth patterns snap into the scale as they play (your notes are kept), and the keys stay in scale. Change the key and everything follows.
-- **Characters with real motion:** spring physics (follow-through, anticipation, squash and stretch) for the rat, the cat and BIG DAWG, tuned with an offline motion sim (`tools/anim-sim`).
+- **SONG:** patterns are your loops, and the song is the order they play in, shown as a timeline you can tap.
+- **EXPORT:** the song, part of it, or a pattern to WAV or FLAC, with optional stems and MIDI, faster than real time.
+- **DUCK:** a sidechain page for the whole mix, with an NYC subway rat. **KEY LOCK:** keeps every track in one key.
 
-- **DUCK, a sidechain page for the whole mix.** One key (the kick alone, any track, or a ghost BEAT) ducks any set of tracks: WEIGHT, SQUASH, SNAP, BOUNCE, PUMP and LOUD are real threshold, ratio, attack, release, mix and makeup. There are four presets (BOOM BAP POCKET, HEAVY DILLA PUMP, SUBTLE GLUE, LO-FI GHOST), a gain-reduction meter with the last 3 s of the pump, and an NYC subway rat on the DUCK ST platform. He holds a slice overhead and squashes by the real gain reduction, then rises on the release. The mixer's PUMP moved here (older projects carry over).
-
-- **Sampler: 1 AT A TIME** (the default). Playing a pad silences the pad before it, so chops never pile up; turn it off in PAD EDIT → MUTE to layer them. Mute groups and targets still work either way.
-- **Sampler: transpose ALL.** The PITCH − / + buttons switch between the selected pad and **ALL** pads (a track transpose on top of each pad's pitch, saved with the project).
-- **Bottom screen:** a status line where the empty NAV band was (track, sample · pad · mode · 1 AT A TIME, key, kit, bar.beat with beat lights), and pads that show their slice's waveform, play mode, mute group, pitch and length.
-- **Light themes:** the synth cat's "closed filter" shading no longer spills over the waveform in Pastel and Vintage, and the NAV cursor no longer hides small labels.
-
-- **Sampler**
-  - **Faster loading:** MP3/FLAC/OGG/M4A decode as fast as the phone's decoder allows (the old loop capped it at ~10–15× realtime), and key/tempo detection on long songs listens to excerpts (a 4-minute song ~2.5× faster, 10 minutes ~7×). Long files load their first 10 minutes; WAV/AIFF are read directly; a **loading card** shows each step with an estimate and **CANCEL**.
-  - **A waveform that tells you things:** each slice in its pad's colour, RMS body inside a peak outline, clip marks, a time ruler, a beat/bar grid from the detected BPM, length · rate · channels · peak, the selected slice's start → end, and the playhead's time.
-  - **■ STOP** lights while anything on the sampler sounds and cuts it all (R3 on the controller).
-  - **PAD EDIT**, styled like a hardware sampler's backlit LCD with F1–F6 soft keys: tune, fine, level, pan, reverse, warp · attack, decay, release, velocity → level · low-pass cutoff + resonance · **mute groups** (choke: open/closed hat) and two **mute targets** · ONE SHOT / NOTE ON / LOOP and MONO / POLY. Each page has a picture of what it does. Saved with the project.
-  - **Pattern lane under the waveform:** tap a step to put the selected pad there, long-press to clear; **SEQ CHOPS** writes the chops in their original order and timing as a starting point; **●** records live, **✕** clears, **SWING** sits right there.
-  - **Note repeat fixed:** in NAV mode L1 only switched screens; now L1 hold = note repeat, L1 tap = top screen. RPT on the decks latches with a tap. 16 LEVELS repeats too.
-  - **Field recorder:** MIC input (it used the raw source at −52 dBFS), ▶ PLAY the take, KEEP → PADS lays it on a sampler track.
-- **Synth:** half the screen is now **a cat in shades making biscuits** on something that suits the sound family (pillow, waterbed, speaker, turntable, keyboard, guitar, slime), and she reads the patch: her tail is the waveform, detune brings a twin, the cutoff is the room's light, resonance buzzes her whiskers, attack/release set her kneading, the LFO flies a moth, octave sets her size, a pitch drop makes her hop, poly notes bring kittens, drive grows a mohawk, noise makes her fur crackle. Turning a knob captions what it does to her.
-- **BIG DAWG, redrawn:** a real right-handed kit seen from the crowd (kick front and centre, rack tom on the kick, snare between his knees, hi-hat with his foot on the pedal, crash, floor tom and ride), one shell finish per kit, a rug; proper elbows (two-bone IK) and short bulldog arms; a hoodie, jeans and sneakers. The bodega corner reacts to the kit: shutter rattle and a glowing piece on the kick, brick flash and flapping posters on the snare, dust and the OPEN sign on the hats, a crash lighting the corner, BODEGA neon following the level, a pumping boombox and a rippling puddle.
-- **Mixer, rebuilt:** pan moved above the fader and only follows sideways drags (raising a fader from the bottom used to grab the pan); the fader moves relative to your finger with a dB scale and a double-tap to 0 dB; 28-segment LED meters with peak hold and a clip light; a colour band per track.
-- **Themes:** two new ones (**Bodega**, navy + neon; **Vintage**, warm light grey) for eight in all; deeper pads and readable muted text in Pastel; Grayscale pads alternate so neighbours separate. Text on any coloured button or tab now picks dark or light by contrast (light themes' selected tabs used to go blank). **⚙ → LOOK** shows each theme as a live preview tile.
-- **UI:** small text is centred everywhere (it sat low and clipped in small chips), drum rows show full names, drum pads share one text size, the characters sit on the left of both instrument screens.
-- **Engine:** per-pad sound (pan, envelope, SVF filter, reverse, choke, poly, velocity), StopPads, and [min, max, rms] waveform data; host tests cover all of it.
+Everything else is in the **[changelog](CHANGELOG.md)**.
 
 ## What works now
 
@@ -199,8 +177,8 @@ Test builds share one public debug key (`tools/dev-debug.keystore`), so each bui
 
 ## Device test checklist
 
-1. Both screens light up. The footer `2nd:` line reads *Presentation → …* or *Activity → …*.
-2. Send us the footer's `displays:` line from your Thor (it tells us how the firmware exposes the panels).
+1. Both screens light up.
+2. **⚙ → SYSTEM → DIAGNOSTICS → SHARE LOG** and attach it to an issue if anything is off. It says how the firmware exposes the two panels.
 3. Load a melodic loop: KEY and BPM fill in. Drum one-shots show `—` on purpose.
 4. **⚙ → SYSTEM** shows the output mode and buffer (exclusive is the fast path) with 0 dropouts. For a precise number, measure tap-to-tone latency with OboeTester.
 5. KEYS deck: chords, glissando, octave shift, key lock follows the loaded sample. No stuck notes after a lid close.
@@ -210,30 +188,16 @@ Test builds share one public debug key (`tools/dev-debug.keystore`), so each bui
 ## Architecture
 
 ```
-core-model/  immutable, serializable project model (Sample, Slice, Pad, SynthPatch, Clip, Scene, Project)
-engine/      C++20 real-time engine + Kotlin facade (NativeEngine.kt)
-  AudioEngine   Oboe stream (LowLatency/Exclusive, native rate, 2× burst), command drain, mixing, telemetry
-  SamplerVoice  varispeed sample playback (Hermite, fast path), de-click envelope, one-shot/gate/loop
-  Synth.h       8-voice 2-osc morph synth, PolyBLEP, Simper SVF, ADSRs, LFO, control-rate modulation
-  SpscQueue     lock-free single-producer/single-consumer ring (the only way into the audio thread)
-  Decoder       platform MediaExtractor/MediaCodec → float, bounds-checked
-  Analysis      key (chroma + Krumhansl profiles) and BPM (spectral-flux ACF + loop-length snap)
-  Sequencer.h   clock, patterns, MPC swing, probability, note repeat, metronome (sample-accurate)
-  MasterFx.h    punch-in master FX on a ring buffer of the dry mix; click-free crossfades
-  jni_bridge    the trust boundary: validates every value
-app/
-  AppState      process-wide state; one Choreographer tick polls the engine, telemetry and sticks
-  dual/         screen roles by geometry; Presentation, with a SecondScreenActivity fallback
-  input/        context-aware gamepad router (sticks = encoders)
-  synth/        knob spec: curves, formats, colour mapping, engine param ids
-  groove/       GrooveLogic (scales, quantize, steps, generators: pure, JVM-tested) + GrooveController
-  ui/           TopScreen (rail + SMP/SYN/SEQ/MIX), SynthScreen + SynthViz, SeqScreen, MixScreen, DeckScreen + KeysDeck + FxDeck
+core-model/  the project model and file format, presets, MIDI writer (plain Kotlin, JVM-tested)
+engine/      C++20 real-time engine (Oboe) + its Kotlin facade, NativeEngine.kt
+app/         Android: AppState + controllers (groove, sampler, drums, export, projects), input, dual screen, Compose UI
 ```
 
-**Threading:**
-- Kotlin calls the engine from the main thread only.
-- The audio thread never allocates, locks or logs.
-- The UI reads the engine through relaxed atomics and a scope ring.
+- **Main thread:** Kotlin calls the engine from it only.
+- **Audio thread:** never allocates, locks or logs.
+- **Between them:** commands cross on a lock-free queue, and telemetry comes back through atomics.
+
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** is the full map: which file owns what, how a frame runs, how to add an engine feature or a page, and how the tests and CI fit together.
 
 ## Performance
 
@@ -257,7 +221,7 @@ Next: resampling (bounce to a pad) · scratch deck · Wi-Fi Transfer + wired exp
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) (it covers the real-time rules), [SECURITY.md](SECURITY.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) (the workflow, tests and real-time rules) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (the code map). Small issues for a first PR are labelled **good first issue**. Also see [SECURITY.md](SECURITY.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

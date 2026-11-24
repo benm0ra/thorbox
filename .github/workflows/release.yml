@@ -16,11 +16,11 @@ jobs:
     permissions:
       contents: write        # create the release and upload the APKs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }          # full history: versionCode = commit count
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Engine tests (ASan + UBSan)
         run: tools/run-host-tests.sh

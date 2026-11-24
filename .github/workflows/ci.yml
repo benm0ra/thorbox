@@ -16,14 +16,14 @@ jobs:
     name: Validate Gradle wrapper
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: gradle/actions/wrapper-validation@v4
+      - uses: actions/checkout@v7
+      - uses: gradle/actions/wrapper-validation@v6
 
   host-tests:
     name: Engine tests (ASan + UBSan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: tools/run-host-tests.sh
 
   android:
@@ -31,11 +31,11 @@ jobs:
     needs: [wrapper, host-tests]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # Same version + key as releases (when the secret exists), so CI APKs install over releases too.
       # Pull requests from forks / Dependabot get no secrets and fall back to the local debug key.
       - name: Version + signing key
@@ -64,13 +64,13 @@ jobs:
         run: |
           f=$(ls app/build/reports/lint-results-debug.xml 2>/dev/null || true)
           if [ -n "$f" ]; then grep -o 'id="[^"]*"' "$f" | sort | uniq -c | sort -rn | head -40; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: thorbox-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: lint-report
@@ -87,10 +87,10 @@ jobs:
       contents: write
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -106,7 +106,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
           script: tools/smoke-test.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: smoke-logs
@@ -146,7 +146,7 @@ jobs:
       group: dev-release
       cancel-in-progress: false
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: thorbox-debug-apk, path: apk }
       - name: Replace the dev pre-release
         env:

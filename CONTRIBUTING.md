@@ -10,12 +10,32 @@ handheld, built on Oboe (C++) and Jetpack Compose.
   [Developer Certificate of Origin](https://developercertificate.org/). We don't use a CLA.
 - Be kind. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
+## Start here
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** maps the code: modules, threads, which file owns what, and how to add an engine feature or a page.
+- **[docs/MANUAL.md](docs/MANUAL.md)** is what the app does, from the player's side.
+- Issues labelled **good first issue** are small and self-contained.
+
+## Workflow
+1. Branch from `main` (`feat/…`, `fix/…`, `docs/…`). Keep a PR to one idea; small PRs get reviewed fast.
+2. Run the tests you can (below), then push and open a PR against `main`. The template has the checklist.
+3. CI builds, lints and runs every test. It also launches the app on an emulator and screenshots every page and theme. For a UI change, look at the screenshots:
+   ```bash
+   git fetch origin ci-shots && mkdir -p /tmp/shots && git archive origin/ci-shots | tar -x -C /tmp/shots
+   ```
+   Say in the PR what changed on screen, ideally with a before/after.
+4. Green CI and a maintainer's review merge it. `main` is always installable: every push updates the rolling **dev** build.
+
 ## Build and test
 ```bash
-./gradlew :app:assembleDebug        # needs Android SDK + NDK; see README
-tools/run-host-tests.sh             # C++ engine tests on desktop, ASan + UBSan (no Android needed)
+./gradlew :app:assembleDebug                          # needs Android SDK + NDK; see README
+tools/run-host-tests.sh                               # C++ engine tests on desktop, ASan + UBSan (g++ or clang; no Android)
+./gradlew :core-model:test :app:testDebugUnitTest     # project format, presets, pure logic (JVM)
+./gradlew :app:lintDebug                              # zero findings expected; app/lint.xml says what's ignored and why
+tools/smoke-test.sh                                   # with an emulator or device attached: launch + screenshots
 ```
-A PR must keep `tools/run-host-tests.sh` green and add tests for new DSP.
+- A PR must keep all of these green.
+- New DSP and new project-file fields need tests. A new field needs a default, so old projects still open.
+- On a Thor, `tools/thor-dev.bat` installs the newest green build and `tools/thor-shots.bat` screenshots both screens. See the README.
 
 ## The real-time rules (non-negotiable)
 Code reachable from `AudioEngine::onAudioReady` must never:
@@ -41,6 +61,9 @@ queue. `NativeEngine.peaks()` is the only exception.
   icons, characters or fonts.
 
 ## Style
-- Kotlin: official style (`kotlin.code.style=official`). C++: C++20, 4-space indent, `mCamelCase` members.
+- Kotlin: official style (`kotlin.code.style=official`, `.editorconfig`). C++: C++20, 4-space indent, `mCamelCase` members.
+- Big files are fine when they're sectioned (`// ===== SECTION =====`). Put new code in the section it belongs to, or give it its own file when it stands alone (as `export/Exporter.kt` does).
+- Comments say *why*, and the player-facing words on screen use the same names as the manual.
+- No dead code: delete it (git remembers). Lint and the compiler should stay warning-free.
 - Keep JNI (`jni_bridge.cpp`) boring: validate, then marshal. Logic goes in the engine.
 - Commit messages: imperative mood (“Add LFO S&H shape”), explaining the *why* in the body.
