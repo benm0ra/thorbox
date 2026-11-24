@@ -71,6 +71,7 @@ fun ChopScreen(state: AppState) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 MatchBar(state)
                 SliceWaveform(state, Modifier.weight(1f).fillMaxWidth())
+                BarNav(state, state.samplerTrack.intValue, CHOP_PAGE, Modifier.fillMaxWidth(), height = 30.dp)
                 ChopPattern(state, Modifier.fillMaxWidth().height(40.dp))
                 ChopControls(state)
             }
@@ -603,16 +604,23 @@ private fun lerpC(a: androidx.compose.ui.graphics.Color, b: androidx.compose.ui.
  * Long-press a step: clear it. SEQ CHOPS writes the chops in their original order and timing (the
  * loop rebuilt as pad hits) to rearrange from; ● REC records your pad playing live.
  */
+/** Steps the chop lane shows at once (4 bars); longer patterns page with BarNav. */
+private const val CHOP_PAGE = 64
+
 @Composable
 private fun ChopPattern(state: AppState, modifier: Modifier) {
     val g = state.groove
     val sm = state.sampler
     val track = state.samplerTrack.intValue
     val clip = g.clips.value[track]
-    val steps = com.thorbox.app.groove.Steps.count(clip.lengthTicks).coerceAtMost(64)
+    val steps = com.thorbox.app.groove.Steps.count(clip.lengthTicks)
+    val per = minOf(steps, CHOP_PAGE)                 // up to 4 bars on screen; BarNav turns the page
+    fun first() = g.pageStart(track, CHOP_PAGE)
     val tm = rememberTextMeasurer(cacheSize = 96)
     val num = remember(Tb.palette) { TextStyle(color = Tb.Black, fontSize = 9.sp, fontWeight = FontWeight.Black) }
     val tel = state.telemetry
+    val cellCount = remember { IntArray(CHOP_PAGE) }                  // reused every frame (no allocation while drawing)
+    val padsAt = remember { Array(CHOP_PAGE) { IntArray(3) } }
     fun tapStep(step: Int) {
         val pad = sm.selected.intValue
         val had = clip.notes.any { it.note == pad && com.thorbox.app.groove.Steps.stepOf(it, clip.lengthTicks) == step }
@@ -623,37 +631,37 @@ private fun ChopPattern(state: AppState, modifier: Modifier) {
         HwButton("SEQ CHOPS", Modifier.width(78.dp).fillMaxHeight(), enabled = sm.regions.value.isNotEmpty(), accent = Tb.Tempo, minHeight = 36.dp, fontSize = 10, hPad = 3.dp) {
             val (t, d) = sm.sequenceChops(); Info.toast(t, d)
         }
-        val navGrid = NavGrid(steps, 1,
-            get = { g.cursor.intValue % steps }, set = { c -> g.cursor.intValue = c },
-            down = { c -> tapStep(c) }, describe = { c -> "STEP ${c + 1}" }, verb = "place pad ${sm.selected.intValue + 1}", tag = "choppattern")
+        val navGrid = NavGrid(per, 1,
+            get = { (g.cursor.intValue - first()).coerceIn(0, per - 1) }, set = { c -> g.cursor.intValue = first() + c },
+            down = { c -> if (first() + c < steps) tapStep(first() + c) }, describe = { c -> "STEP ${first() + c + 1}" }, verb = "place pad ${sm.selected.intValue + 1}", tag = "choppattern")
         Canvas(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Tb.Void.copy(alpha = 0.55f))
             .navTarget("PATTERN", grid = navGrid, corner = 6f)
             .pointerInput(steps, track, clip) {
                 detectTapGestures(
-                    onTap = { p -> tapStep((p.x / size.width * steps).toInt().coerceIn(0, steps - 1)) },
-                    onLongPress = { p -> g.clearStep(track, (p.x / size.width * steps).toInt().coerceIn(0, steps - 1)) },
+                    onTap = { p -> tapStep((first() + (p.x / size.width * per).toInt()).coerceIn(0, steps - 1)) },
+                    onLongPress = { p -> g.clearStep(track, (first() + (p.x / size.width * per).toInt()).coerceIn(0, steps - 1)) },
                 )
             }) {
             tel.frame.longValue
-            val cw = size.width / steps; val h = size.height
+            val f0 = first(); val shown = minOf(per, steps - f0)
+            val cw = size.width / per; val h = size.height
             val gap = if (cw > 10.dp.toPx()) 1.5f.dp.toPx() else 0.75f.dp.toPx()
             val r = CornerRadius(3.dp.toPx())
             val sel = sm.selected.intValue
             val play = g.stepPosition(track)
-            // which pads sound on each step (up to 3 shown)
-            for (s in 0 until steps) {
+            for (s in 0 until shown) {
                 val x = s * cw
                 drawRoundRect(if (s / 4 % 2 == 0) Tb.Raised else Tb.Panel, Offset(x + gap, gap), Size(cw - 2 * gap, h - 2 * gap), r)
                 if (s % 16 == 0 && s > 0) drawLine(Tb.Text.copy(alpha = 0.5f), Offset(x, 2f), Offset(x, h - 2f), 1.5f.dp.toPx())
             }
-            val count = IntArray(steps)
-            val padsAt = Array(steps) { IntArray(3) }
+            // which pads sound on each step on screen (up to 3 shown); cells are page-relative
+            val count = cellCount; java.util.Arrays.fill(count, 0)
             for (e in clip.notes) {
-                val s = com.thorbox.app.groove.Steps.stepOf(e, clip.lengthTicks)
-                if (s !in 0 until steps || count[s] >= 3) continue
+                val s = com.thorbox.app.groove.Steps.stepOf(e, clip.lengthTicks) - f0
+                if (s !in 0 until shown || count[s] >= 3) continue
                 padsAt[s][count[s]++] = e.note
             }
-            for (s in 0 until steps) {
+            for (s in 0 until shown) {
                 val n = count[s]; if (n == 0) continue
                 val x = s * cw + gap; val w = cw - 2 * gap
                 val sh = (h - 2 * gap) / n
@@ -667,10 +675,10 @@ private fun ChopPattern(state: AppState, modifier: Modifier) {
                     if (t.size.width < w) drawText(t, topLeft = Offset(x + (w - t.size.width) / 2f, (h - t.size.height) / 2f))
                 }
             }
-            if (play in 0 until steps) drawRoundRect(Tb.Text.copy(alpha = 0.35f), Offset(play * cw + gap, gap), Size(cw - 2 * gap, h - 2 * gap), r)
+            if (play - f0 in 0 until shown) drawRoundRect(Tb.Text.copy(alpha = 0.35f), Offset((play - f0) * cw + gap, gap), Size(cw - 2 * gap, h - 2 * gap), r)
             com.thorbox.app.input.Nav.entered.intValue
             if (com.thorbox.app.input.Nav.enteredTag() == "choppattern") {
-                val c = g.cursor.intValue % steps
+                val c = (g.cursor.intValue - f0).coerceIn(0, per - 1)
                 drawRoundRect(Tb.Text, Offset(c * cw + 1f, 1f), Size(cw - 2f, h - 2f), r, style = Stroke(2.dp.toPx()))
             }
         }

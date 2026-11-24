@@ -29,6 +29,8 @@ data class ScaleSetting(val root: PitchClass = PitchClass.C, val mode: ScaleMode
  */
 class GrooveController(private val app: AppState) {
     companion object {
+        /** Longest pattern: 64 bars of 1/16 steps. */
+        const val MAX_STEPS = 64 * 16
         const val PATTERNS = 16
         const val BAR = 4 * com.thorbox.model.PPQN
     }
@@ -191,7 +193,7 @@ class GrooveController(private val app: AppState) {
         // KEY LOCK: synth notes are snapped into the locked key on the way out (the stored notes stay as written)
         val snapKey = if (app.lockAll.value && app.trackKind(track) == com.thorbox.model.TrackKind.SYNTH) key() else null
         // The feel is applied here, on the way to the engine: stored notes stay on the grid.
-        val ns = c.notes.take(512).map { e ->
+        val ns = c.notes.take(4096).map { e ->
             val (t, v) = feel.template.apply(e.tick, e.velocity, c.lengthTicks, feel.amount, e.tick + track * 977, if (drums) e.note else -1)
             e.copy(tick = t, velocity = v, note = if (snapKey != null) Scales.snap(e.note, snapKey) else e.note)
         }.sortedBy { it.tick }
@@ -563,10 +565,29 @@ class GrooveController(private val app: AppState) {
         } else ((e.note - synthBase()) / 24f).coerceIn(0f, 1f)
     }
 
+    /** A track's pattern length, 1 step … 64 bars (shortening drops the notes past the end; UNDO brings them back). */
     fun setLength(track: Int, steps: Int) = update(track, saveUndo = true) { c ->
-        val len = steps.coerceIn(1, 64) * STEP_TICKS
+        val len = steps.coerceIn(1, MAX_STEPS) * STEP_TICKS
         c.copy(lengthTicks = len, notes = Steps.resize(c.notes, len))
     }
+
+    // ---- which part of a long pattern the editors show ----
+    /** While playing, editors turn the page with the playhead. Picking a bar by hand turns this off. */
+    val follow = mutableStateOf(true)
+    /**
+     * First step of the page an editor showing [stepsPerPage] steps at a time draws for [track]. Call
+     * it while drawing or handling a tap (it follows the playhead), not in composition.
+     */
+    fun pageStart(track: Int, stepsPerPage: Int): Int {
+        val steps = Steps.count(clips.value.getOrNull(track)?.lengthTicks ?: return 0)
+        if (steps <= stepsPerPage || stepsPerPage <= 0) return 0
+        val pages = (steps + stepsPerPage - 1) / stepsPerPage
+        val ps = if (follow.value) stepPosition(track) else -1
+        val page = if (ps >= 0) ps / stepsPerPage else gridPage.intValue * 16 / stepsPerPage
+        return page.coerceIn(0, pages - 1) * stepsPerPage
+    }
+    /** Show page [page] (of [stepsPerPage] steps) in every editor; stops following the playhead. */
+    fun showPage(page: Int, stepsPerPage: Int) { gridPage.intValue = page * stepsPerPage / 16; follow.value = false }
 
     fun clear(track: Int) = update(track, saveUndo = true) { it.copy(notes = emptyList()) }
 

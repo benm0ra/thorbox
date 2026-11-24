@@ -114,14 +114,8 @@ fun DrumScreen(state: AppState) {
                         HwButton((if (b == 0) "A" else "B") + if (has && b != bank) "•" else "", Modifier.fillMaxHeight().width(36.dp), active = bank == b,
                             accent = Tb.EncBlue, minHeight = 24.dp, fontSize = 10, hPad = 2.dp) { dc.selected.intValue = b * 8 + dc.selected.intValue % 8 }
                     }
-                    Box(Modifier.weight(1f))
-                    val steps = com.thorbox.app.groove.Steps.count(state.groove.clips.value[state.drums.track].lengthTicks)
-                    val pages = (steps + 15) / 16
-                    if (pages > 1) for (pg in 0 until pages) {
-                        val on = state.groove.cursor.intValue / 16 == pg
-                        HwButton("${pg + 1}", Modifier.fillMaxHeight().width(30.dp), active = on, accent = Tb.EncGreen, minHeight = 24.dp, fontSize = 10) {
-                            state.groove.cursor.intValue = pg * 16 }
-                    }
+                    Box(Modifier.width(6.dp))
+                    BarNav(state, state.drums.track, 16, Modifier.weight(1f).fillMaxHeight(), height = 26.dp)
                 }
                 DrumGrid(state, Modifier.weight(1f).fillMaxWidth())
             }
@@ -201,9 +195,9 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
         // NAV: A enters the grid (16 steps × all 16 sounds; the bank follows the row), A toggles a step.
         val navGrid = NavGrid(16, com.thorbox.model.DRUM_SLOTS,
             get = { dc.selected.intValue * 16 + g.cursor.intValue % 16 },
-            set = { c -> dc.selected.intValue = c / 16; g.cursor.intValue = (g.cursor.intValue / 16) * 16 + c % 16 },
-            down = { c -> val step = (g.cursor.intValue / 16) * 16 + c % 16; if (step < steps) g.drumToggle(step, c / 16) },
-            describe = { c -> "${dc.kit.value.voices.getOrNull(c / 16)?.name ?: ""} · step ${(g.cursor.intValue / 16) * 16 + c % 16 + 1}" },
+            set = { c -> dc.selected.intValue = c / 16; g.cursor.intValue = g.pageStart(track, 16) + c % 16 },
+            down = { c -> val step = g.pageStart(track, 16) + c % 16; if (step < steps) g.drumToggle(step, c / 16) },
+            describe = { c -> "${dc.kit.value.voices.getOrNull(c / 16)?.name ?: ""} · step ${g.pageStart(track, 16) + c % 16 + 1}" },
             verb = "toggle", tag = "drumgrid")
         Canvas(Modifier.weight(1f).fillMaxHeight()
             .navTarget("STEPS", grid = navGrid, corner = 4f)
@@ -211,14 +205,14 @@ fun DrumGrid(state: AppState, modifier: Modifier = Modifier) {
                 detectTapGestures { p ->
                     val cw = size.width / 16f; val rh = size.height / 8f
                     val col = (p.x / cw).toInt().coerceIn(0, 15); val row = bankStart + (p.y / rh).toInt().coerceIn(0, 7)
-                    val step = (g.cursor.intValue / 16) * 16 + col
+                    val step = g.pageStart(track, 16) + col
                     if (step < steps) { g.drumToggle(step, row); dc.selected.intValue = row; g.cursor.intValue = step }
                 }
             }) {
             tel.frame.longValue
             val notes = g.clips.value[track].notes
             val len = g.clips.value[track].lengthTicks
-            val pageStart = (g.cursor.intValue / 16) * 16
+            val pageStart = g.pageStart(track, 16)
             val cw = size.width / 16f; val rh = size.height / 8f
             val gap = 2.dp.toPx(); val r = CornerRadius(4.dp.toPx())
             val playStep = g.stepPosition(track)
