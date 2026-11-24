@@ -370,7 +370,11 @@ fun SubwayRat(state: AppState, modifier: Modifier) {
         if (!d.on) {
             drawRect(Color.Black.copy(alpha = 0.35f), Offset.Zero, size)
             val t = tm.measure(when { d.source < 0 -> "PICK A KEY ↓"; d.targets == 0 -> "PICK WHAT DIPS ↓"; else -> "DUCK IS OFF" }, notice)
-            drawText(t, topLeft = Offset((size.width - t.size.width) / 2f, size.height * 0.12f))
+            // on a dark pill mid-wall (clear of the station sign)
+            val tl = Offset((size.width - t.size.width) / 2f, size.height * 0.42f - t.size.height / 2f)
+            val pad = 12.dp.toPx()
+            drawRoundRect(Color.Black.copy(alpha = 0.7f), tl - Offset(pad, pad * 0.6f), Size(t.size.width + 2 * pad, t.size.height + 1.2f * pad), CornerRadius(pad))
+            drawText(t, topLeft = tl)
         }
     }
 }
