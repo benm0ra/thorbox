@@ -36,7 +36,7 @@ data class PadSlot(
  */
 enum class StretchMode(val label: String) { OFF("OFF"), SYNC("SYNC"), HALF("HALF-TIME"), DOUBLE("DOUBLE-TIME"), FIT("FIT") }
 
-enum class ChopMode { AUTO, EQUAL, LAZY }
+enum class ChopMode { AUTO, EQUAL, LAZY, RANDOM }
 
 /**
  * Sampler flow:
@@ -255,9 +255,25 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
                     applyRegions(if (starts.size >= 4) ChopLogic.fromStarts(starts, frames) else ChopLogic.equal(frames, 16))
                 }
             }
+            ChopMode.RANDOM -> {
+                val id = originalId; val frames = originalFrames; val seed = randomSeed
+                scope.launch {
+                    val hits = withContext(Dispatchers.Default) {
+                        val out = LongArray(64)
+                        val n = NativeEngine.transients(id, 0.85f, 64, out)      // lots of candidates to pick from
+                        out.copyOf(n)
+                    }
+                    if (id != originalId) return@launch
+                    applyRegions(ChopLogic.random(frames, hits, seed))
+                }
+            }
             ChopMode.LAZY -> Unit
         }
     }
+
+    private var randomSeed = System.nanoTime()
+    /** RANDOM: a new random chop every tap (cuts snap to hits where it can). */
+    fun randomChop() { stopLazy(); randomSeed = System.nanoTime(); chopMode.value = ChopMode.RANDOM; rechop() }
 
     fun moveMarker(index: Int, originalFrame: Long) = applyRegions(ChopLogic.moveStart(regions.value, index, originalFrame))
 
