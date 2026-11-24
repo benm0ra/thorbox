@@ -257,19 +257,22 @@ fun StepDeck(state: AppState, modifier: Modifier) {
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            HwButton("OCT−", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(-1) }
-            HwButton("OCT+", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(+1) }
+            HwButton("OCT−", Modifier.width(60.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 4.dp) { state.shiftOctave(-1) }
+            HwButton("OCT+", Modifier.width(60.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 4.dp) { state.shiftOctave(+1) }
             Box(Modifier.width(6.dp))
-            PatternDice(state, g.synthT, height = 40.dp, fontSize = 12)
-            Box(Modifier.width(6.dp))
-            HwButton("STEP REC", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 8.dp, active = g.stepRec.value, accent = Tb.Warn) { g.toggleStepRec() }
-            if (g.stepRec.value) {
-                HwButton("‹", Modifier.width(40.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 16) { g.stepRecMove(-1) }
-                HwButton("›", Modifier.width(40.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 16) { g.stepRecMove(+1) }
+            val rec = g.stepRec.value
+            // STEP REC swaps the dice and the bar strip for the record position (the page follows it)
+            if (!rec) { PatternDice(state, g.synthT, height = 40.dp, fontSize = 12); Box(Modifier.width(4.dp)) }
+            HwButton("STEP REC", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 8.dp, active = rec, accent = Tb.Warn) { g.toggleStepRec() }
+            if (rec) {
+                HwButton("‹", Modifier.width(48.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 18, hPad = 4.dp) { g.stepRecMove(-1) }
+                HwButton("›", Modifier.width(48.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 18, hPad = 4.dp) { g.stepRecMove(+1) }
             }
             if (g.stepCopy.value != null) HwButton("PASTE ✕", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 8.dp, active = true) { g.stepCopy.value = null }
             Box(Modifier.width(4.dp))
-            BarNav(state, g.synthT, 16, Modifier.weight(1f).fillMaxHeight(), height = 40.dp, lengthControls = false)
+            if (rec) Text("step ${g.stepRecPos.intValue + 1} / $steps", color = Tb.Muted, fontSize = 12.sp, maxLines = 1,
+                modifier = Modifier.weight(1f).align(Alignment.CenterVertically))
+            else BarNav(state, g.synthT, 16, Modifier.weight(1f).fillMaxHeight(), height = 40.dp, lengthControls = false)
         }
         // ---- keys: 2 × 8 in-key notes ----
         Canvas(
