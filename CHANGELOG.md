@@ -10,6 +10,7 @@ them), not for developers.
 - The engine is split by thread (`AudioEngine.cpp` for the main thread, `AudioRender.cpp` for the audio thread, `AudioExport.cpp` for the offline bounce). There's a code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), dead code is gone, and lint has zero findings.
 
 ### Player-facing
+- **A new fit for the DUCK rat:** a proper hoodie with sleeves, baggy denim stacked on Timbs, a backwards fitted, a gold chain and headphones round his neck (the theme colour is on the sleeve stripes and cap button now, not the whole hoodie). Each kick now hits with a BOOM burst, dust off his boots, a puff through the grate and a little platform shake, all as big as the dip. The tunnel is a real arch.
 - **Patterns up to 64 bars**, any length you like (÷2 · − · + · ×2), in every editor. A bar strip shows where the notes are and turns the page, and FOLLOW keeps the page on the playhead.
 - **RANDOM chop:** 16 slices cut at random places, on the hits where it can. Every tap is a new flip.
 - **Zoom the waveform:** pinch to zoom in and out, slide to move, and drag markers to the sample. Double-tap or FIT shows the whole sample again.

@@ -234,7 +234,7 @@ The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your
 | LOUD | makeup | 0 … +12 dB | turns the ducked tracks back up so the mix stays loud |
 
 - **Presets** set the sound and keep your routing: **BOOM BAP POCKET** (the chop dips under every kick), **HEAVY DILLA PUMP** (deep and slow, the loop breathes), **SUBTLE GLUE** (a nudge), **LO-FI GHOST** (a soft, slow swell). **ON / OFF** keeps every setting.
-- **The rat** stands on the DUCK ST platform holding a slice over his head. Every kick drops its weight on him, and he squashes exactly as far as the mix ducks; then he pushes it back up along the BOUNCE curve. Between kicks he nods to the tempo, and the boombox, the pigeon and the steam grate react to the key.
+- **The rat** stands on the DUCK ST platform holding a slice over his head. Every kick drops its weight on him, and he squashes exactly as far as the mix ducks; then he pushes it back up along the BOUNCE curve. Between kicks he nods to the tempo, and the boombox, the pigeon and the steam grate react to the key. The harder a kick ducks, the bigger the hit: the BOOM, the dust off his boots, the steam and the platform shake all scale with it.
 - **The meter** beside him shows how far the targets are down right now, the last 3 seconds of it as a curve (the dips are the kicks, the climbs are BOUNCE), and the key's level against the **WEIGHT** line: cross the line and it ducks.
 
 Older projects that used the mixer's PUMP open with those settings moved onto the DUCK page.
