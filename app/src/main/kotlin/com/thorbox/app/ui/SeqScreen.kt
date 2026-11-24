@@ -104,15 +104,13 @@ fun SeqScreen(state: AppState) {
                 HwButton(l.name, Modifier.fillMaxHeight(), active = g.lane.value == l, accent = Tb.EncBlue, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) { g.lane.value = l }
             }
             Box(Modifier.width(2.dp))
-            val steps = Steps.count(g.clips.value[track].lengthTicks)
-            if (LocalWide.current)
-                listOf(8, 16, 32).forEach { n -> HwButton("$n", Modifier.fillMaxHeight(), active = steps == n, accent = Tb.EncWhite, minHeight = 40.dp, fontSize = 12, hPad = 8.dp) { g.setLength(track, n) } }
-            else HwButton("$steps STEPS", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 12, hPad = 6.dp) {
-                g.setLength(track, when (steps) { 8 -> 16; 16 -> 32; else -> 8 })
-            }
             Box(Modifier.weight(1f))
             ScaleChips(state)
         }
+
+        // ---- length (1 step … 64 bars) and which bars are on screen ----
+        val gridMode = !g.isPadTrack(track) && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID
+        if (!gridMode) BarNav(state, track, stepGridPage(Steps.count(g.clips.value[track].lengthTicks)), Modifier.fillMaxWidth())
 
         // ---- steps (drums, synth lanes) or the note grid (synth) ----
         if (!g.isPadTrack(track) && g.synthEdit.value == com.thorbox.app.groove.GrooveController.SynthEdit.GRID) NoteGrid(state, Modifier.weight(1f).fillMaxWidth())
@@ -168,6 +166,7 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
     val g = state.groove
     val clip = g.clips.value[track]
     val steps = Steps.count(clip.lengthTicks)
+    val per = stepGridPage(steps)                       // steps on screen: all of a short pattern, a bar of a long one
     val byStep = Steps.byStep(g.visibleNotes(track), clip.lengthTicks)
     val lane = g.lane.value
     val laneVals = remember(clip, lane, state.sampler.selected.intValue, state.lockKey(), state.keyLock.value) {
@@ -181,11 +180,15 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
     val numStyle = remember(Tb.palette) { TextStyle(color = Tb.Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
     val tel = state.telemetry
 
-    fun stepAt(x: Float) = (x / dims[0].coerceAtLeast(1) * steps).toInt().coerceIn(0, steps - 1)
+    fun stepAt(x: Float): Int {
+        val first = g.pageStart(track, per); val n = minOf(per, steps - first)
+        return first + (x / dims[0].coerceAtLeast(1) * per).toInt().coerceIn(0, n - 1)
+    }
     fun valueAt(y: Float) = (1f - y / dims[1].coerceAtLeast(1)).coerceIn(0f, 1f)
     // NAV: A enters the steps, ◀▶ walk them, A toggles, ▲▼ edit the lane (same steps as the play-mode D-pad)
     val laneGrid = com.thorbox.app.input.NavGrid(steps, 1,
-        get = { g.cursor.intValue.coerceIn(0, steps - 1) }, set = { g.cursor.intValue = it },
+        get = { g.cursor.intValue.coerceIn(0, steps - 1) },
+        set = { g.cursor.intValue = it; val f = g.pageStart(track, per); if (it !in f until f + per) g.showPage(it / per, per) },
         down = { s -> g.stepTap(track, s) },
         vertical = { s, d ->
             val c = g.clips.value[track]
@@ -217,11 +220,12 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
             }
     ) {
         tel.frame.longValue                       // playhead redraws each frame (draw-only)
-        val w = size.width / steps
+        val first = g.pageStart(track, per)
+        val w = size.width / per
         val pad = minOf(4.dp.toPx(), w * 0.12f)
         val play = g.stepPosition(track)
-        for (s in 0 until steps) {
-            val x = s * w
+        for (s in first until minOf(steps, first + per)) {
+            val x = (s - first) * w
             val beat = s % 4 == 0
             val e = byStep[s]
             val cell = Size(w - pad * 2, size.height - pad * 2)
@@ -236,10 +240,13 @@ private fun StepGrid(state: AppState, track: Int, accent: androidx.compose.ui.gr
             }
             if (s == play) drawRoundRect(Tb.Text, Offset(x + pad, pad), cell, CornerRadius(6.dp.toPx()), style = Stroke(3.dp.toPx()))
             if (s == g.cursor.intValue) drawRect(Tb.EncBlue, Offset(x + pad, pad), Size(cell.width, 3.dp.toPx()))
-            if (beat && w > 14.dp.toPx()) drawTextSafe(tm, "${s / 4 + 1}", Offset(x + pad + 3.dp.toPx(), pad + 2.dp.toPx()), numStyle)
+            if (beat && w > 14.dp.toPx()) drawTextSafe(tm, if (s % 16 == 0 && steps > 16) "${s / 16 + 1}.1" else "${s % 16 / 4 + 1}", Offset(x + pad + 3.dp.toPx(), pad + 2.dp.toPx()), numStyle)
         }
     }
 }
+
+/** How many steps the step grid shows at once: all of a pattern up to 2 bars, else one bar per page. */
+private fun stepGridPage(steps: Int) = if (steps <= 32) steps else 16
 
 private fun byStepHas(state: AppState, track: Int, step: Int): Boolean {
     val c = state.groove.clips.value[track]

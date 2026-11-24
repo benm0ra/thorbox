@@ -33,6 +33,7 @@ class AudioStreamBuilder { public:
   AudioStreamBuilder* setDirection(Direction) { return this; } AudioStreamBuilder* setPerformanceMode(PerformanceMode) { return this; }
   AudioStreamBuilder* setSharingMode(SharingMode) { return this; } AudioStreamBuilder* setFormat(AudioFormat) { return this; }
   AudioStreamBuilder* setChannelCount(int) { return this; } AudioStreamBuilder* setUsage(Usage) { return this; }
+  AudioStreamBuilder* setDeviceId(int) { return this; }
   AudioStreamBuilder* setContentType(ContentType) { return this; }
   AudioStreamBuilder* setSampleRate(int32_t) { return this; } AudioStreamBuilder* setFormatConversionAllowed(bool) { return this; }
   AudioStreamBuilder* setSampleRateConversionQuality(SampleRateConversionQuality) { return this; }

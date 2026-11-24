@@ -90,7 +90,7 @@ Go @('--es', 'view', 'MIX', '--es', 'deck', 'FX');      Shot 'mixer-fx' 3
 Go @('--es', 'view', 'VIZ');                            Shot 'visualizer' 3
 Go @('--es', 'view', 'SYNTH', '--ez', 'meters', 'true'); Shot 'meters' 3
 Go @('--ez', 'meters', 'false')
-foreach ($t in 0..4) { Go @('--ei', 'settings', "$t"); Shot "settings-$t" 2 }
+foreach ($t in 0..6) { Go @('--ei', 'settings', "$t"); Shot "settings-$t" 2 }
 Go @('--ei', 'settings', '-1', '--ez', 'mic', 'true');  Shot 'recorder' 2
 Go @('--ez', 'mic', 'false')
 # SONG: patterns 2 + 3 copied from 1, a 4-step song, playing in song mode; then the key sheet with KEY LOCK

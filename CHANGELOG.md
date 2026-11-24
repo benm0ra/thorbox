@@ -10,6 +10,17 @@ them), not for developers.
 - The engine is split by thread (`AudioEngine.cpp` for the main thread, `AudioRender.cpp` for the audio thread, `AudioExport.cpp` for the offline bounce). There's a code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), dead code is gone, and lint has zero findings.
 
 ### Player-facing
+- **The synth STEP deck works like a hardware step sequencer.** Tap an empty step and it gets the note (or chord) you last played. Hold keys and press a step to drop them in, or hold a step and press keys to add or remove notes. Hold a step and press a later one to stretch the note (again to tie it over), and hold and let go to copy a step, then tap an empty one to paste. A held step lights its notes on the keys, and longer notes show their tails across the steps. **STEP REC** fills the steps one after another as you play (‹ › to move).
+- **A new fit for the DUCK rat:** a proper hoodie with sleeves, baggy denim stacked on Timbs, a backwards fitted, a gold chain and headphones round his neck (the theme colour is on the sleeve stripes and cap button now, not the whole hoodie). Each kick now hits with a BOOM burst, dust off his boots, a puff through the grate and a little platform shake, all as big as the dip. The tunnel is a real arch.
+- **Patterns up to 64 bars**, any length you like (÷2 · − · + · ×2), in every editor. A bar strip shows where the notes are and turns the page, and FOLLOW keeps the page on the playhead.
+- **RANDOM chop:** 16 slices cut at random places, on the hits where it can. Every tap is a new flip.
+- **Zoom the waveform:** pinch to zoom in and out, slide to move, and drag markers to the sample. Double-tap or FIT shows the whole sample again.
+- **Metronome:** four sounds (CLICK, WOOD, COWBELL, HAT), level, beat-1 accent, a 1- or 2-bar count-in before recording with a big countdown, and click only while recording (⚙ → AUDIO).
+- **⚙ → AUDIO:** choose the output (speaker, headphones, USB interface, HDMI, Bluetooth) and the field recorder's input.
+- **⚙ → MIDI:**
+  - Play the app from a USB or Bluetooth MIDI keyboard or pad controller, with CCs for filter, LFO, volume and pan.
+  - Follow outside MIDI clock and START / STOP.
+  - Send clock, and any track's notes on its own channel, to drive outboard gear, timed to what you hear.
 - **A clearer SONG page.** Patterns (your loops) on the left, the song (the order they play in) on the right and as a timeline across the top, with the play button's job and what's playing spelled out in words.
 - **EXPORT to WAV / FLAC, with stems.** Bounce the song (or a stretch of it, or a pattern × N) faster than real time: WAV or FLAC, 24 / 16-bit, 48 / 44.1 kHz, and optionally a stem per track (dry, so they sum to the mix, or with the master FX printed on each) and a MIDI file of the same bars. It renders the same song steps, automation and ducking as live playback, sample for sample (host-tested), and our own FLAC encoder is checked bit-exact against a decoder and ffmpeg. Files go to *Music/Clamshell Beats/Exports* and **SHARE** sends them on. Automation is now kept per pattern.
 - **PATTERNS + SONG.** There are 16 patterns per project, each a pattern for every track (MPC-style sequences). Launch one and it changes exactly on the bar line: the engine swaps it in at the right sample, so it's never late. Chain patterns into a **song** (× repeats, reorder, loop or stop at the end), copy a pattern to start a variation, and save it all with the project.

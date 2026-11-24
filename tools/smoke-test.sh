@@ -83,7 +83,7 @@ tour() {
     else echo "::error::[$name] sampler could not load $b"; adb logcat -d | grep -E "Thorbox|NuMediaExtractor|NdkJavaVM|can't open" | tail -15; fail=1; fi
   done
   adb exec-out screencap -p > "$OUT/$name-sampler-loaded-file.png" || true
-  for t in 0 1 2 3 4; do                                 # SETTINGS pages, then the meters strip + recorder sheet
+  for t in 0 1 2 3 4 5 6; do                             # SETTINGS pages, then the meters strip + recorder sheet
     adb shell am start -n $PKG/$ACT --ei settings $t >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-settings-$t.png" || true
   done
@@ -206,8 +206,11 @@ shots() {
   if ! grep -q "stop: ok=true" "$d/mic-log.txt"; then echo "RECORDER FAILED: take didn't finish cleanly"; exit 1; fi
   adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
+  adb shell am start -n $PKG/$ACT --es view SYNTH --es deck STEP --ez dry true --ez stepdemo true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/step-deck.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
   adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"
+  adb shell am start -n $PKG/$ACT --ei settings 3 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-audio.png"
+  adb shell am start -n $PKG/$ACT --ei settings 4 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-midi.png"
   adb shell am start -n $PKG/$ACT --ei settings -1 >/dev/null; sleep 1
   # NAV + buttons, driven by real key events: cursor, a grabbed knob, the bottom screen, a pad grid, the cheat sheet
   key() { adb shell input keyevent "KEYCODE_$1"; sleep 0.4; }

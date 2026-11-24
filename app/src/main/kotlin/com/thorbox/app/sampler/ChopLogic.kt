@@ -39,6 +39,26 @@ object ChopLogic {
         return (0 until k).map { i -> Region(frames * i / k, frames * (i + 1) / k) }
     }
 
+    /**
+     * RANDOM chop: [n] slices cut at random places, a different flip for every [seed]. Cuts prefer the
+     * detected hits ([hits], ascending frames) so slices start on a drum or a syllable; with few hits
+     * the rest land anywhere. No slice is shorter than 1/(4n) of the sample, so none are uselessly tiny.
+     */
+    fun random(frames: Long, hits: LongArray, seed: Long, n: Int = PADS): List<Region> {
+        val k = n.coerceIn(1, PADS)
+        if (frames < MIN_SLICE * k) return equal(frames, k)
+        val rnd = kotlin.random.Random(seed)
+        val minLen = maxOf(MIN_SLICE, frames / (4L * k))
+        fun fits(c: Long, cuts: Collection<Long>) = c >= minLen && c <= frames - minLen && cuts.none { abs(it - c) < minLen }
+        val cuts = sortedSetOf<Long>()
+        // hits first, in random order
+        for (h in hits.filter { it in 1 until frames }.shuffled(rnd)) { if (cuts.size >= k - 1) break; if (fits(h, cuts)) cuts += h }
+        // then anywhere, until there are enough (or there's no room left)
+        var tries = 0
+        while (cuts.size < k - 1 && tries++ < 4000) { val c = rnd.nextLong(minLen, frames - minLen + 1); if (fits(c, cuts)) cuts += c }
+        return fromStarts(cuts.toList(), frames)
+    }
+
     /** Slices from ascending onset frames: each runs to the next onset (the last to the end). */
     fun fromStarts(starts: List<Long>, frames: Long): List<Region> {
         val s = (listOf(0L) + starts).filter { it in 0 until frames }.distinct().sorted().take(PADS)

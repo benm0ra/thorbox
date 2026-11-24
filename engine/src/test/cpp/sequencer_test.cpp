@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Desktop test for the sequencer: timing, swing, loop wrap, probability, repeat, metronome.
 #include "Sequencer.h"
+#include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -160,6 +162,46 @@ int main() {
         CHECK(t.pattern(0) == &B && t.sceneTag() == 9 && t.origin() == 0.0 && t.retired() == &A, "stopped: the scene changes at once");
         t.stage(0, &C); t.commit(0, -1);
         CHECK(t.pattern(0) == &B && t.retired() == &C && t.queuedTag() == -1, "cancel: the staged pattern comes back, nothing changes");
+    }
+    {   // 64 bars: a sorted pattern (each block looks only near the playhead) fires exactly what a full scan does
+        auto* big = new Pattern(); big->lengthTicks = kMaxBars * 4 * kPpqn;
+        uint32_t r = 12345; auto rnd = [&](int m) { r ^= r << 13; r ^= r >> 17; r ^= r << 5; return (int)(r % (uint32_t)m); };
+        int n = 0;
+        for (int step = 0; step < kMaxBars * 16 && n < kMaxEvents; ++step)
+            for (int v = 0; v < 3 && n < kMaxEvents; ++v) if (rnd(3) == 0) {
+                Event e{step * 240, 60 + rnd(400), (int16_t)rnd(16), 0.8f, 1.f};
+                if (rnd(12) == 0) { e.ratchet = (int8_t)(2 + rnd(3)); e.length = 240 + rnd(720); }
+                big->events[n++] = e;
+            }
+        big->count = n;
+        auto* sorted = new Pattern(*big);
+        std::stable_sort(sorted->events, sorted->events + n, [](const Event& x, const Event& y) { return x.tick < y.tick; });
+        int reach = 0; for (int i = 0; i < n; ++i) if (sorted->events[i].ratchet > 1) reach = std::max(reach, (int)sorted->events[i].length);
+        sorted->reach = reach + 241; sorted->sorted = true;
+        Sequencer a, b;
+        for (Sequencer* q : {&a, &b}) { q->setTempo(174); q->setSwing(0.66f, 240); q->setPlaying(true); }
+        a.setPattern(0, big); b.setPattern(0, sorted);
+        auto key = [](std::vector<Hit> v) { std::sort(v.begin(), v.end(), [](const Hit& x, const Hit& y) {
+            return x.sample != y.sample ? x.sample < y.sample : x.on != y.on ? x.on < y.on : x.note < y.note; }); return v; };
+        const double secs = big->lengthTicks / (174.0 / 60 * kPpqn) + 3;      // the whole 64 bars and into the next loop
+        const auto ha = key(run(a, secs, 256)), hb = key(run(b, secs, 256));
+        bool same = ha.size() == hb.size();
+        for (size_t i = 0; same && i < ha.size(); ++i) same = ha[i].sample == hb[i].sample && ha[i].on == hb[i].on && ha[i].note == hb[i].note;
+        CHECK(same && ha.size() > 2000, "64-bar pattern, %d events: windowed playback == full scan (%zu hits)", n, ha.size());
+        delete big; delete sorted;
+    }
+    {   // count-in: 2 bars of clicks, then bar 1 starts on the exact sample
+        Sequencer s; s.setTempo(120); s.setCountIn(2 * 4 * kPpqn);
+        Pattern one; one.lengthTicks = 3840; one.count = 1; one.events[0] = Event{0, 120, 7, 1.f, 1.f};
+        s.setPattern(2, &one); s.setPlaying(true);
+        const auto h = run(s, 4.5, 192);
+        std::vector<long> clicks, notes; for (auto& x : h) { if (x.on && x.track == -1) clicks.push_back(x.sample); if (x.on && x.track == 2) notes.push_back(x.sample); }
+        const long bar = (long)(4 * kPpqn * samplesPerTick(120));                // 96000 samples
+        bool ok = clicks.size() == 8;
+        for (size_t i = 0; ok && i < 8; ++i) ok = std::labs(clicks[i] - (long)(i * bar / 4)) <= 1;
+        CHECK(ok, "count-in: 8 clicks a beat apart (%zu)", clicks.size());
+        CHECK(!notes.empty() && std::labs(notes[0] - 2 * bar) <= 1 && notes.size() == 1, "bar 1 plays right after the count-in, at sample %ld (want %ld)", notes.empty() ? -1L : notes[0], 2 * bar);
+        s.setPattern(2, nullptr);
     }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;

@@ -54,7 +54,7 @@ static seq::Pattern* synthLoop() {
 }
 
 int main() {
-    double tr[20], ev[12], rec[4];
+    double tr[24], ev[12], rec[4];
     float m[26];
     {   // Sample load path: worker decode → registry → event → assign to a pad → stretch job → event.
         AudioEngine e;
@@ -382,6 +382,41 @@ int main() {
         for (size_t i = 0; worst < (1 << 30) && i < mx.size(); ++i) { worst = std::max(worst, std::abs(mx[i] - s1[i] - s2[i])); big = std::max(big, std::abs(mx[i])); }
         CHECK(worst <= 2 && big > 100000, "stems sum to the mix (worst %d LSB of 24-bit, 44.1 kHz)", worst);
         for (auto p : paths) std::remove(p);
+    }
+    {   // MIDI out: clock (24 per beat) + START on bar 1, a synth track's notes on its channel, STOP
+        AudioEngine e;
+        e.setTempo(120); e.setPattern(1, synthLoop());
+        e.setMidiClock(true); e.setMidiOut(1, 3);
+        render(e, 4800);                                           // clock runs while stopped too
+        int64_t buf[3 * 512];
+        int clocksStopped = 0;
+        for (int k; (k = e.pollMidi(buf, 512)) > 0;) for (int i = 0; i < k; ++i) clocksStopped += (buf[3 * i + 2] & 0xFF) == 0xF8;
+        e.setPlaying(true);
+        render(e, 47000);                                           // just under 1 s = 2 beats at 120
+        std::vector<int64_t> clk, on; int64_t startAt = -1; int other = 0;
+        for (int k; (k = e.pollMidi(buf, 512)) > 0;) for (int i = 0; i < k; ++i) {
+            const int b0 = buf[3 * i + 2] & 0xFF;
+            if (b0 == 0xF8) clk.push_back(buf[3 * i]); else if (b0 == 0xFA) startAt = buf[3 * i];
+            else if (b0 == 0x93) on.push_back(buf[3 * i]); else if (b0 != 0x83) ++other;
+        }
+        bool even = clk.size() >= 46;
+        for (size_t i = 1; even && i < clk.size(); ++i) even = std::llabs(clk[i] - clk[i - 1] - 1000) <= 1;   // 40 ticks = 1000 samples
+        CHECK(clocksStopped >= 4 && startAt >= 0 && even && !clk.empty() && clk[0] == startAt,
+              "MIDI clock: running while stopped (%d), START then a clock every 1000 samples from it (%zu)", clocksStopped, clk.size());
+        CHECK(on.size() == 2 && on[0] == startAt && std::llabs(on[1] - on[0] - 24000) <= 1 && other == 0,
+              "track 2 notes go out on channel 4, a beat apart (%zu)", on.size());
+        e.setPlaying(false); render(e, 960);
+        bool stop = false; for (int k; (k = e.pollMidi(buf, 512)) > 0;) for (int i = 0; i < k; ++i) stop |= (buf[3 * i + 2] & 0xFF) == 0xFC;
+        CHECK(stop, "STOP goes out when the transport stops");
+    }
+    {   // the metronome's four sounds all make a click, and the count-in sounds before bar 1
+        for (int snd = 0; snd < 4; ++snd) {
+            AudioEngine e; e.setTempo(120); e.setClick(0, (float)snd); e.setClick(1, 1.f); e.setMetronome(true); e.setPlaying(true);
+            CHECK(rms(render(e, 4800), 0) > 0.003, "metronome sound %d is audible", snd);
+        }
+        AudioEngine e; e.setTempo(120); e.setCountIn(4 * 960); e.setPlaying(true);
+        render(e, 4800); e.getTransport(tr);
+        CHECK(tr[20] > 3000 && tr[0] == 0 && rms(render(e, 4800), 0) >= 0.0, "count-in: transport waits at 0 with %.0f ticks to go", tr[20]);
     }
     std::printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;

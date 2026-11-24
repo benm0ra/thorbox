@@ -121,6 +121,14 @@ class MainActivity : ComponentActivity() {
             g.song.value = emptyList(); g.addSongStep(0); g.setRepeats(0, 2); g.addSongStep(1); g.addSongStep(2); g.addSongStep(0)
             g.setSongMode(true)
         }
+        if (i?.getBooleanExtra("stepdemo", false) == true) {                                // the STEP deck mid-edit, for the screenshots
+            val g = state.groove
+            g.clear(g.synthT)
+            g.writeStep(0, intArrayOf(60, 64, 67), 0.9f); g.holdStep(0); g.holdStep(3); g.releaseStep(3, false); g.releaseStep(0, false)
+            g.writeStep(4, intArrayOf(62), 0.8f); g.writeStep(6, intArrayOf(65), 0.8f)
+            if (!g.stepRec.value) g.toggleStepRec()
+            g.stepRecPos.intValue = 8
+        }
         if (i?.hasExtra("keylock") == true) state.setLockAll(i.getBooleanExtra("keylock", false))
         if (i?.hasExtra("keysheet") == true) state.showKeySheet.value = i.getBooleanExtra("keysheet", false)
         if (i?.hasExtra("exportsheet") == true) state.exporter.showSheet.value = i.getBooleanExtra("exportsheet", false)

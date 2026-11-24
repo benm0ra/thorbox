@@ -22,7 +22,8 @@ namespace seq {
 
 constexpr int kPpqn = 960;
 constexpr int kTracks = 8;            // any mix of sampler (note = pad), synth (note = MIDI) and drum (note = slot) tracks
-constexpr int kMaxEvents = 512;       // per pattern
+constexpr int kMaxEvents = 4096;      // per pattern (64 bars of 16ths, with chords and drum layers)
+constexpr int kMaxBars = 64;
 constexpr int kMaxPendingOffs = 256;
 constexpr int kMaxRepeats = 16;
 
@@ -45,6 +46,11 @@ struct Event {
 struct Pattern {
     int32_t lengthTicks = 16 * 240;
     int32_t count = 0;
+    // When the events are sorted by tick (buildPattern does it), each block only looks at the ones
+    // that can land in it: ticks in [from - reach, to), reach = how far a note can sound after its
+    // tick (swing delay + ratchet spread). Unsorted patterns (hand-built in tests) are scanned whole.
+    bool sorted = false;
+    int32_t reach = 0;
     Event events[kMaxEvents];
 };
 
@@ -67,11 +73,23 @@ public:
         mSwingGrid = (gridTicks == 480) ? 480 : 240;
     }
     void setPlaying(bool p) {
-        if (p && !mPlaying) { mTick = 0.0; mOrigin = 0.0; for (auto& l : mLastLive) for (auto& v : l) v = -1e18; }
-        if (!p && mPlaying) mFlushOffs = true;   // stop → release everything the pattern started
+        if (p && !mPlaying) {
+            mTick = 0.0; mOrigin = 0.0; for (auto& l : mLastLive) for (auto& v : l) v = -1e18;
+            mPreroll = mCountInTotal = mCountIn;                 // count-in: clicks first, then bar 1
+            if (mPreroll <= 0.0) mStartPending = true;
+        }
+        if (!p && mPlaying) { mFlushOffs = true; mPreroll = 0.0; mStopPending = true; }   // stop → release everything the pattern started
         mPlaying = p;
     }
     void setMetronome(bool on) { mMetro = on; }
+    /** Ticks of count-in clicks before the next PLAY reaches bar 1 (0 = none). */
+    void setCountIn(double ticks) { mCountIn = std::clamp(ticks, 0.0, 4.0 * 4 * kPpqn); }
+    /** Count-in ticks still to go (0 once bar 1 has started). */
+    double preroll() const { return mPreroll; }
+    /** Where in the last process() block bar 1 started (PLAY, or the end of a count-in), else -1. Clears. */
+    int takeStart() { const int s = mStartAt; mStartAt = -1; return s; }
+    /** True once after the transport stopped. Clears. */
+    bool takeStop() { const bool s = mStopPending; mStopPending = false; return s; }
     // Returns the previous pattern (caller hands it back to the main thread for deletion).
     const Pattern* setPattern(int track, const Pattern* p) {
         if (track < 0 || track >= kTracks) return p;
@@ -141,6 +159,25 @@ public:
 
     // Produces Fires for the next n frames, sorted by offset. Returns the count.
     int process(int n, float sr, Fire* out, int max) {
+        mStartAt = -1;
+        if (mStartPending) { mStartPending = false; mStartAt = 0; }
+        if (!mPlaying || mPreroll <= 0.0) return processFrom(0, n, sr, out, max);
+        // Count-in: the pattern clock waits at 0 while the clicks count the bars in.
+        const double tps = (double)mBpm / 60.0 * kPpqn / (double)sr;
+        const int m = std::min(n, (int)std::ceil(mPreroll / tps - 1e-9));
+        const double p0 = mCountInTotal - mPreroll, p1 = p0 + m * tps;
+        int count = 0;
+        for (int64_t b = (int64_t)std::ceil(p0 / kPpqn); (double)b * kPpqn < p1 && (double)b * kPpqn < mCountInTotal - 1e-6 && count < max; ++b)
+            out[count++] = Fire{std::clamp((int)std::floor(((double)b * kPpqn - p0) / tps), 0, m - 1), -1, true, (int16_t)((b % 4 == 0) ? 1 : 0), 1.f, false, nullptr};
+        mPreroll -= m * tps;
+        if (mPreroll <= 1e-6) { mPreroll = 0.0; mStartAt = m < n ? m : n - 1; }
+        if (m < n) count += processFrom(m, n - m, sr, out + count, max - count);
+        return count;
+    }
+
+private:
+    // process() for frames [base, base + n) of the caller's block.
+    int processFrom(int base, int n, float sr, Fire* out, int max) {
         int count = 0;
         const double tps = (double)mBpm / 60.0 * kPpqn / (double)sr;  // ticks per sample
         const double t0 = mTick, t1 = mTick + tps * n;
@@ -151,7 +188,7 @@ public:
         auto emit = [&](double atTick, int track, bool on, int note, float vel) {
             if (count >= max) return;
             const int off = (int)std::floor((atTick - t0) / tps);
-            out[count++] = Fire{std::clamp(off, 0, n - 1), (int8_t)track, on, (int16_t)note, vel, rep && on, cur};
+            out[count++] = Fire{base + std::clamp(off, 0, n - 1), (int8_t)track, on, (int16_t)note, vel, rep && on, cur};
         };
 
         if (mFlushOffs) {
@@ -172,14 +209,24 @@ public:
                 if (!p || p->lengthTicks <= 0 || b <= a) continue;
                 const double len = p->lengthTicks;
                 const int64_t k0 = (int64_t)std::floor((a - mOrigin) / len), k1 = (int64_t)std::floor((b - mOrigin) / len);
-                for (int e = 0; e < p->count; ++e) {
-                    const Event& ev = p->events[e];
-                    const double st = swung(ev.tick);
-                    // k0-1: a swung note near the loop end can spill into the next loop's first block.
-                    const int rat = std::clamp<int>(ev.ratchet, 1, 4);
-                    const double sub = std::max(10.0, (double)ev.length / rat);   // ratchet spacing
-                    for (int64_t k = k0 - 1; k <= k1; ++k) {
-                        if (k < 0) continue;
+                // k0-1: a swung note near the loop end can spill into the next loop's first block.
+                for (int64_t k = k0 - 1; k <= k1; ++k) {
+                    if (k < 0) continue;
+                    int e0 = 0, e1 = p->count;
+                    if (p->sorted) {                                  // only the events that can land in [a, b)
+                        const double base = mOrigin + (double)k * len;
+                        const double lo = a - base - p->reach, hi = b - base;
+                        int L = 0, R = p->count;
+                        while (L < R) { const int M = (L + R) / 2; if ((double)p->events[M].tick < lo) L = M + 1; else R = M; }
+                        e0 = L; R = p->count;
+                        while (L < R) { const int M = (L + R) / 2; if ((double)p->events[M].tick < hi) L = M + 1; else R = M; }
+                        e1 = L;
+                    }
+                    for (int e = e0; e < e1; ++e) {
+                        const Event& ev = p->events[e];
+                        const double st = swung(ev.tick);
+                        const int rat = std::clamp<int>(ev.ratchet, 1, 4);
+                        const double sub = std::max(10.0, (double)ev.length / rat);   // ratchet spacing
                         // Trig condition: loop k plays if k mod every == phase (loops count from the scene's start = 0).
                         if (ev.condEvery > 1 && (k % ev.condEvery) != std::clamp<int>(ev.condPhase, 0, ev.condEvery - 1)) continue;
                         for (int r = 0; r < rat; ++r) {
@@ -236,12 +283,14 @@ public:
 
         rep = false;
         mTick = t1;
+        (void)base;
         std::sort(out, out + count, [](const Fire& a, const Fire& b) {
             return a.offset != b.offset ? a.offset < b.offset : (!a.on && b.on);   // offs before ons at the same sample
         });
         return count;
     }
 
+public:
     // Exposed for tests and for the UI's playhead maths.
     double swung(double tick) const {
         if (mSwing <= 0.5f) return tick;
@@ -269,6 +318,9 @@ private:
     float mSwing = 0.5f;
     int mSwingGrid = 240;
     bool mPlaying = false, mMetro = false, mFlushOffs = false;
+    double mCountIn = 0.0, mCountInTotal = 0.0, mPreroll = 0.0;
+    bool mStartPending = false, mStopPending = false;
+    int mStartAt = -1;
     const Pattern* mPattern[kTracks] = {};
     Off mOffs[kMaxPendingOffs];
     int mOffCount = 0;

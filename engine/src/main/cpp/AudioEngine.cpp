@@ -18,6 +18,8 @@
 
 AudioEngine::AudioEngine() {
     for (auto& g : mScGain) g.store(1.f, std::memory_order_relaxed);
+    mMidiCh.fill(-1);
+    for (auto& m : mMidiMap) for (int i = 0; i < 16; ++i) m[(size_t)i] = (uint8_t)(36 + i);   // pads / slots from C1, MPC-style
     mWorker = std::thread([this] { workerLoop(); });
 }
 
@@ -61,6 +63,7 @@ bool AudioEngine::openStream() {
             ->setContentType(oboe::ContentType::Music)
             ->setDataCallback(this)
             ->setErrorCallback(this);
+        if (mOutputDeviceId > 0) b.setDeviceId(mOutputDeviceId);
         std::shared_ptr<oboe::AudioStream> s;
         if (b.openStream(s) != oboe::Result::OK || !s) continue;
         LOGI("try %s: %d Hz, burst %d, sharing %s, format %s", t.name, s->getSampleRate(), s->getFramesPerBurst(),
@@ -95,6 +98,16 @@ bool AudioEngine::start() {
     std::lock_guard<std::mutex> l(mStreamMtx);
     mWantRunning = true;
     if (mStream) return true;
+    return openStream();
+}
+
+bool AudioEngine::setOutputDevice(int deviceId) {
+    std::lock_guard<std::mutex> l(mStreamMtx);
+    if (deviceId < 0) deviceId = 0;
+    if (deviceId == mOutputDeviceId && mStream) return true;
+    mOutputDeviceId = deviceId;
+    if (!mWantRunning) return true;
+    if (mStream) { mStream->stop(); mStream->close(); mStream.reset(); mTuner.reset(); }
     return openStream();
 }
 
@@ -166,6 +179,28 @@ bool AudioEngine::setSwing(float a, int grid) {
 bool AudioEngine::setPlaying(bool on) { return mCmds.push({CmdType::SetPlaying, 0, on ? 1 : 0}); }
 bool AudioEngine::setRecording(bool on) { return mCmds.push({CmdType::SetRecording, 0, on ? 1 : 0}); }
 bool AudioEngine::setMetronome(bool on) { return mCmds.push({CmdType::SetMetronome, 0, on ? 1 : 0}); }
+bool AudioEngine::setClick(int param, float v) { return param >= 0 && param <= 2 && std::isfinite(v) && mCmds.push({CmdType::SetClick, 0, param, v}); }
+bool AudioEngine::setCountIn(float ticks) { return std::isfinite(ticks) && mCmds.push({CmdType::SetCountIn, 0, 0, std::clamp(ticks, 0.f, 4.f * 4 * seq::kPpqn)}); }
+bool AudioEngine::setMidiOut(int track, int ch) { return validTrack(track) && mCmds.push({CmdType::SetMidiOut, track, std::clamp(ch, -1, 15)}); }
+bool AudioEngine::setMidiMap(int track, int note, int midiNote) {
+    return validTrack(track) && note >= 0 && note < 16 && midiNote >= 0 && midiNote <= 127 && mCmds.push({CmdType::SetMidiMap, track, note, 0.f, nullptr, nullptr, midiNote});
+}
+bool AudioEngine::setMidiClock(bool on) { return mCmds.push({CmdType::SetMidiClock, 0, on ? 1 : 0}); }
+int AudioEngine::pollMidi(int64_t* out, int max) {
+    int n = 0; MidiMsg m;
+    while (n < max && mMidiOut.pop(m)) {
+        out[3 * n] = m.frame; out[3 * n + 1] = m.len; out[3 * n + 2] = m.b0 | (m.b1 << 8) | (m.b2 << 16);
+        ++n;
+    }
+    return n;
+}
+void AudioEngine::midiAnchor(int64_t* out) {
+    // the two halves are written separately; re-read until they belong together
+    int64_t f, t;
+    do { t = mAnchorNanos.load(std::memory_order_acquire); f = mAnchorFrame.load(std::memory_order_acquire); }
+    while (t != mAnchorNanos.load(std::memory_order_acquire));
+    out[0] = f; out[1] = t; out[2] = mDeviceRate.load(std::memory_order_relaxed);
+}
 bool AudioEngine::queuePattern(int track, seq::Pattern* owned) {
     if (track < 0 || track >= seq::kTracks) { delete owned; return false; }
     Command c{CmdType::QueuePattern, track};
@@ -241,6 +276,7 @@ void AudioEngine::getTransport(double* out) {
     out[17] = mTelScene.load(std::memory_order_relaxed);     // … and this is its tag
     out[18] = (double)mTelDrums.load(std::memory_order_relaxed);
     out[19] = mTelRevTail.load(std::memory_order_relaxed);
+    out[20] = mTelPreroll.load(std::memory_order_relaxed);   // count-in ticks still to go (0 = none / done)
 }
 
 bool AudioEngine::drumTrigger(int track, int slot, float vel) {
@@ -488,7 +524,7 @@ bool AudioEngine::getPeaks(int sampleId, int buckets, float* out) {
 
 // [min, max, rms] per bucket of the mono mix: the waveform view draws the peaks as the outline
 // and the RMS as the solid body (what you hear as loudness).
-bool AudioEngine::getWave(int sampleId, int buckets, float* out) {
+bool AudioEngine::getWave(int sampleId, int buckets, float* out, int64_t from, int64_t to) {
     std::shared_ptr<SampleBuffer> buf;
     {
         std::lock_guard<std::mutex> l(mRegMtx);
@@ -497,12 +533,15 @@ bool AudioEngine::getWave(int sampleId, int buckets, float* out) {
         buf = it->second.buf;
     }
     if (buckets <= 0 || buf->frames <= 0) return false;
+    if (to < 0 || to > buf->frames) to = buf->frames;
+    from = std::clamp<int64_t>(from, 0, std::max<int64_t>(0, to - 1));
+    const int64_t span = std::max<int64_t>(1, to - from);
     const int ch = buf->channels;
     const float inv = 1.f / (float)ch;
     const float* d = buf->data.data();
     for (int b = 0; b < buckets; ++b) {
-        const int64_t a = buf->frames * b / buckets;
-        const int64_t e = std::min(buf->frames, std::max(a + 1, buf->frames * (b + 1) / buckets));
+        const int64_t a = from + span * b / buckets;
+        const int64_t e = std::min(to, std::max(a + 1, from + span * (b + 1) / buckets));
         float mn = 0.f, mx = 0.f; double sq = 0.0;
         for (int64_t f = a; f < e; ++f) {
             float s = d[f * ch];

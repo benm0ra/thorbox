@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <chrono>
 
 // AudioEngine, part 2 of 3: the audio thread. Everything here runs inside onAudioReady (or an export
 // render, which takes its place): no allocation, no locks, no syscalls, no logging. See CONTRIBUTING.md.
@@ -25,11 +26,13 @@ void AudioEngine::handleCommand(const Command& c) {
     switch (c.type) {
         case CmdType::NoteOn:
             startPad(c.pad, c.f0, sr);
+            if (c.pad % kPadsPerTrack != kPreviewPad) midiNote(c.pad / kPadsPerTrack, c.pad % kPadsPerTrack, true, c.f0, mFrames);
             if (c.pad % kPadsPerTrack != kPreviewPad)
                 recordEvent(AudioEventType::NoteRecorded, c.pad / kPadsPerTrack, c.pad % kPadsPerTrack, c.f0, mSeq.tick());
             break;
         case CmdType::NoteOff:
             releasePad(c.pad, sr);
+            if (c.pad % kPadsPerTrack != kPreviewPad) midiNote(c.pad / kPadsPerTrack, c.pad % kPadsPerTrack, false, 0.f, mFrames);
             if (c.pad % kPadsPerTrack != kPreviewPad)
                 recordEvent(AudioEventType::NoteReleased, c.pad / kPadsPerTrack, c.pad % kPadsPerTrack, 0.f, mSeq.tick());
             break;
@@ -44,10 +47,12 @@ void AudioEngine::handleCommand(const Command& c) {
             break;
         case CmdType::SynthNoteOn:
             mSynths[c.pad].noteOn(c.i0, c.f0);
+            midiNote(c.pad, c.i0, true, c.f0, mFrames);
             recordEvent(AudioEventType::NoteRecorded, c.pad, c.i0, c.f0, mSeq.tick());
             break;
         case CmdType::SynthNoteOff:
             mSynths[c.pad].noteOff(c.i0);
+            midiNote(c.pad, c.i0, false, 0.f, mFrames);
             recordEvent(AudioEventType::NoteReleased, c.pad, c.i0, 0.f, mSeq.tick());
             break;
         case CmdType::SetTempo: mSeq.setTempo(c.f0); break;
@@ -57,6 +62,24 @@ void AudioEngine::handleCommand(const Command& c) {
             break;
         case CmdType::SetRecording: mRecording = c.i0 != 0; break;
         case CmdType::SetMetronome: mMetroOn = c.i0 != 0; mSeq.setMetronome(mMetroOn); break;
+        case CmdType::SetClick:
+            if (c.i0 == (int)ClickParam::Sound) mClickSound = std::clamp((int)c.f0, 0, 3);
+            else if (c.i0 == (int)ClickParam::Level) mClickLevel = std::clamp(c.f0, 0.f, 1.f);
+            else if (c.i0 == (int)ClickParam::Accent) mClickAccent = c.f0 > 0.5f;
+            break;
+        case CmdType::SetCountIn: mSeq.setCountIn(c.f0); break;
+        case CmdType::SetMidiOut:
+            if (c.pad >= 0 && c.pad < kTracks) {
+                const int old = mMidiCh[(size_t)c.pad];
+                if (old >= 0 && old != c.i0) midiPush(mFrames, (uint8_t)(0xB0 | old), 123, 0);   // all notes off on the old channel
+                mMidiCh[(size_t)c.pad] = (int8_t)c.i0;
+            }
+            break;
+        case CmdType::SetMidiMap: if (c.pad >= 0 && c.pad < kTracks && c.i0 >= 0 && c.i0 < 16) mMidiMap[(size_t)c.pad][(size_t)c.i0] = (uint8_t)std::clamp(c.i1, 0, 127); break;
+        case CmdType::SetMidiClock:
+            if (mMidiClock && c.i0 == 0 && mSeq.playing()) midiPush(mFrames, 0xFC, 0, 0, 1);
+            mMidiClock = c.i0 != 0; mClockToNext = 0.0;
+            break;
         case CmdType::QueuePattern: mSeq.stage(c.pad, static_cast<const seq::Pattern*>(c.ptr)); break;
         case CmdType::CommitScene: mSeq.commit(c.i0, c.i1); break;
         case CmdType::SetPattern: {
@@ -103,7 +126,7 @@ void AudioEngine::handleCommand(const Command& c) {
         case CmdType::FxMove: mFx.move(c.i0, c.f0, c.f1); break;
         case CmdType::FxOff:  mFx.release(c.i0); break;
         case CmdType::FxAllOff: mFx.releaseAll(); break;
-        case CmdType::DrumTrigger: mDrums[c.i1].trigger(c.pad, c.f0); recordEvent(AudioEventType::NoteRecorded, c.i1, c.pad, c.f0, mSeq.tick()); break;
+        case CmdType::DrumTrigger: mDrums[c.i1].trigger(c.pad, c.f0); midiNote(c.i1, c.pad, true, c.f0, mFrames); recordEvent(AudioEventType::NoteRecorded, c.i1, c.pad, c.f0, mSeq.tick()); break;
         case CmdType::DrumParam: mDrums[c.i1].setParam(c.pad, c.i0, c.f0); break;
         case CmdType::SetTrackType: {
             const TrackType t = (TrackType)c.i0;
@@ -201,9 +224,18 @@ void AudioEngine::recordEvent(AudioEventType t, int track, int note, float vel, 
 
 void AudioEngine::applyFire(const seq::Fire& f, double tickAtChunk, double tps, float sr) {
     if (f.track < 0) {                                // metronome click
-        mClickEnv = 1.f; mClickPhase = 0.f; mClickFreq = f.note ? 2400.f : 1600.f;
+        const bool accent = mClickAccent && f.note;
+        mClickEnv = 1.f; mClickPhase = mClickPhase2 = 0.f; mClickHp = 0.f;
+        mClickAmp = mClickLevel * (accent ? 0.6f : (mClickAccent ? 0.42f : 0.5f));
+        switch (mClickSound) {
+            case (int)ClickSound::Wood:    mClickFreq = accent ? 1250.f : 1000.f; mClickDecay = 0.018f; break;
+            case (int)ClickSound::Cowbell: mClickFreq = accent ? 620.f : 540.f;   mClickDecay = 0.07f;  break;
+            case (int)ClickSound::Hat:     mClickFreq = 0.f;                      mClickDecay = accent ? 0.045f : 0.025f; break;
+            default:                       mClickFreq = accent ? 2400.f : 1600.f; mClickDecay = 0.012f; break;
+        }
         return;
     }
+    midiNote(f.track, f.note, f.on, f.velocity, mChunkFrame + f.offset);   // a track sent to MIDI plays out too
     const TrackType type = (f.track >= 0 && f.track < kTracks) ? mTrackType[f.track] : TrackType::None;
     if (type == TrackType::Sampler) {
         if (f.note >= 0 && f.note < kPreviewPad) {
@@ -246,10 +278,28 @@ void AudioEngine::renderSegment(int a, int b, float sr, uint32_t& w) {
     if (!scoped) std::fill(mSynthScratch.begin() + a, mSynthScratch.begin() + b, 0.f);
     for (int i = 0; i < n; ++i) mScope[(w++) & (kScope - 1)].store(mSynthScratch[a + i], std::memory_order_relaxed);
     if (mClickEnv > 1e-4f) {
-        const float dec = std::exp(-1.f / (0.012f * sr)), inc = mClickFreq / sr;
+        // The metronome: CLICK (a sine blip), WOOD (two inharmonic partials), COWBELL (two clipped
+        // tones, 808-style), HAT (high-passed noise). Beat 1 is higher and louder when ACCENT is on.
+        const float dec = std::exp(-1.f / (mClickDecay * sr));
+        const float inc = mClickFreq / sr;
+        const float inc2 = (mClickSound == (int)ClickSound::Cowbell ? 1.48f : 2.76f) * inc;
         for (int i = 0; i < n; ++i) {
-            const float s = synth::fastSin(synth::kTwoPi * mClickPhase - synth::kPi) * -0.25f * mClickEnv;
+            const float p1 = synth::fastSin(synth::kTwoPi * mClickPhase - synth::kPi) * -1.f;
+            float s;
+            switch (mClickSound) {
+                case (int)ClickSound::Wood: s = p1 + 0.5f * (synth::fastSin(synth::kTwoPi * mClickPhase2 - synth::kPi) * -1.f); s *= 0.7f; break;
+                case (int)ClickSound::Cowbell: s = std::tanh(2.5f * (p1 + synth::fastSin(synth::kTwoPi * mClickPhase2 - synth::kPi) * -1.f)) * 0.55f; break;
+                case (int)ClickSound::Hat: {
+                    mClickNoise ^= mClickNoise << 13; mClickNoise ^= mClickNoise >> 17; mClickNoise ^= mClickNoise << 5;
+                    const float w = (float)(mClickNoise & 0xFFFF) / 32768.f - 1.f;
+                    s = (w - mClickHp) * 0.6f; mClickHp = w;          // first difference: the highs of white noise
+                    break;
+                }
+                default: s = p1; break;
+            }
+            s *= mClickAmp * mClickEnv;
             mClickPhase += inc; if (mClickPhase >= 1.f) mClickPhase -= 1.f;
+            mClickPhase2 += inc2; if (mClickPhase2 >= 1.f) mClickPhase2 -= 1.f;
             mClickEnv *= dec;
             mClickBus[2 * (a + i)] += s; mClickBus[2 * (a + i) + 1] += s;
         }
@@ -397,6 +447,11 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, vo
         return oboe::DataCallbackResult::Continue;
     }
     const float sr = (float)stream->getSampleRate();
+    {   // MIDI timing: frame mFrames starts now (steady_clock is CLOCK_MONOTONIC, like System.nanoTime)
+        const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        mAnchorFrame.store(mFrames, std::memory_order_release);
+        mAnchorNanos.store(now, std::memory_order_release);
+    }
     struct Out { std::atomic<bool>& f; ~Out() { f.store(false, std::memory_order_release); } } out{mInRender};
     if (!mOutI16) { renderFloat(sr, static_cast<float*>(audioData), numFrames); return oboe::DataCallbackResult::Continue; }
     // 16-bit device: render float into scratch, then convert (with clipping) in slices.
@@ -436,6 +491,8 @@ void AudioEngine::renderFloat(float sr, float* audioData, int32_t numFrames) {
         const double tickAtChunk = mSeq.tick();
         const double tps = mSeq.ticksPerSample(sr);
         const int nf = mSeq.process(len, sr, mFires.data(), (int)mFires.size());
+        mChunkFrame = mFrames + off;
+        midiChunk(len, tps);
         for (auto& b : mBus) std::fill(b.begin(), b.begin() + 2 * len, 0.f);
         std::fill(mDuckKey.begin(), mDuckKey.begin() + len, 0.f);
         std::fill(mClickBus.begin(), mClickBus.begin() + 2 * len, 0.f);
@@ -452,6 +509,8 @@ void AudioEngine::renderFloat(float sr, float* audioData, int32_t numFrames) {
         mixChunk(out + 2 * off, len, sr, tickAtChunk, tps);
     }
     mScopeWrite.store(w, std::memory_order_release);
+    if (!mCapturing) mFrames += numFrames;                 // the MIDI timeline only counts what's heard
+    mTelPreroll.store((float)mSeq.preroll(), std::memory_order_relaxed);
     freeRetired();
     mTelOrigin.store(mSeq.origin(), std::memory_order_relaxed);
     mTelScene.store(mSeq.sceneTag(), std::memory_order_relaxed);
@@ -520,4 +579,55 @@ void AudioEngine::renderFloat(float sr, float* audioData, int32_t numFrames) {
     mTelPads.store(mask, std::memory_order_relaxed);
     mTelPlayPad.store(phPad, std::memory_order_relaxed);
     return;
+}
+
+// ------------------------------------------------------------------------------------------ MIDI out
+// Everything here is a push onto a lock-free ring (no syscalls); the app's MIDI thread turns frames
+// into timestamps with midiAnchor() and hands them to Android's MIDI service, which sends them on time.
+
+void AudioEngine::midiPush(int64_t frame, uint8_t b0, uint8_t b1, uint8_t b2, uint8_t len) {
+    if (mCapturing) return;                                 // an EXPORT renders silently to MIDI too
+    MidiMsg m; m.frame = frame; m.len = len; m.b0 = b0; m.b1 = b1; m.b2 = b2;
+    mMidiOut.push(m);                                       // full (no MIDI thread running): dropped
+}
+
+void AudioEngine::midiNote(int track, int note, bool on, float vel, int64_t frame) {
+    if (track < 0 || track >= kTracks) return;
+    const int ch = mMidiCh[(size_t)track];
+    if (ch < 0 || note < 0) return;
+    const TrackType type = mTrackType[(size_t)track];
+    int n = note;
+    if (type == TrackType::Sampler || type == TrackType::Drums) { if (note >= 16) return; n = mMidiMap[(size_t)track][(size_t)note]; }
+    if (n > 127) return;
+    if (on) {
+        midiPush(frame, (uint8_t)(0x90 | ch), (uint8_t)n, (uint8_t)std::clamp((int)std::lround(vel * 127.f), 1, 127));
+        // drum hits are one-shots here, so they get their own note-off a little later
+        if (type == TrackType::Drums && mMidiOffCount < (int)mMidiOffs.size())
+            mMidiOffs[(size_t)mMidiOffCount++] = MidiOff{frame + 4800, (uint8_t)ch, (uint8_t)n};
+    } else if (type != TrackType::Drums) midiPush(frame, (uint8_t)(0x80 | ch), (uint8_t)n, 0);
+}
+
+void AudioEngine::midiChunk(int len, double tps) {
+    const int start = mSeq.takeStart();                     // bar 1 began in this chunk (PLAY, or after a count-in)
+    const bool stopped = mSeq.takeStop();
+    if (mCapturing) return;
+    for (int i = 0; i < mMidiOffCount;) {                   // pending drum note-offs
+        if (mMidiOffs[(size_t)i].frame < mChunkFrame + len) {
+            const MidiOff& o = mMidiOffs[(size_t)i];
+            midiPush(std::max(o.frame, mChunkFrame), (uint8_t)(0x80 | o.ch), o.note, 0);
+            mMidiOffs[(size_t)i] = mMidiOffs[(size_t)--mMidiOffCount];
+        } else ++i;
+    }
+    if (!mMidiClock) return;
+    if (stopped) midiPush(mChunkFrame, 0xFC, 0, 0, 1);
+    // MIDI clock: 24 per quarter note = every 40 ticks, always running; START lines up with a clock
+    double t = 0.0;
+    if (start >= 0) { midiPush(mChunkFrame + start, 0xFA, 0, 0, 1); mClockToNext = 0.0; t = start * tps; }
+    double next = t + mClockToNext;
+    const double span = len * tps;
+    while (next < span - 1e-9) {
+        midiPush(mChunkFrame + std::clamp((int)std::floor(next / tps), 0, len - 1), 0xF8, 0, 0, 1);
+        next += seq::kPpqn / 24.0;
+    }
+    mClockToNext = next - span;
 }

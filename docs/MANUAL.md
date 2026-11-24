@@ -51,11 +51,13 @@ The waveform is drawn in **slices**, each in its pad's colour: the solid body is
 
 Tap a slice to hear it and select its pad. Drag a marker to move it.
 
+**Zoom in for precise chops:** pinch with two fingers to zoom around the spot between them, and slide them to move along. Zoomed in, one finger drags a marker (down to the sample) or scrolls the view. A strip at the bottom shows where you are in the whole sample. The ruler counts down to milliseconds. **Double-tap**, or press **FIT** (it shows how far in you are), to see the whole sample again.
+
 ### Chopping
 
 **Pitch:** the **PAD n | ALL** switch picks what **PITCH − / +** moves: the selected pad, or every pad on the track at once (**ALL**, a transpose on top of each pad's own pitch). While a transpose is set, the switch reads "ALL +2". It works turntable-style (higher = faster) except on WARP pads, which keep their length. **Y** on the controller resets whichever one is selected.
 
-Loading a sample chops it at its transients onto **16 pads** (pad 1 bottom-left, like an MPC). Re-chop with **AUTO** (DETECT sets how sensitive), **÷4 / ÷8 / ÷16** equal slices, or **TAP-CHOP** (the sample plays; tap pads where you want the cuts). **NORMALIZE** brings every chop to the same loudness (tap again to undo).
+Loading a sample chops it at its transients onto **16 pads** (pad 1 bottom-left, like an MPC). Re-chop with **AUTO** (DETECT sets how sensitive), **÷4 / ÷8 / ÷16** equal slices, **RANDOM** (16 slices cut at random places, on the hits where it can; every tap is a new flip), or **TAP-CHOP** (the sample plays; tap pads where you want the cuts). **NORMALIZE** brings every chop to the same loudness (tap again to undo).
 
 ### Playing the pads
 
@@ -72,6 +74,8 @@ Pads fire on touch-down, and how hard you hit is where you hit: the top of a pad
 ![The pattern lane](img/pattern.jpg)
 
 Right under the waveform is the sampler track's **pattern**: one cell per 1/16 step, each showing the pad that plays there (in its colour, with its number; the selected pad's hits are outlined).
+
+**Length and bars:** the strip above the lane sets how long the pattern is. Use **÷2 / − / + / ×2**, anything from 8 steps to **64 bars**. The lane shows 4 bars at a time. For longer patterns, **◀ ▶** or a tap on the bar strip turns the page (lit bars have notes, and the playhead's bar is marked). **FOLLOW** turns the pages with the playhead.
 
 - **Tap a step** to put the selected pad there (you hear it). Tap again to take it off. Select another pad and keep tapping to build the beat.
 - **Long-press a step** to clear everything on it.
@@ -141,7 +145,15 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 ## 7. Steps, groove and recording
 
-**STEPS** edits any track's pattern (8, 16 or 32 steps) with lanes for velocity, probability and gate. Hold a step to open its components: **ratchet** ×1 – 4, **condition** (plays on 1:2, 2:4…), **nudge**, **velocity** and **parameter locks**. For the synth, the **NOTE GRID** is a piano roll that folds to the key; on the **STEP** deck, hold a step and play keys to write notes or chords into it. The yellow **DICE** on every grid rolls a melody, a beat or a pad's steps, with ↶ right beside it; MUTATE, CHANCE and SNAP to scale work there too.
+**STEPS** edits any track's pattern, from 8 steps to **64 bars**: the same length and bar strip as the sampler (÷2 · − · BARS · + · ×2, ◀ ▶, FOLLOW) sits above the grid, and the drum grid and the piano roll have it too. It comes with lanes for velocity, probability and gate. Hold a step to open its components: **ratchet** ×1 – 4, **condition** (plays on 1:2, 2:4…), **nudge**, **velocity** and **parameter locks**. For the synth, the **NOTE GRID** is a piano roll that folds to the key; the **STEP** deck works like a hardware step sequencer:
+
+- **Play a key, then tap an empty step:** that note goes in. Whatever you last played is remembered, chords included.
+- **Hold keys, then press a step:** those notes go in. **Hold a step, then press keys:** each key adds that note, or takes it off if it's already there. While you hold a step, its notes light up on the keys (and you hear them when stopped).
+- **Hold a step and press a later one:** the note lasts until that step. Press the later step again and the note ties over into the next one.
+- **Tap a lit step** to clear it. **Hold a lit step and let go** to copy it; then tap an empty step to paste. Playing a key, or **PASTE ✕**, forgets the copy.
+- **STEP REC:** play keys and they fill the steps one after another, with a chord on a single step. Use **‹ ›** to move without writing; going back lets you hear what's there. The yellow **DICE** on every grid rolls a melody, a beat or a pad's steps, with ↶ right beside it; MUTATE, CHANCE and SNAP to scale work there too.
+
+**Metronome:** **CLK** on STEPS (or Y) turns it on. Only you hear it: it's never recorded or exported. **⚙ → AUDIO** sets its sound (CLICK, WOOD, COWBELL, HAT), level and beat-1 accent, a **count-in** of 1 or 2 bars before recording (press ● REC while stopped; a big countdown shows the beats left), and whether it clicks only while recording.
 
 **Groove** per track: STRAIGHT, MPC 60, GRIT, DRUNK, LAZY, BOOM BAP, TRAP or HOUSE, with a FEEL amount and swing (50 – 75 %, on 1/8 or 1/16). **REC** (tap SELECT, or ● REC) records live playing with quantize.
 
@@ -228,7 +240,7 @@ The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your
 | LOUD | makeup | 0 … +12 dB | turns the ducked tracks back up so the mix stays loud |
 
 - **Presets** set the sound and keep your routing: **BOOM BAP POCKET** (the chop dips under every kick), **HEAVY DILLA PUMP** (deep and slow, the loop breathes), **SUBTLE GLUE** (a nudge), **LO-FI GHOST** (a soft, slow swell). **ON / OFF** keeps every setting.
-- **The rat** stands on the DUCK ST platform holding a slice over his head. Every kick drops its weight on him, and he squashes exactly as far as the mix ducks; then he pushes it back up along the BOUNCE curve. Between kicks he nods to the tempo, and the boombox, the pigeon and the steam grate react to the key.
+- **The rat** stands on the DUCK ST platform holding a slice over his head. Every kick drops its weight on him, and he squashes exactly as far as the mix ducks; then he pushes it back up along the BOUNCE curve. Between kicks he nods to the tempo, and the boombox, the pigeon and the steam grate react to the key. The harder a kick ducks, the bigger the hit: the BOOM, the dust off his boots, the steam and the platform shake all scale with it.
 - **The meter** beside him shows how far the targets are down right now, the last 3 seconds of it as a curve (the dips are the kicks, the climbs are BOUNCE), and the key's level against the **WEIGHT** line: cross the line and it ducks.
 
 Older projects that used the mixer's PUMP open with those settings moved onto the DUCK page.
@@ -239,7 +251,25 @@ The whole session saves itself every few seconds and when the app goes to the ba
 
 ![⚙ → LOOK](img/look.jpg)
 
-**⚙ → LOOK:** eight themes (Genesis, Studio, Bodega, Cyberpunk, Vintage, Pastel, Terminal, Grayscale), each tile a live preview of its tempo readout, pads and knob colours. Bodega is navy with corner-store neon; Vintage and Pastel are the two light themes. Text on coloured buttons and tabs picks dark or light by contrast, so every theme stays readable. Also in LOOK: glass FULL / SUBTLE / OFF, the meters strip, hints. **DEFAULTS:** what every launch starts with. **CONTROLS:** start in NAV, tilt, the controller map. **SYSTEM:** audio status, diagnostics and logs, version.
+**⚙ → LOOK:** eight themes (Genesis, Studio, Bodega, Cyberpunk, Vintage, Pastel, Terminal, Grayscale), each tile a live preview of its tempo readout, pads and knob colours. Bodega is navy with corner-store neon; Vintage and Pastel are the two light themes. Text on coloured buttons and tabs picks dark or light by contrast, so every theme stays readable. Also in LOOK: glass FULL / SUBTLE / OFF, the meters strip, hints. **DEFAULTS:** what every launch starts with.
+
+**AUDIO:**
+- **OUTPUT** picks where the sound goes: the speaker, headphones, a USB audio interface, HDMI or Bluetooth. Bluetooth adds delay, so play live on the others.
+- **INPUT** picks what the field recorder records from.
+- **METRONOME** settings are covered in section 7.
+
+**MIDI** works with USB and Bluetooth MIDI gear. A light shows incoming messages.
+- **PLAYS THE APP** picks the keyboard or pad controller (ALL, one, or NONE).
+  - Notes go to the track you're on (**OMNI**), or channels 1–8 go to tracks 1–8.
+  - Pads and drum sounds start at C1 (36).
+  - CC 74 / 71 move the synth's cutoff / resonance and CC 1 its LFO depth. CC 7 / 10 set the track's volume / pan.
+- **SYNC IN** follows outside MIDI clock (the tempo) and START / STOP.
+- **SENDS TO** picks the device the app plays.
+  - **CLOCK OUT** keeps drum machines and DAWs in time.
+  - Give a track a **channel** to send its notes (pattern and live) to outboard. Drums send General MIDI notes. Mute the track in the MIXER to hear only the outboard.
+  - **TIMING** nudges what's sent if the outboard runs early or late.
+
+**CONTROLS:** start in NAV, tilt, the controller map. **SYSTEM:** audio status, diagnostics and logs, version.
 
 ## 11. Button map (PLAY mode)
 

@@ -35,6 +35,8 @@ import kotlin.math.log10
  * Capped at 10 minutes. Capture runs on its own thread; the UI reads the volatiles every frame.
  */
 class MicRecorder(private val app: Context) {
+    /** SETTINGS → AUDIO's input, if one is chosen and plugged in (else the system's mic). */
+    var preferredInput: () -> android.media.AudioDeviceInfo? = { null }
     val recording = mutableStateOf(false)
     /** Saving the WAV (between KEEP and the pads lighting up). */
     val saving = mutableStateOf(false)
@@ -72,6 +74,7 @@ class MicRecorder(private val app: Context) {
     private fun open(src: Int, rate: Int, min: Int): AudioRecord? =
         runCatching { AudioRecord(src, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, min * 4) }
             .getOrNull()?.takeIf { it.state == AudioRecord.STATE_INITIALIZED }
+            ?.also { r -> preferredInput()?.let { d -> r.preferredDevice = d } }
 
     /** Start a new take (any take still under review is discarded). [onError] runs on the main thread. */
     fun start(onError: (String) -> Unit) {

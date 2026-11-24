@@ -33,6 +33,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import java.util.Locale
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 
 /** The whole top screen: a slim mode rail plus the contextual view. */
 @Composable
@@ -89,6 +90,7 @@ fun TopScreen(state: AppState) {
     NavBadge(state, 0)
     if (state.showWelcome.value) Welcome(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showMic.value) MicSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
+    CountInBadge(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showKeySheet.value) KeySheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.exporter.showSheet.value && !state.exporter.active.value) ExportSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
@@ -160,3 +162,20 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
 internal fun metaLine(s: LoadedSample) = String.format(
     Locale.US, "%.2f s · %.1f kHz · %s", s.seconds, s.sampleRate / 1000f, if (s.channels == 2) "stereo" else "mono")
 
+
+
+/** During a count-in: the beats left, big, so you know when bar 1 lands. */
+@Composable
+private fun CountInBadge(state: AppState, modifier: Modifier) {
+    val beats by remember(state) { androidx.compose.runtime.derivedStateOf {
+        state.telemetry.frame.longValue
+        val pre = state.groove.transport[20]
+        if (pre > 0.0) kotlin.math.ceil(pre / com.thorbox.model.PPQN).toInt() else 0
+    } }
+    if (beats <= 0) return
+    androidx.compose.foundation.layout.Column(modifier.background(Tb.Void.copy(alpha = 0.7f), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+        .padding(horizontal = 36.dp, vertical = 14.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        Text("COUNT-IN", color = Tb.Warn, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, fontSize = 14.sp, letterSpacing = 2.sp)
+        Text("$beats", color = Tb.Text, fontFamily = Tb.Mono, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, fontSize = 72.sp)
+    }
+}

@@ -29,6 +29,8 @@ data class ScaleSetting(val root: PitchClass = PitchClass.C, val mode: ScaleMode
  */
 class GrooveController(private val app: AppState) {
     companion object {
+        /** Longest pattern: 64 bars of 1/16 steps. */
+        const val MAX_STEPS = 64 * 16
         const val PATTERNS = 16
         const val BAR = 4 * com.thorbox.model.PPQN
     }
@@ -95,7 +97,7 @@ class GrooveController(private val app: AppState) {
     val fxHeld = mutableIntStateOf(0)                   // bitmask: effects currently touched / pressed
 
     // ---- live readouts (read in draw lambdas) ----
-    val transport = DoubleArray(20)
+    val transport = DoubleArray(24)
     /** Where we are in the current pattern (ticks since it started: a pattern change restarts it at 0). */
     val loopTick: Double get() = (transport[0] - transport[16]).coerceAtLeast(0.0)
     private val meterBuf = FloatArray(NativeEngine.METERS)
@@ -166,7 +168,7 @@ class GrooveController(private val app: AppState) {
         val g = groove.value
         NativeEngine.setTempo(g.bpm)
         NativeEngine.setSwing(g.swing, if (g.swing16) 240 else 480)
-        NativeEngine.setMetronome(g.metronome)
+        pushClick()
     }
 
     // Edits mark a track dirty. onFrame() sends at most ONE new pattern per track per frame, however
@@ -191,7 +193,7 @@ class GrooveController(private val app: AppState) {
         // KEY LOCK: synth notes are snapped into the locked key on the way out (the stored notes stay as written)
         val snapKey = if (app.lockAll.value && app.trackKind(track) == com.thorbox.model.TrackKind.SYNTH) key() else null
         // The feel is applied here, on the way to the engine: stored notes stay on the grid.
-        val ns = c.notes.take(512).map { e ->
+        val ns = c.notes.take(4096).map { e ->
             val (t, v) = feel.template.apply(e.tick, e.velocity, c.lengthTicks, feel.amount, e.tick + track * 977, if (drums) e.note else -1)
             e.copy(tick = t, velocity = v, note = if (snapKey != null) Scales.snap(e.note, snapKey) else e.note)
         }.sortedBy { it.tick }
@@ -411,6 +413,8 @@ class GrooveController(private val app: AppState) {
         if (!playing.value && songMode.value && song.value.isNotEmpty() && !startingSong) {
             startingSong = true; try { playSong(0) } finally { startingSong = false }; return
         }
+        // starting to record: the count-in (SETTINGS → AUDIO) clicks the bars in first
+        if (!playing.value) NativeEngine.setCountIn(app.audioSetup.countInTicks(recording.value))
         playing.value = !playing.value; NativeEngine.setPlaying(playing.value)
         if (!playing.value) {
             openNotes.clear()
@@ -419,9 +423,12 @@ class GrooveController(private val app: AppState) {
             songPos.intValue = -1; songEndAt = -1.0
         }
     }
+    /** The click: on when CLK is on, unless SETTINGS → AUDIO says only while recording. */
+    fun pushClick() = NativeEngine.setMetronome(groove.value.metronome && (!app.audioSetup.clickOnlyRec.value || recording.value))
     fun toggleRecord() {
         recording.value = !recording.value
         NativeEngine.setRecording(recording.value)
+        pushClick()
         if (recording.value && !playing.value) togglePlay()          // REC starts the transport, like hardware
     }
     fun setGroove(g: Groove) {
@@ -563,10 +570,29 @@ class GrooveController(private val app: AppState) {
         } else ((e.note - synthBase()) / 24f).coerceIn(0f, 1f)
     }
 
+    /** A track's pattern length, 1 step … 64 bars (shortening drops the notes past the end; UNDO brings them back). */
     fun setLength(track: Int, steps: Int) = update(track, saveUndo = true) { c ->
-        val len = steps.coerceIn(1, 64) * STEP_TICKS
+        val len = steps.coerceIn(1, MAX_STEPS) * STEP_TICKS
         c.copy(lengthTicks = len, notes = Steps.resize(c.notes, len))
     }
+
+    // ---- which part of a long pattern the editors show ----
+    /** While playing, editors turn the page with the playhead. Picking a bar by hand turns this off. */
+    val follow = mutableStateOf(true)
+    /**
+     * First step of the page an editor showing [stepsPerPage] steps at a time draws for [track]. Call
+     * it while drawing or handling a tap (it follows the playhead), not in composition.
+     */
+    fun pageStart(track: Int, stepsPerPage: Int): Int {
+        val steps = Steps.count(clips.value.getOrNull(track)?.lengthTicks ?: return 0)
+        if (steps <= stepsPerPage || stepsPerPage <= 0) return 0
+        val pages = (steps + stepsPerPage - 1) / stepsPerPage
+        val ps = if (stepRec.value && track == synthT) stepRecPos.intValue else if (follow.value) stepPosition(track) else -1
+        val page = if (ps >= 0) ps / stepsPerPage else gridPage.intValue * 16 / stepsPerPage
+        return page.coerceIn(0, pages - 1) * stepsPerPage
+    }
+    /** Show page [page] (of [stepsPerPage] steps) in every editor; stops following the playhead. */
+    fun showPage(page: Int, stepsPerPage: Int) { gridPage.intValue = page * stepsPerPage / 16; follow.value = false }
 
     fun clear(track: Int) = update(track, saveUndo = true) { it.copy(notes = emptyList()) }
 
@@ -669,41 +695,116 @@ class GrooveController(private val app: AppState) {
         else c.copy(notes = c.notes.map { if (it.tick == tick && it.note == note) it.copy(note = newNote.coerceIn(0, 127)) else it })
     }
 
-    // ================= synth: step entry =================
+    // ================= synth: step entry (the 16 step keys) =================
+    // Tap an empty step: it gets the notes you last played on the keys (a chord, if you played one).
+    // Hold keys, then press a step: those notes go in. Hold a step, then press keys: each one adds or
+    // removes that note. Hold a step and press a later one: the note lasts to there (press that one
+    // again and it ties over into the next step). Hold a lit step: its notes light on the keys; let go
+    // and it's copied: tap an empty step to paste (playing a key forgets the copy). Tap a lit step: cleared.
+    // STEP REC: the keys fill the steps one after another, a chord on one step; ‹ › move without writing.
 
     val heldStep = mutableIntStateOf(-1)         // the step whose components the top screen shows
     private var heldEdited = false
-    private var heldChordStarted = false
+    private var lengthStep = -1                  // a later step pressed while one is held (sets the length); its release is spent
+    /** A copied step (ticks relative to its step), ready to paste on the next empty step you tap; null = none. */
+    val stepCopy = mutableStateOf<List<NoteEvent>?>(null)
+    val stepRec = mutableStateOf(false)
+    val stepRecPos = mutableIntStateOf(0)
+    private var stepRecWrote = false
 
     fun stepEvents(step: Int): List<NoteEvent> {
         val c = clips.value[synthT]
         return c.notes.filter { Steps.stepOf(it, c.lengthTicks) == step }
     }
 
-    fun holdStep(step: Int) { heldStep.intValue = step; heldEdited = false; heldChordStarted = false }
-
-    /** Releasing a step you only tapped toggles it; one you edited while holding keeps the edit. */
-    fun releaseStep(step: Int, tapped: Boolean) {
-        if (heldStep.intValue == step) heldStep.intValue = -1
-        if (!heldEdited && tapped) stepTap(synthT, step)
+    fun holdStep(step: Int) {
+        val h = heldStep.intValue
+        if (h >= 0 && h != step) { lengthStep = step; stretchHeld(step); return }
+        heldStep.intValue = step; heldEdited = false
+        val keys = app.heldKeyNotes()
+        if (keys.isNotEmpty()) { writeStep(step, keys, app.lastVelocity); heldEdited = true }     // held keys → this step
+        else if (!playing.value) stepEvents(step).forEach { app.previewSynthNote(it.note) }       // hear what's on it
     }
 
-    /** A key pressed while a step is held: the first key replaces the step's notes, later keys add (chords). */
+    /** Let go of a step: an empty one gets the last notes played (or the copy); a tapped lit one is cleared; a held lit one is copied. */
+    fun releaseStep(step: Int, tapped: Boolean, cancelled: Boolean = false) {
+        if (step == lengthStep) { lengthStep = -1; return }
+        if (heldStep.intValue != step) return
+        heldStep.intValue = -1
+        if (heldEdited || cancelled) return
+        val mine = stepEvents(step)
+        val copy = stepCopy.value
+        when {
+            mine.isEmpty() && copy != null -> pasteStep(step, copy)
+            mine.isEmpty() -> writeStep(step, app.lastPlayed.takeIf { it.isNotEmpty() } ?: intArrayOf(defaultNote(synthT)), app.lastVelocity)
+            tapped -> update(synthT, saveUndo = true) { c -> c.copy(notes = c.notes - mine.toSet()) }
+            else -> stepCopy.value = mine.map { it.copy(tick = it.tick - step * STEP_TICKS) }
+        }
+    }
+
+    /** Replace [step]'s notes with [notes] (a chord if several), keeping the step's length / components if it had any. */
+    fun writeStep(step: Int, notes: IntArray, velocity: Float) {
+        if (notes.isEmpty()) return
+        update(synthT, saveUndo = true) { c ->
+            val mine = c.notes.filter { Steps.stepOf(it, c.lengthTicks) == step }
+            val template = mine.firstOrNull() ?: NoteEvent(tick = step * STEP_TICKS, lengthTicks = STEP_TICKS / 2, note = notes[0], velocity = velocity)
+            val fresh = notes.distinct().map { template.copy(note = it.coerceIn(0, 127), velocity = velocity) }
+            c.copy(notes = (c.notes - mine.toSet() + fresh).sortedBy { it.tick })
+        }
+    }
+
+    private fun pasteStep(step: Int, copy: List<NoteEvent>) = update(synthT, saveUndo = true) { c ->
+        val base = step * STEP_TICKS
+        c.copy(notes = (c.notes + copy.map { it.copy(tick = (base + it.tick).coerceIn(0, c.lengthTicks - 1)) }).sortedBy { it.tick })
+    }
+
+    /** Hold a step, press a later one: the held notes last until the end of that step; again: they tie over into the next. */
+    private fun stretchHeld(to: Int) {
+        val from = heldStep.intValue
+        heldEdited = true
+        if (to <= from) return
+        val full = (to - from + 1) * STEP_TICKS
+        update(synthT, saveUndo = true) { c ->
+            val mine = c.notes.filter { Steps.stepOf(it, c.lengthTicks) == from }
+            if (mine.isEmpty()) return@update c
+            val len = (if (mine[0].lengthTicks == full) full + STEP_TICKS / 2 else full).coerceAtMost(c.lengthTicks)
+            c.copy(notes = c.notes.map { if (it in mine) it.copy(lengthTicks = len) else it })
+        }
+    }
+
+    /** A key pressed while a step is held: adds that note to the step, or takes it off if it's there. True = added. */
     fun keyIntoHeldStep(note: Int, velocity: Float): Boolean {
         val step = heldStep.intValue
         if (step < 0) return false
         heldEdited = true
-        val add = heldChordStarted
-        heldChordStarted = true
-        update(synthT) { c ->
-            val t = step * STEP_TICKS
+        var added = false
+        update(synthT, saveUndo = true) { c ->
             val mine = c.notes.filter { Steps.stepOf(it, c.lengthTicks) == step }
-            val template = mine.firstOrNull() ?: NoteEvent(tick = t, lengthTicks = STEP_TICKS, note = note, velocity = velocity)
-            val kept = if (add) mine.filterNot { it.note == note } else emptyList()
-            val others = c.notes - mine.toSet()
-            c.copy(notes = (others + kept + template.copy(note = note, velocity = velocity)).sortedBy { it.tick })
+            val there = mine.firstOrNull { it.note == note }
+            if (there != null) c.copy(notes = c.notes - there)
+            else {
+                added = true
+                val template = mine.firstOrNull() ?: NoteEvent(tick = step * STEP_TICKS, lengthTicks = STEP_TICKS / 2, note = note, velocity = velocity)
+                c.copy(notes = (c.notes + template.copy(note = note, velocity = velocity)).sortedBy { it.tick })
+            }
         }
-        return true
+        return added
+    }
+
+    /** Called by the keys: playing a note forgets a pending step copy, and in STEP REC writes the chord held now. */
+    fun onKeysPlayed(held: IntArray, velocity: Float) {
+        stepCopy.value = null
+        if (!stepRec.value || held.isEmpty()) return
+        writeStep(stepRecPos.intValue.coerceIn(0, Steps.count(clips.value[synthT].lengthTicks) - 1), held, velocity)
+        stepRecWrote = true
+    }
+    /** All keys up in STEP REC: on to the next step. */
+    fun onKeysReleased() { if (stepRec.value && stepRecWrote) { stepRecWrote = false; stepRecMove(+1) } }
+    fun toggleStepRec() { stepRec.value = !stepRec.value; stepRecWrote = false; if (stepRec.value) stepRecPos.intValue = pageStart(synthT, 16) }
+    fun stepRecMove(d: Int) {
+        val steps = Steps.count(clips.value[synthT].lengthTicks)
+        stepRecPos.intValue = Math.floorMod(stepRecPos.intValue + d, steps)
+        if (d < 0 && !playing.value) stepEvents(stepRecPos.intValue).forEach { app.previewSynthNote(it.note) }
     }
 
     fun editHeld(f: (NoteEvent) -> NoteEvent) {
