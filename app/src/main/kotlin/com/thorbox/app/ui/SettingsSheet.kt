@@ -31,10 +31,12 @@ import androidx.compose.runtime.getValue
 private val defaultsRev = androidx.compose.runtime.mutableIntStateOf(0)
 
 /**
- * SETTINGS (the rail's SET button): everything that isn't music, in five pages.
+ * SETTINGS (the rail's SET button): everything that isn't music, in seven pages.
  *   PROJECTS  the current project (save, save as new, new) and every saved one (open, rename, copy, delete)
  *   LOOK      theme, glass, the meters strip, hints
  *   DEFAULTS  the tempo / swing / key / click a fresh launch starts with
+ *   AUDIO     output / input device, the metronome (sound, level, accent, count-in)
+ *   MIDI      controllers in, SYNC IN, the device the app plays, CLOCK OUT, track channels
  *   CONTROLS  the NAV cursor, tilt, the controller map, the welcome tour
  *   SYSTEM    audio engine status, diagnostics + logs, version
  * Every row is a big button or a plain read-out: no nested menus, nothing hidden behind a long-press.
@@ -46,7 +48,7 @@ fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (LocalWide.current) Text("SETTINGS", style = Type.title, modifier = Modifier.padding(end = 6.dp))
             // tabs share the row (and shrink their text) so the last one is never cut off
-            listOf("PROJECTS", "LOOK", "DEFAULTS", "CONTROLS", "SYSTEM").forEachIndexed { i, name ->
+            listOf("PROJECTS", "LOOK", "DEFAULTS", "AUDIO", "MIDI", "CONTROLS", "SYSTEM").forEachIndexed { i, name ->
                 HwButton(name, Modifier.weight(1f), minHeight = 38.dp, fontSize = 12, hPad = 4.dp, active = tab == i, accent = Tb.Key) { state.settingsTab.intValue = i }
             }
             HwButton("✕", Modifier.width(48.dp), minHeight = 38.dp, fontSize = 14) { state.showSettings.value = false }
@@ -56,7 +58,9 @@ fun SettingsSheet(state: AppState, modifier: Modifier = Modifier) {
                 0 -> ProjectsPage(state)
                 1 -> LookPage(state)
                 2 -> DefaultsPage(state)
-                3 -> ControlsPage(state)
+                3 -> AudioPage(state)
+                4 -> MidiPage(state)
+                5 -> ControlsPage(state)
                 else -> SystemPage(state)
             }
         }

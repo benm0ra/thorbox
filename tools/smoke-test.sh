@@ -83,7 +83,7 @@ tour() {
     else echo "::error::[$name] sampler could not load $b"; adb logcat -d | grep -E "Thorbox|NuMediaExtractor|NdkJavaVM|can't open" | tail -15; fail=1; fi
   done
   adb exec-out screencap -p > "$OUT/$name-sampler-loaded-file.png" || true
-  for t in 0 1 2 3 4; do                                 # SETTINGS pages, then the meters strip + recorder sheet
+  for t in 0 1 2 3 4 5 6; do                             # SETTINGS pages, then the meters strip + recorder sheet
     adb shell am start -n $PKG/$ACT --ei settings $t >/dev/null; sleep 2
     adb exec-out screencap -p > "$OUT/$name-settings-$t.png" || true
   done

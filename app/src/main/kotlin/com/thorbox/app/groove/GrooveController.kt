@@ -168,7 +168,7 @@ class GrooveController(private val app: AppState) {
         val g = groove.value
         NativeEngine.setTempo(g.bpm)
         NativeEngine.setSwing(g.swing, if (g.swing16) 240 else 480)
-        NativeEngine.setMetronome(g.metronome)
+        pushClick()
     }
 
     // Edits mark a track dirty. onFrame() sends at most ONE new pattern per track per frame, however
@@ -413,6 +413,8 @@ class GrooveController(private val app: AppState) {
         if (!playing.value && songMode.value && song.value.isNotEmpty() && !startingSong) {
             startingSong = true; try { playSong(0) } finally { startingSong = false }; return
         }
+        // starting to record: the count-in (SETTINGS → AUDIO) clicks the bars in first
+        if (!playing.value) NativeEngine.setCountIn(app.audioSetup.countInTicks(recording.value))
         playing.value = !playing.value; NativeEngine.setPlaying(playing.value)
         if (!playing.value) {
             openNotes.clear()
@@ -421,9 +423,12 @@ class GrooveController(private val app: AppState) {
             songPos.intValue = -1; songEndAt = -1.0
         }
     }
+    /** The click: on when CLK is on, unless SETTINGS → AUDIO says only while recording. */
+    fun pushClick() = NativeEngine.setMetronome(groove.value.metronome && (!app.audioSetup.clickOnlyRec.value || recording.value))
     fun toggleRecord() {
         recording.value = !recording.value
         NativeEngine.setRecording(recording.value)
+        pushClick()
         if (recording.value && !playing.value) togglePlay()          // REC starts the transport, like hardware
     }
     fun setGroove(g: Groove) {

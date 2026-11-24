@@ -102,6 +102,10 @@ class AppState(private val app: Application) {
     val presets = com.thorbox.app.presets.PresetStore(app, scope)
     val library = SampleLibrary(app)
     val input = InputRouter(this)
+    /** SETTINGS → AUDIO: output / input devices and the metronome. */
+    val audioSetup by lazy { com.thorbox.app.io.AudioSetup(app) }
+    /** SETTINGS → MIDI: controllers in, clock + notes out. */
+    val midi by lazy { com.thorbox.app.io.MidiController(this, app) }
     val groove = GrooveController(this)
     // ================= Tracks: 8, each a sampler, synth or drum machine =================
     val tracks = mutableStateOf(List(com.thorbox.model.TRACK_COUNT) { i ->
@@ -413,6 +417,8 @@ class AppState(private val app: Application) {
         tracks.value.forEachIndexed { t, info -> if (info.kind != com.thorbox.model.TrackKind.EMPTY) groove.nameChannel(t, info.name) }
         NativeEngine.setFocus(synthTrack.intValue); NativeEngine.setFocus(samplerTrack.intValue)
         groove.pushAll()
+        audioSetup.start(); groove.pushClick()
+        midi.start()
         tilt.onForeground(true)
         startTicker()
         if (!restoredSession) { restoredSession = true; projects.restoreLastSession() }   // pick up where you left off
@@ -424,6 +430,7 @@ class AppState(private val app: Application) {
         projects.stopAutosave()
         runCatching { projects.saveIfChanged() }        // going to the background: never lose the session
         tilt.onForeground(false)
+        midi.allNotesOff(); midi.stop(); audioSetup.stop()
         if (mic.recording.value) mic.stop()      // never keep the mic open in the background
         stopTicker()
         padUp()
@@ -830,7 +837,7 @@ class AppState(private val app: Application) {
     fun requestFolder() { folderPickRequests.tryEmit(Unit) }
 
     // ---- Mic / field recording ----
-    val mic = MicRecorder(app)
+    val mic = MicRecorder(app).also { it.preferredInput = { audioSetup.preferredInput() } }
     val micPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val showMic = mutableStateOf(false)
     private fun hasMic() = androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.RECORD_AUDIO) ==
@@ -1033,7 +1040,10 @@ class AppState(private val app: Application) {
             com.thorbox.app.ui.GlassClock.bass = viz.bass; com.thorbox.app.ui.GlassClock.mid = viz.mid
             com.thorbox.app.ui.GlassClock.high = viz.high; com.thorbox.app.ui.GlassClock.beat = viz.beat
             val now = SystemClock.uptimeMillis()
-            if (now - lastStatsAt > 500) { lastStatsAt = now; _stats.value = NativeEngine.stats() }
+            if (now - lastStatsAt > 500) {
+                lastStatsAt = now; _stats.value = NativeEngine.stats()
+                midi.outLatencyMs = (_stats.value?.latencyMs ?: 0.0).coerceAtLeast(0.0)      // outboard lines up with what you hear
+            }
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
