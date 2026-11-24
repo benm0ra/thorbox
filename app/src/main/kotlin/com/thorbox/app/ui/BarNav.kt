@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -50,18 +51,21 @@ fun BarNav(state: AppState, track: Int, stepsPerPage: Int, modifier: Modifier = 
         BooleanArray(bars).also { a -> for (e in clip.notes) { val b = (e.tick / STEP_TICKS) / 16; if (b in a.indices) a[b] = true } }
     }
     val fs = 11
-    Row(modifier.height(height), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.height(height)) {
+    // tight spaces (a header row on a narrow screen) keep − N + and the navigator, and drop ÷2 / ×2
+    val roomy = maxWidth >= (if (steps > stepsPerPage) 520.dp else 300.dp)
+    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
         if (lengthControls) {
-            HwButton("÷2", Modifier.fillMaxHeight(), enabled = steps > 1, minHeight = height, fontSize = fs, hPad = 6.dp) { g.setLength(track, (steps / 2).coerceAtLeast(1)) }
+            if (roomy) HwButton("÷2", Modifier.fillMaxHeight(), enabled = steps > 1, minHeight = height, fontSize = fs, hPad = 6.dp) { g.setLength(track, (steps / 2).coerceAtLeast(1)) }
             HwButton("−", Modifier.width(34.dp).fillMaxHeight(), enabled = steps > 8, minHeight = height, fontSize = 14, hPad = 0.dp) {
                 g.setLength(track, if (steps <= 16) 8 else ((steps - 1) / 16) * 16)
             }
             Text(lengthLabel(steps), color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 12.sp,
-                maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 64.dp))
+                maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = if (roomy) 64.dp else 52.dp))
             HwButton("+", Modifier.width(34.dp).fillMaxHeight(), enabled = steps < GrooveController.MAX_STEPS, minHeight = height, fontSize = 14, hPad = 0.dp) {
                 g.setLength(track, if (steps < 16) 16 else (steps / 16 + 1) * 16)
             }
-            HwButton("×2", Modifier.fillMaxHeight(), enabled = steps * 2 <= GrooveController.MAX_STEPS, minHeight = height, fontSize = fs, hPad = 6.dp) {
+            if (roomy) HwButton("×2", Modifier.fillMaxHeight(), enabled = steps * 2 <= GrooveController.MAX_STEPS, minHeight = height, fontSize = fs, hPad = 6.dp) {
                 g.setLength(track, steps * 2)
             }
         }
@@ -96,10 +100,11 @@ fun BarNav(state: AppState, track: Int, stepsPerPage: Int, modifier: Modifier = 
                 if (ps >= 0) { val px = (ps + 0.5f) / 16f * cw; drawLine(Tb.Warn, Offset(px, 0f), Offset(px, size.height), 2.dp.toPx()) }
             }
             HwButton("▶", Modifier.width(34.dp).fillMaxHeight(), minHeight = height, fontSize = 12, hPad = 0.dp) { go(+1) }
-            HwButton("FOLLOW", Modifier.fillMaxHeight(), active = g.follow.value, accent = Tb.EncWhite, minHeight = height, fontSize = fs, hPad = 6.dp) {
+            HwButton(if (roomy) "FOLLOW" else "FOL", Modifier.fillMaxHeight(), active = g.follow.value, accent = Tb.EncWhite, minHeight = height, fontSize = fs, hPad = 6.dp) {
                 g.follow.value = !g.follow.value
             }
         } else androidx.compose.foundation.layout.Box(Modifier.weight(1f))
+    }
     }
 }
 

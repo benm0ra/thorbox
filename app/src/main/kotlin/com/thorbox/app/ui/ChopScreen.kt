@@ -455,13 +455,15 @@ private fun ChopControls(state: AppState) {
             DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(if (tight) 52.dp else 64.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })
         listOf(4, 8, 16).forEach { n ->
-            HwButton("÷$n", Modifier.weight(1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite, fontSize = 12, hPad = 2.dp) { sm.setEqualCount(n) }
+            HwButton("÷$n", Modifier.weight(if (n == 16) 1.25f else 1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite,
+                fontSize = if (tight) 11 else 12, hPad = 1.dp) { sm.setEqualCount(n) }
         }
         // RANDOM: each tap is a new flip (slices cut at random, snapped to hits)
-        HwButton(if (tight) "RND" else "RANDOM", Modifier.weight(1.4f).fillMaxHeight(), active = mode == ChopMode.RANDOM, accent = Tb.Tempo, fontSize = 12, hPad = 3.dp) {
+        HwButton(if (tight) "RND" else "RANDOM", Modifier.weight(if (tight) 1.1f else 1.4f).fillMaxHeight(), active = mode == ChopMode.RANDOM, accent = Tb.Tempo,
+            fontSize = if (tight) 11 else 12, hPad = 2.dp) {
             sm.randomChop(); Info.toast("RANDOM CHOP", "New slices, cut on the hits. Tap again for another flip.")
         }
-        HwButton((if (tight) "TAP" else "TAP-CHOP") + if (sm.lazyRunning.value) " ●" else "", Modifier.weight(1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12, hPad = 3.dp) {
+        HwButton((if (tight) "TAP" else "TAP-CHOP") + if (sm.lazyRunning.value) " ●" else "", Modifier.weight(if (tight) 1.1f else 1.6f).fillMaxHeight(), active = mode == ChopMode.LAZY, accent = Tb.Warn, fontSize = 12, hPad = 3.dp) {
             sm.setChopMode(if (mode == ChopMode.LAZY) ChopMode.AUTO else ChopMode.LAZY)
         }
         HoldButton("▶", false, Tb.Good, Modifier.width(fixedW).fillMaxHeight()) { sm.togglePreview(it) }
