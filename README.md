@@ -37,7 +37,7 @@ Everything else is in the **[changelog](CHANGELOG.md)**.
   - Per-pad pitch and play mode. The drum sequencer edits the selected pad.
 - **Synth sequencing:**
   - **NOTE GRID** (piano roll): rows fold to in-key notes when locked. Tap to add or remove, drag sideways for length, up/down for pitch. Stack notes for chords.
-  - **STEP deck:** tap a step to toggle it, or **hold a step and play keys** to write notes or chords into it.
+  - **STEP deck:** play a key and tap a step to put that note there; hold keys and press a step, or hold a step and press keys, for chords. Hold a step and press a later one to stretch the note, hold and let go to copy, and use **STEP REC** to fill the steps one note after another.
   - Holding a step opens its components on the top screen: **ratchet** ×1–4, **condition** (1:2, 2:4…), **nudge**, **velocity**, and **parameter locks** (cutoff, reso, env amount, decay).
 - **Sampler:**
   - Load WAV/MP3/FLAC/OGG/M4A from a samples folder you grant once.

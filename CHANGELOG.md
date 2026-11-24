@@ -10,6 +10,7 @@ them), not for developers.
 - The engine is split by thread (`AudioEngine.cpp` for the main thread, `AudioRender.cpp` for the audio thread, `AudioExport.cpp` for the offline bounce). There's a code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), dead code is gone, and lint has zero findings.
 
 ### Player-facing
+- **The synth STEP deck works like a hardware step sequencer.** Tap an empty step and it gets the note (or chord) you last played. Hold keys and press a step to drop them in, or hold a step and press keys to add or remove notes. Hold a step and press a later one to stretch the note (again to tie it over), and hold and let go to copy a step, then tap an empty one to paste. A held step lights its notes on the keys, and longer notes show their tails across the steps. **STEP REC** fills the steps one after another as you play (‹ › to move).
 - **A new fit for the DUCK rat:** a proper hoodie with sleeves, baggy denim stacked on Timbs, a backwards fitted, a gold chain and headphones round his neck (the theme colour is on the sleeve stripes and cap button now, not the whole hoodie). Each kick now hits with a BOOM burst, dust off his boots, a puff through the grate and a little platform shake, all as big as the dip. The tunnel is a real arch.
 - **Patterns up to 64 bars**, any length you like (÷2 · − · + · ×2), in every editor. A bar strip shows where the notes are and turns the page, and FOLLOW keeps the page on the playhead.
 - **RANDOM chop:** 16 slices cut at random places, on the hits where it can. Every tap is a new flip.

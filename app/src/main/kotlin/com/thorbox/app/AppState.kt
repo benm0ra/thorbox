@@ -814,10 +814,29 @@ class AppState(private val app: Application) {
         return if (chordMode.value) intArrayOf(degree(index), degree(index + 2), degree(index + 4)) else intArrayOf(degree(index))
     }
 
+    /** The notes last played on the keys (a chord if several were held together): what tapping an empty step writes. */
+    var lastPlayed = IntArray(0); private set
+    var lastVelocity = 0.8f; private set
+    /** The synth keys held down right now, low to high. */
+    fun heldKeyNotes(): IntArray { var k = 0; for (r in noteRefs) if (r > 0) k++; val out = IntArray(k); k = 0; for (n in 0..127) if (noteRefs[n] > 0) out[k++] = n; return out }
+    /** A short blip of [note] on the synth track (hearing a step). */
+    fun previewSynthNote(note: Int) {
+        val t = synthTrack.intValue
+        NativeEngine.synthNoteOn(t, note, 0.75f)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ NativeEngine.synthNoteOff(t, note) }, 180)
+    }
+
     fun keyDown(notes: IntArray, velocity: Float) {
+        val fresh = noteRefs.all { it == 0 }
         for (n in notes) if (n in 0..127) {
             if (groove.liveDown(synthTrack.intValue, n, velocity)) continue    // RPT held → note repeat
             if (noteRefs[n]++ == 0 || chordMode.value) NativeEngine.synthNoteOn(synthTrack.intValue, n, velocity)
+        }
+        val played = notes.filter { it in 0..127 }
+        if (played.isNotEmpty()) {
+            lastPlayed = (if (fresh) played else lastPlayed.toList() + played).distinct().sorted().toIntArray()
+            lastVelocity = velocity
+            groove.onKeysPlayed(heldKeyNotes(), velocity)
         }
     }
 
@@ -826,6 +845,7 @@ class AppState(private val app: Application) {
             if (groove.liveUp(synthTrack.intValue, n)) continue
             if (noteRefs[n] > 0 && --noteRefs[n] == 0) NativeEngine.synthNoteOff(synthTrack.intValue, n)
         }
+        if (noteRefs.all { it == 0 }) groove.onKeysReleased()
     }
 
     fun releaseAllKeys() { noteRefs.fill(0); NativeEngine.synthAllOff(synthTrack.intValue) }

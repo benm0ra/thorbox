@@ -145,7 +145,13 @@ The bodega corner listens too: the shutter rattles and the DAWG piece glows on t
 
 ## 7. Steps, groove and recording
 
-**STEPS** edits any track's pattern, from 8 steps to **64 bars**: the same length and bar strip as the sampler (÷2 · − · BARS · + · ×2, ◀ ▶, FOLLOW) sits above the grid, and the drum grid and the piano roll have it too. It comes with lanes for velocity, probability and gate. Hold a step to open its components: **ratchet** ×1 – 4, **condition** (plays on 1:2, 2:4…), **nudge**, **velocity** and **parameter locks**. For the synth, the **NOTE GRID** is a piano roll that folds to the key; on the **STEP** deck, hold a step and play keys to write notes or chords into it. The yellow **DICE** on every grid rolls a melody, a beat or a pad's steps, with ↶ right beside it; MUTATE, CHANCE and SNAP to scale work there too.
+**STEPS** edits any track's pattern, from 8 steps to **64 bars**: the same length and bar strip as the sampler (÷2 · − · BARS · + · ×2, ◀ ▶, FOLLOW) sits above the grid, and the drum grid and the piano roll have it too. It comes with lanes for velocity, probability and gate. Hold a step to open its components: **ratchet** ×1 – 4, **condition** (plays on 1:2, 2:4…), **nudge**, **velocity** and **parameter locks**. For the synth, the **NOTE GRID** is a piano roll that folds to the key; the **STEP** deck works like a hardware step sequencer:
+
+- **Play a key, then tap an empty step:** that note goes in. Whatever you last played is remembered, chords included.
+- **Hold keys, then press a step:** those notes go in. **Hold a step, then press keys:** each key adds that note, or takes it off if it's already there. While you hold a step, its notes light up on the keys (and you hear them when stopped).
+- **Hold a step and press a later one:** the note lasts until that step. Press the later step again and the note ties over into the next one.
+- **Tap a lit step** to clear it. **Hold a lit step and let go** to copy it; then tap an empty step to paste. Playing a key, or **PASTE ✕**, forgets the copy.
+- **STEP REC:** play keys and they fill the steps one after another, with a chord on a single step. Use **‹ ›** to move without writing; going back lets you hear what's there. The yellow **DICE** on every grid rolls a melody, a beat or a pad's steps, with ↶ right beside it; MUTATE, CHANCE and SNAP to scale work there too.
 
 **Metronome:** **CLK** on STEPS (or Y) turns it on. Only you hear it: it's never recorded or exported. **⚙ → AUDIO** sets its sound (CLICK, WOOD, COWBELL, HAT), level and beat-1 accent, a **count-in** of 1 or 2 bars before recording (press ● REC while stopped; a big countdown shows the beats left), and whether it clicks only while recording.
 

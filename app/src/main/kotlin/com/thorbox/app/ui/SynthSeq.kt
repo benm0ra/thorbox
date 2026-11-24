@@ -198,9 +198,13 @@ fun NoteGrid(state: AppState, modifier: Modifier) {
 
 
 /**
- * Deck 3: STEP. Top: 16 in-key notes. Bottom: 16 steps of the current bar.
- *   tap a step = toggle it · HOLD a step + play keys = write those notes into it (a chord if you press several)
- *   HOLD a step = its components open on the top screen (ratchet, condition, nudge, velocity, p-locks)
+ * Deck 3: STEP. Top: 16 in-key notes. Bottom: 16 steps of the bar on screen.
+ *   play a key, tap an empty step = that note goes in (the last thing you played: a chord too)
+ *   hold keys, press a step = those notes go in · hold a step, press keys = each adds / removes its note
+ *   hold a step, press a later step = the note lasts to there (again: it ties over into the next)
+ *   tap a lit step = clear it · hold a lit step = its notes light on the keys, its components open on
+ *   the top screen (ratchet, condition, nudge, velocity, p-locks); let go = copied, tap an empty step to paste
+ *   STEP REC = play keys and they fill the steps one after another (‹ › to move)
  * Keys with no step held play live (and record while REC is on).
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -217,6 +221,17 @@ fun StepDeck(state: AppState, modifier: Modifier) {
     val stepDims = remember { IntArray(2) }
     val keyFingers = remember { HashMap<Int, IntArray>() }
     val byStep = remember(clip) { Steps.byStep(clip.notes, clip.lengthTicks) }      // once per edit, not per frame
+    // steps a longer note is still sounding over (drawn as its tail)
+    val tied = remember(clip) {
+        val t = BooleanArray(steps)
+        for (e in clip.notes) {
+            val s0 = Steps.stepOf(e, clip.lengthTicks)
+            val last = (e.tick + e.lengthTicks - 1) / STEP_TICKS
+            for (k in s0 + 1..minOf(last, steps - 1)) t[k] = true
+        }
+        t
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { if (g.stepRec.value) g.toggleStepRec() } }
     val keyNotes = remember(state.keyOctave.intValue, state.keyLock.value, state.chordMode.value, state.lockKey()) { IntArray(16) { state.notesForKey(it)[0] } }
     val stepFingers = remember { HashMap<Int, Pair<Int, Long>>() }
     // NAV grids: the keys (2 × 8, low row at the bottom) and the steps (2 × 8 for this bar)
@@ -228,7 +243,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
         get = { keyCur.intValue }, set = { keyCur.intValue = it },
         down = { c ->
             val notes = state.notesForKey(keyOf(c))
-            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(g.synthT, notes[0]) }
+            if (g.heldStep.intValue >= 0) notes.forEach { if (g.keyIntoHeldStep(it, 0.85f)) previewNote(g.synthT, it) }
             else { notes.copyInto(navHeld, 0, 0, minOf(notes.size, 15)); navHeld[15] = notes.size; state.keyDown(notes, 0.85f) }
         },
         up = { _ -> if (navHeld[15] > 0) { state.keyUp(navHeld.copyOf(navHeld[15])); navHeld[15] = 0 } },
@@ -246,6 +261,13 @@ fun StepDeck(state: AppState, modifier: Modifier) {
             HwButton("OCT+", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11) { state.shiftOctave(+1) }
             Box(Modifier.width(6.dp))
             PatternDice(state, g.synthT, height = 40.dp, fontSize = 12)
+            Box(Modifier.width(6.dp))
+            HwButton("STEP REC", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 8.dp, active = g.stepRec.value, accent = Tb.Warn) { g.toggleStepRec() }
+            if (g.stepRec.value) {
+                HwButton("‹", Modifier.width(40.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 16) { g.stepRecMove(-1) }
+                HwButton("›", Modifier.width(40.dp).fillMaxHeight(), minHeight = 40.dp, fontSize = 16) { g.stepRecMove(+1) }
+            }
+            if (g.stepCopy.value != null) HwButton("PASTE ✕", Modifier.fillMaxHeight(), minHeight = 40.dp, fontSize = 11, hPad = 8.dp, active = true) { g.stepCopy.value = null }
             Box(Modifier.width(4.dp))
             BarNav(state, g.synthT, 16, Modifier.weight(1f).fillMaxHeight(), height = 40.dp, lengthControls = false)
         }
@@ -264,7 +286,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                     when (ev.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                             val notes = state.notesForKey(keyAt(ev.getX(i), ev.getY(i)))
-                            if (g.heldStep.intValue >= 0) { notes.forEach { g.keyIntoHeldStep(it, 0.85f) }; previewNote(g.synthT, notes[0]) }
+                            if (g.heldStep.intValue >= 0) notes.forEach { if (g.keyIntoHeldStep(it, 0.85f)) previewNote(g.synthT, it) }
                             else { keyFingers[ev.getPointerId(i)] = notes; state.keyDown(notes, 0.85f) }
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> keyFingers.remove(ev.getPointerId(i))?.let(state::keyUp)
@@ -276,11 +298,14 @@ fun StepDeck(state: AppState, modifier: Modifier) {
             tel.frame.longValue
             val cw = size.width / 8; val ch = size.height / 2; val gap = 3.dp.toPx(); val r = CornerRadius(8.dp.toPx())
             val key = state.lockKey()
+            val hs = g.heldStep.intValue                       // holding a step: its notes light up
+            val inStep = if (hs < 0) null else clip.notes.filter { Steps.stepOf(it, clip.lengthTicks) == hs }
             for (k in 0 until 16) {
                 val n = keyNotes[k]
                 val o = Offset((k % 8) * cw + gap, (1 - k / 8) * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
                 val tonic = state.keyLock.value && Math.floorMod(n - key.root.ordinal, 12) == 0
-                drawRoundRect(if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r)
+                val lit = inStep != null && inStep.any { it.note == n }
+                drawRoundRect(if (lit) Tb.EncGreen else if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r)
                 drawTextSafe(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
             }
             if (com.thorbox.app.input.Nav.enteredTag() == "stepkeys") {      // NAV cell cursor
@@ -308,7 +333,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> stepFingers.remove(ev.getPointerId(i))?.let { (s, t0) ->
                             g.releaseStep(s, tapped = ev.eventTime - t0 < 350)
                         }
-                        MotionEvent.ACTION_CANCEL -> { stepFingers.values.forEach { (s, _) -> g.releaseStep(s, false) }; stepFingers.clear() }
+                        MotionEvent.ACTION_CANCEL -> { stepFingers.values.forEach { (s, _) -> g.releaseStep(s, false, cancelled = true) }; stepFingers.clear() }
                     }
                     true
                 }
@@ -323,6 +348,9 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val has = s < steps && byStep.getOrNull(s) != null
                 val col = when { s >= steps -> Tb.Panel; has -> Tb.EncGreen; k % 4 == 0 -> Tb.Raised; else -> Tb.Panel }
                 drawRoundRect(col, o, sz, r)
+                if (!has && s < steps && tied[s])                     // a longer note still sounding here: its tail
+                    drawRoundRect(Tb.EncGreen.copy(alpha = 0.45f), o + Offset(-2 * gap, sz.height * 0.35f), Size(sz.width + 2 * gap, sz.height * 0.3f), CornerRadius(3.dp.toPx()))
+                if (g.stepRec.value && s == g.stepRecPos.intValue) drawRoundRect(Tb.Warn, o, sz, r, style = Stroke(3.dp.toPx()))
                 if (s == play) drawRoundRect(Tb.Text, o, sz, r, style = Stroke(2.5f.dp.toPx()))
                 if (s == g.heldStep.intValue) drawRoundRect(Tb.EncOrange, o, sz, r, style = Stroke(3.dp.toPx()))
                 val e = byStep.getOrNull(s)
