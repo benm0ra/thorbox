@@ -208,6 +208,8 @@ shots() {
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
   adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"
+  adb shell am start -n $PKG/$ACT --ei settings 3 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-audio.png"
+  adb shell am start -n $PKG/$ACT --ei settings 4 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-midi.png"
   adb shell am start -n $PKG/$ACT --ei settings -1 >/dev/null; sleep 1
   # NAV + buttons, driven by real key events: cursor, a grabbed knob, the bottom screen, a pad grid, the cheat sheet
   key() { adb shell input keyevent "KEYCODE_$1"; sleep 0.4; }

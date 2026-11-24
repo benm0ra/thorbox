@@ -447,12 +447,12 @@ private fun ChopControls(state: AppState) {
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     // narrow (phones / the CI emulator): smaller fixed buttons so ÷16 and TAP-CHOP keep their labels
     val tight = maxWidth < 560.dp
-    val fixedW = if (tight) 40.dp else 46.dp
+    val fixedW = if (tight) 32.dp else 46.dp
     Row(Modifier.fillMaxWidth().height(46.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        HwButton("AUTO", Modifier.width(if (tight) 50.dp else 60.dp).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
+        HwButton("AUTO", Modifier.width(if (tight) 46.dp else 60.dp).fillMaxHeight(), active = mode == ChopMode.AUTO, accent = Tb.Pads[0], fontSize = 12, hPad = 4.dp) { sm.setChopMode(ChopMode.AUTO) }
         if (mode == ChopMode.AUTO)
-            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(if (tight) 52.dp else 64.dp).fillMaxHeight(), pxPerUnit = 300f,
+            DragValue("DETECT", "${(sm.sensitivity.floatValue * 100).roundToInt()}%", Tb.Pads[0], Modifier.width(if (tight) 46.dp else 64.dp).fillMaxHeight(), pxPerUnit = 300f,
                 onDelta = { sm.setSensitivity(sm.sensitivity.floatValue + it) }, onReset = { sm.setSensitivity(0.6f) })
         listOf(4, 8, 16).forEach { n ->
             HwButton("÷$n", Modifier.weight(if (n == 16) 1.25f else 1f).fillMaxHeight(), active = mode == ChopMode.EQUAL && sm.equalCount.intValue == n, accent = Tb.EncWhite,
