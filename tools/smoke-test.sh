@@ -206,6 +206,7 @@ shots() {
   if ! grep -q "stop: ok=true" "$d/mic-log.txt"; then echo "RECORDER FAILED: take didn't finish cleanly"; exit 1; fi
   adb shell am start -n $PKG/$ACT --ez mic false >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view SYNTH --ez meters true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/meters.png"
+  adb shell am start -n $PKG/$ACT --es view SYNTH --es deck STEP --ez dry true --ez stepdemo true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/step-deck.png"
   adb shell am start -n $PKG/$ACT --ez meters false --ei settings 0 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings.png"
   adb shell am start -n $PKG/$ACT --ei settings 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-look.png"
   adb shell am start -n $PKG/$ACT --ei settings 3 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/settings-audio.png"
