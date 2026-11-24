@@ -42,6 +42,21 @@ enum class CmdType : uint8_t {
     SetDuck,       // i0 = duck::Param, f0 = value
     QueuePattern,  // pad = track, ptr = seq::Pattern* (or nullptr = empty): staged for the next scene change
     CommitScene,   // i0 = loop ticks (the change lands on the next multiple, from the scene's start; 0 = now), i1 = tag (-1 = cancel)
+    SetClick,      // i0 = ClickParam, f0 = value (the metronome's sound, level, accent)
+    SetCountIn,    // f0 = ticks of count-in clicks before the next PLAY reaches bar 1 (0 = none)
+    SetMidiOut,    // pad = track, i0 = MIDI channel 0..15 (-1 = off): its notes are also sent out
+    SetMidiMap,    // pad = track, i0 = note (pad / drum slot 0..15), i1 = the MIDI note it sends
+    SetMidiClock,  // i0 = 0/1: send MIDI clock (24 per beat) + start / stop
+};
+
+// The metronome. Must match com.thorbox.engine.NativeEngine.ClickParam.
+enum class ClickParam : int32_t { Sound = 0, Level = 1, Accent = 2 };
+enum class ClickSound : int32_t { Click = 0, Wood = 1, Cowbell = 2, Hat = 3 };
+
+// A MIDI message for the MIDI thread, stamped with the engine frame it belongs to (see AudioEngine::pollMidi).
+struct MidiMsg {
+    int64_t frame = 0;
+    uint8_t len = 0, b0 = 0, b1 = 0, b2 = 0;
 };
 
 // Per-pad sound settings (the PAD EDIT page). Must match com.thorbox.engine.NativeEngine.PadParam.

@@ -72,6 +72,25 @@ object NativeEngine {
     fun setPlaying(on: Boolean) = nativeSetPlaying(on)
     fun setRecording(on: Boolean) = nativeSetRecording(on)
     fun setMetronome(on: Boolean) = nativeSetMetronome(on)
+    /** The metronome's sound ([ClickParam.SOUND]: 0 CLICK, 1 WOOD, 2 COWBELL, 3 HAT), level 0..1, accent on beat 1. */
+    fun setClick(param: Int, value: Float) = nativeSetClick(param, value)
+    /** Clicks before bar 1 on the next PLAY, in ticks (0 = no count-in). transport[20] counts down. */
+    fun setCountIn(ticks: Float) = nativeSetCountIn(ticks)
+
+    // ---- MIDI out (read by the app's MIDI thread; everything else here is main thread) ----
+    /** Send track [track]'s notes out on MIDI channel [channel] (0..15, -1 = off). */
+    fun setMidiOut(track: Int, channel: Int) = nativeSetMidiOut(track, channel)
+    /** Which MIDI note pad / drum slot [note] (0..15) of [track] sends. */
+    fun setMidiMap(track: Int, note: Int, midiNote: Int) = nativeSetMidiMap(track, note, midiNote)
+    /** Send MIDI clock (24 per beat) and START / STOP. */
+    fun setMidiClock(on: Boolean) = nativeSetMidiClock(on)
+    /** MIDI thread only: messages since the last call, 3 longs each: frame, byte count, bytes (b0 | b1 shl 8 | b2 shl 16). */
+    fun pollMidi(out: LongArray): Int = nativePollMidi(out)
+    /** {frame, System.nanoTime() when it played, sample rate}: turns message frames into timestamps. */
+    fun midiAnchor(out: LongArray) = nativeMidiAnchor(out)
+    /** Play through this output (an AudioDeviceInfo id; 0 = the system's choice). Reopens the stream. */
+    fun setOutputDevice(id: Int) = nativeSetOutputDevice(id)
+    object ClickParam { const val SOUND = 0; const val LEVEL = 1; const val ACCENT = 2 }
 
     /**
      * Replaces a track's pattern (0 = sampler, note = pad; 1 = synth, note = MIDI). Arrays are parallel;
@@ -307,6 +326,14 @@ object NativeEngine {
     private external fun nativeSetPlaying(on: Boolean): Boolean
     private external fun nativeSetRecording(on: Boolean): Boolean
     private external fun nativeSetMetronome(on: Boolean): Boolean
+    private external fun nativeSetClick(param: Int, value: Float): Boolean
+    private external fun nativeSetCountIn(ticks: Float): Boolean
+    private external fun nativeSetMidiOut(track: Int, channel: Int): Boolean
+    private external fun nativeSetMidiMap(track: Int, note: Int, midiNote: Int): Boolean
+    private external fun nativeSetMidiClock(on: Boolean): Boolean
+    private external fun nativePollMidi(out: LongArray): Int
+    private external fun nativeMidiAnchor(out: LongArray)
+    private external fun nativeSetOutputDevice(id: Int): Boolean
     private external fun nativeSetPattern(track: Int, lengthTicks: Int, ticks: IntArray, lens: IntArray, notes: IntArray, vels: FloatArray, probs: FloatArray,
                                           flags: IntArray, lockIds: IntArray, lockVals: FloatArray): Boolean
     private external fun nativeQueuePattern(track: Int, lengthTicks: Int, ticks: IntArray, lens: IntArray, notes: IntArray, vels: FloatArray, probs: FloatArray,

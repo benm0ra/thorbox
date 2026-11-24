@@ -240,6 +240,27 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetSwing)(JNIEnv*, jobject, jfloat amoun
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetPlaying)(JNIEnv*, jobject, jboolean on) { return gEngine && gEngine->setPlaying(on); }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetRecording)(JNIEnv*, jobject, jboolean on) { return gEngine && gEngine->setRecording(on); }
 JNIEXPORT jboolean JNICALL JNI_FN(nativeSetMetronome)(JNIEnv*, jobject, jboolean on) { return gEngine && gEngine->setMetronome(on); }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetClick)(JNIEnv*, jobject, jint param, jfloat v) { return gEngine && finite(v) && gEngine->setClick(param, v); }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetCountIn)(JNIEnv*, jobject, jfloat ticks) { return gEngine && finite(ticks) && gEngine->setCountIn(ticks); }
+// ---------------- MIDI out + audio device ----------------
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetMidiOut)(JNIEnv*, jobject, jint track, jint ch) { return gEngine && gEngine->setMidiOut(track, ch); }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetMidiMap)(JNIEnv*, jobject, jint track, jint note, jint midi) { return gEngine && gEngine->setMidiMap(track, note, midi); }
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetMidiClock)(JNIEnv*, jobject, jboolean on) { return gEngine && gEngine->setMidiClock(on); }
+// MIDI thread: the queue's only consumer. out holds 3 longs per message.
+JNIEXPORT jint JNICALL JNI_FN(nativePollMidi)(JNIEnv* env, jobject, jlongArray out) {
+    if (!gEngine || !out) return 0;
+    const int max = std::min<int>(env->GetArrayLength(out) / 3, 256);
+    int64_t tmp[3 * 256];
+    const int n = gEngine->pollMidi(tmp, max);
+    if (n > 0) env->SetLongArrayRegion(out, 0, 3 * n, reinterpret_cast<const jlong*>(tmp));
+    return n;
+}
+JNIEXPORT void JNICALL JNI_FN(nativeMidiAnchor)(JNIEnv* env, jobject, jlongArray out) {
+    if (!gEngine || !out || env->GetArrayLength(out) < 3) return;
+    int64_t tmp[3]; gEngine->midiAnchor(tmp);
+    env->SetLongArrayRegion(out, 0, 3, reinterpret_cast<const jlong*>(tmp));
+}
+JNIEXPORT jboolean JNICALL JNI_FN(nativeSetOutputDevice)(JNIEnv*, jobject, jint id) { return gEngine && gEngine->setOutputDevice(id); }
 
 // Builds an immutable pattern from parallel arrays, fully validated, then hands it to the engine.
 // jFlags[i] = ratchet | condEvery << 4 | condPhase << 8. jLockIds / jLockVals: 2 per event (-1 = none).
@@ -247,7 +268,7 @@ static seq::Pattern* buildPattern(JNIEnv* env, jint track, jint lengthTicks,
         jintArray jTicks, jintArray jLens, jintArray jNotes, jfloatArray jVels, jfloatArray jProbs,
         jintArray jFlags, jintArray jLockIds, jfloatArray jLockVals) {
     if (track < 0 || track >= seq::kTracks) return nullptr;
-    if (lengthTicks < 240 || lengthTicks > 16 * 4 * seq::kPpqn) return nullptr;   // 1 step … 16 bars
+    if (lengthTicks < 240 || lengthTicks > seq::kMaxBars * 4 * seq::kPpqn) return nullptr;   // 1 step … 64 bars
     if (!jTicks || !jLens || !jNotes || !jVels || !jProbs || !jFlags || !jLockIds || !jLockVals) return nullptr;
     const jsize n = env->GetArrayLength(jTicks);
     if (n < 0 || n > seq::kMaxEvents || env->GetArrayLength(jLens) != n || env->GetArrayLength(jNotes) != n ||
@@ -285,6 +306,12 @@ static seq::Pattern* buildPattern(JNIEnv* env, jint track, jint lengthTicks,
         p->events[c++] = e;
     }
     p->count = c;
+    // sorted by tick, so the audio thread only looks at the events near the playhead (see seq::Pattern)
+    std::stable_sort(p->events, p->events + c, [](const seq::Event& x, const seq::Event& y) { return x.tick < y.tick; });
+    int32_t reach = 0;
+    for (int i = 0; i < c; ++i) if (p->events[i].ratchet > 1) reach = std::max(reach, p->events[i].length);
+    p->reach = reach + 2 * 480 / 4 + 1;      // + the most swing can delay a note (0.25 · 2 · an 1/8 = 240 ticks)
+    p->sorted = true;
     return p;
 }
 
@@ -372,10 +399,10 @@ JNIEXPORT jint JNICALL JNI_FN(nativePollRecord)(JNIEnv* env, jobject, jdoubleArr
     return type;
 }
 JNIEXPORT void JNICALL JNI_FN(nativeGetTransport)(JNIEnv* env, jobject, jdoubleArray out) {
-    if (!gEngine || !out || env->GetArrayLength(out) < 20) return;
-    double tmp[20];
+    if (!gEngine || !out || env->GetArrayLength(out) < 21) return;
+    double tmp[24] = {};
     gEngine->getTransport(tmp);
-    env->SetDoubleArrayRegion(out, 0, 20, tmp);
+    env->SetDoubleArrayRegion(out, 0, 21, tmp);
 }
 
 // ---------------- drum synth ----------------

@@ -99,6 +99,22 @@ public:
     bool setPlaying(bool on);
     bool setRecording(bool on);
     bool setMetronome(bool on);
+    bool setClick(int param, float value);              // ClickParam: sound, level 0..1, accent 0/1
+    bool setCountIn(float ticks);                       // clicks before bar 1 on the next PLAY
+    float countIn() const { return mTelPreroll.load(std::memory_order_relaxed); }   // ticks still to go
+
+    // ---- MIDI out (the app's MIDI thread reads what the audio thread writes) ----
+    bool setMidiOut(int track, int channel);            // -1 = off
+    bool setMidiMap(int track, int note, int midiNote); // pads / drum slots → MIDI notes
+    bool setMidiClock(bool on);
+    // Pops up to max messages: out[3*i] = frame, out[3*i+1] = byte count, out[3*i+2] = bytes (b0 | b1<<8 | b2<<16).
+    // The MIDI thread is this queue's only consumer.
+    int pollMidi(int64_t* out, int max);
+    // When frame [0] of the engine's frame counter will play, as System.nanoTime: out = {frame, nanos, sampleRate}.
+    void midiAnchor(int64_t* out3);
+    // Pick the output device (AudioDeviceInfo id, 0 = the system's choice); reopens the stream.
+    bool setOutputDevice(int deviceId);
+    int outputDevice() const { return mOutputDeviceId; }
     bool setPattern(int track, seq::Pattern* owned);   // takes ownership (deleted on failure)
     // Scenes (pattern changes on the beat): stage each track's next pattern (owned; nullptr = empty),
     // then commit: they all swap in on the next multiple of loopTicks from the current scene's start.
@@ -238,13 +254,31 @@ private:
     std::atomic<uint32_t> mDuckTrig{0};   // per-strip key envelope (pre-fader), shared by all ducked strips
     std::array<Strip, kStrips> mStrips{};
     float mMasterPeakL = 0.f, mMasterPeakR = 0.f;
-    float mClickPhase = 0.f, mClickEnv = 0.f, mClickFreq = 1500.f;
+    float mClickPhase = 0.f, mClickPhase2 = 0.f, mClickEnv = 0.f, mClickFreq = 1500.f, mClickAmp = 0.25f, mClickDecay = 0.012f;
+    float mClickHp = 0.f; uint32_t mClickNoise = 0x2545F491u;
+    int mClickSound = 0; float mClickLevel = 0.5f; bool mClickAccent = true;
     float mMasterGain = 0.8f;
     float mMasterGainTarget = 0.8f;
 
     // Cross-thread
     SpscQueue<Command, 1024> mCmds;
     SpscQueue<AudioEvent, 256> mAudioEvents;
+    // MIDI out: the audio thread writes, the app's MIDI thread reads.
+    SpscQueue<MidiMsg, 2048> mMidiOut;
+    std::array<int8_t, kTracks> mMidiCh{};
+    std::array<std::array<uint8_t, 16>, kTracks> mMidiMap{};
+    bool mMidiClock = false;
+    double mClockToNext = 0.0;                 // ticks until the next MIDI clock
+    int64_t mFrames = 0;                       // frames rendered live (the MIDI timeline)
+    int64_t mChunkFrame = 0;                   // mFrames at the start of the chunk being rendered
+    std::atomic<int64_t> mAnchorFrame{0}, mAnchorNanos{0};
+    struct MidiOff { int64_t frame; uint8_t ch, note; };
+    std::array<MidiOff, 64> mMidiOffs{};
+    int mMidiOffCount = 0;
+    int mOutputDeviceId = 0;
+    void midiPush(int64_t frame, uint8_t b0, uint8_t b1, uint8_t b2, uint8_t len = 3);
+    void midiNote(int track, int note, bool on, float vel, int64_t frame);
+    void midiChunk(int len, double tps);
     std::atomic<float> mPlayhead{-1.f};
     std::atomic<float> mPeak{0.f};
     std::atomic<int32_t> mDeviceRate{48000};
@@ -275,7 +309,7 @@ private:
     void freeRetired();
     std::atomic<uint32_t> mTelPads{0};       // bitmask of pads with a sounding voice
     std::atomic<int32_t> mTelPlayPad{-1};    // pad of the newest voice (for the chop playhead)
-    std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f};
+    std::atomic<float> mTelBpm{90.f}, mTelSwing{0.5f}, mTelPreroll{0.f};
     std::array<std::atomic<float>, 2 * kStrips + 2> mMeters{};   // strips L/R, then master L/R
     std::array<std::atomic<float>, kStrips> mScGain{};
     std::array<std::atomic<float>, kTracks * drums::kSlots> mDrumLevel{};

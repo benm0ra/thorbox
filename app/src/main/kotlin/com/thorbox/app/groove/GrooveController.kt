@@ -95,7 +95,7 @@ class GrooveController(private val app: AppState) {
     val fxHeld = mutableIntStateOf(0)                   // bitmask: effects currently touched / pressed
 
     // ---- live readouts (read in draw lambdas) ----
-    val transport = DoubleArray(20)
+    val transport = DoubleArray(24)
     /** Where we are in the current pattern (ticks since it started: a pattern change restarts it at 0). */
     val loopTick: Double get() = (transport[0] - transport[16]).coerceAtLeast(0.0)
     private val meterBuf = FloatArray(NativeEngine.METERS)
