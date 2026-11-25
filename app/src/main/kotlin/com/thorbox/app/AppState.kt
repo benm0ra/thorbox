@@ -897,6 +897,34 @@ class AppState(private val app: Application) {
         }
     }
 
+    /**
+     * A RESAMPLE finished (Exporter): lay the bounce on its sampler track (a new one unless one was picked),
+     * cut into 16 equal slices, mute what was bounced if asked, and go there.
+     */
+    fun landResample(uri: Uri, name: String, r: com.thorbox.app.export.Exporter.Resample, sources: List<Int>, ticks: Long) {
+        val bars = (ticks / (4.0 * com.thorbox.model.PPQN)).toFloat()
+        val pick = r.target.takeIf { it >= 0 && trackKind(it) == com.thorbox.model.TrackKind.SAMPLER }
+        val target = pick ?: addTrack(com.thorbox.model.TrackKind.SAMPLER).takeIf { it >= 0 }
+        if (target == null) { _error.value = "Saved $name, but all 8 tracks are used: free one in the MIXER and load it from Resamples"; return }
+        if (pick == null) {                                      // a new track: call it what it is
+            val n = tracks.value.count { it.name.startsWith("RESAMPLE") } + 1
+            val nm = if (n == 1) "RESAMPLE" else "RESAMPLE $n"
+            tracks.value = tracks.value.toMutableList().also { it[target] = it[target].copy(name = nm) }
+            groove.nameChannel(target, nm)
+        }
+        samplerFor(target).prepareResample()
+        load(uri, name, target)
+        // a pattern bounce plays straight back from its new track (slices in order); a song bounce just lands on the pads
+        val wrote = !r.song && ticks <= com.thorbox.app.groove.GrooveController.MAX_STEPS.toLong() * com.thorbox.app.groove.STEP_TICKS
+        if (wrote) groove.writeSliceRun(target, ticks)
+        if (r.muteSource) for (t in sources) if (t != target) groove.setChannel(t) { it.copy(mute = true) }
+        selectTrack(target)
+        val len = if (bars == bars.toInt().toFloat()) "${bars.toInt()} bar${if (bars == 1f) "" else "s"}" else String.format(java.util.Locale.US, "%.1f bars", bars)
+        val what = if (r.source < 0) "the mix" else (tracks.value.getOrNull(r.source)?.name ?: "the track")
+        com.thorbox.app.ui.Info.toast("RESAMPLED", "$what ($len) → track ${target + 1}, 16 pads" +
+            (if (wrote) ", playing in order" else "") + (if (r.muteSource && sources.isNotEmpty()) " · source muted" else ""))
+    }
+
     /** Where KEEP lays the take down (see [keepMicTake]); null when there's no sampler track and no room for one. */
     fun micTargetTrack(): Int? {
         val cur = groove.seqTrack.intValue

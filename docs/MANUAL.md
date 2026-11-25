@@ -106,6 +106,17 @@ A **mute group** makes pads cut each other off, like an open and a closed hi-hat
 
 **MIC** opens the recorder: a live waveform, a clip warning and a clock. Stop to review: **▶ PLAY** the take, **DISCARD**, **REDO**, or **KEEP → PADS**, which lays it on a sampler track (the current one, or the next free one) already chopped. Takes are saved to *Music/Clamshell Beats/Field Recordings*.
 
+### Resample
+
+**RESAMPLE** bounces part of your beat onto a sampler track's 16 pads, so you can chop it and flip it: build a loop, bounce it, then rearrange the slices into something new. Open it from **RESAMPLE** under the sample library, beside MASTER in the MIXER, or from a track's **⋯** menu (which picks that track).
+
+- **FROM:** **MIX** (everything, as you hear it right now, with the master FX) or one track on its own (heard even if it's muted).
+- **LENGTH:** this pattern once (**LOOP**), **×2** or **×4**, or the whole **SONG**.
+- **ONTO:** a **NEW TRACK** (a sampler track called RESAMPLE), or one of your sampler tracks, whose sample is replaced. Picking the track you're bouncing resamples it **in place**.
+- **MUTE WHAT I BOUNCED** (on by default) mutes the source afterwards, so the chops don't double the original.
+
+It renders faster than real time, like EXPORT, and lands cut into **16 equal slices**, so every slice sits on the grid. A pattern bounce also arrives **playing its slices in order**, so the beat sounds the same until you start moving pads around. KEY LOCK leaves a resample alone, because it's already in the project's key. The WAV is kept in *Music/Clamshell Beats/Resamples/<project>*, and UNDO takes back the new track's pattern.
+
 ## 5. The synth
 
 ![The synth with the cat](img/synth.jpg)

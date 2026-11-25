@@ -104,6 +104,9 @@ fun MixScreen(state: AppState) {
                 }
             }
         }
+        HwButton("RESAMPLE", Modifier.fillMaxWidth(), minHeight = 52.dp, fontSize = 11, hPad = 2.dp, accent = Tb.Good) {
+            state.exporter.resample.value = state.exporter.resample.value.copy(source = -1); state.exporter.showResample.value = true
+        }
         HwButton("SAVE MIDI", Modifier.fillMaxWidth(), minHeight = 52.dp, fontSize = 11, hPad = 2.dp, accent = Tb.Tempo) { state.exportMidi() }
         }
         Strip(
@@ -213,6 +216,9 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HwButton("RESAMPLE", minHeight = 40.dp, fontSize = 11, accent = Tb.Good) {
+                state.exporter.resample.value = state.exporter.resample.value.copy(source = t); state.exporter.showResample.value = true; onDone()
+            }
             HwButton("CLEAR PATTERN", minHeight = 40.dp, fontSize = 11) { g.clear(t) }
             Box(Modifier.weight(1f))
             HwButton(if (state.canRemoveTrack(t)) "REMOVE TRACK" else "LAST ${tracks[t].kind.label} · CAN'T REMOVE", minHeight = 40.dp, fontSize = 11,
@@ -380,8 +386,8 @@ private fun Strip(
 
         if (mute != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                HwButton("M", Modifier.weight(1f), active = mute == true, accent = Tb.Warn, onClick = onMute)
-                HwButton("S", Modifier.weight(1f), active = solo == true, accent = Tb.Key, onClick = onSolo)
+                HwButton("M", Modifier.weight(1f), active = mute == true, accent = Tb.Warn, hPad = 2.dp, minWidth = 20.dp, onClick = onMute)
+                HwButton("S", Modifier.weight(1f), active = solo == true, accent = Tb.Key, hPad = 2.dp, minWidth = 20.dp, onClick = onSolo)
             }
         } else {
             Box(Modifier.height(44.dp))   // keep faders aligned with the track strips

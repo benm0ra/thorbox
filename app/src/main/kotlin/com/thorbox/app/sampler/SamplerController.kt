@@ -140,7 +140,9 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
         if (oldOriginal != 0 && oldOriginal != sampleId) NativeEngine.unloadSample(oldOriginal)
         if (r == null || regions.value.isEmpty()) rechop()
         // KEY LOCK: a new sample lands already in the project key
-        if (r == null && app.lockAll.value && info?.key != null) { keyMatch.value = true; keyMatchByLock = true; rerender(); return }
+        // (not for a RESAMPLE: that's the project's own audio, already in its key and tempo)
+        val bounced = resampleNext; resampleNext = false
+        if (r == null && !bounced && app.lockAll.value && info?.key != null) { keyMatch.value = true; keyMatchByLock = true; rerender(); return }
         if (r != null && (r.keyMatch || r.stretch != StretchMode.OFF)) {
             keyMatch.value = r.keyMatch; stretch.value = r.stretch; fitBars.intValue = r.fitBars.coerceIn(1, 16); rerender()
         } else renderWarps()
@@ -228,6 +230,17 @@ class SamplerController(private val app: AppState, val track: Int = 0) {
     }
 
     // ================= chopping =================
+
+    /**
+     * The next sample is a RESAMPLE: bar-aligned audio at the project tempo, so it's cut into 16 equal
+     * slices (every slice on the grid) and KEY LOCK leaves it alone.
+     */
+    fun prepareResample() {
+        stopLazy()
+        chopMode.value = ChopMode.EQUAL; equalCount.intValue = 16
+        resampleNext = true
+    }
+    private var resampleNext = false
 
     fun setChopMode(m: ChopMode) {
         if (m == ChopMode.LAZY) startLazy() else stopLazy()

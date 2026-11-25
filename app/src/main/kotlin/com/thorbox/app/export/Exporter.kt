@@ -49,6 +49,20 @@ class Exporter(private val app: AppState) {
     )
     data class Result(val ok: Boolean, val title: String, val detail: String, val folder: String, val uris: List<Uri>)
 
+    /**
+     * RESAMPLE: the same bounce, but the file lands on sampler pads instead of in the export folder's
+     * share sheet. [source] -1 = the mix as you hear it, else that one track (soloed for the bounce, and
+     * heard even if it's muted). PATTERN × [loops], or the SONG. [target] = a sampler track, or [NEW].
+     * [muteSource]: mute what was bounced afterwards, so the chops don't play on top of the original.
+     */
+    data class Resample(val source: Int = -1, val song: Boolean = false, val loops: Int = 1, val target: Int = NEW, val muteSource: Boolean = true) {
+        companion object { const val NEW = -1 }
+    }
+    val resample = mutableStateOf(Resample())
+    val showResample = mutableStateOf(false)
+    /** What a RESAMPLE run is doing (shown instead of EXPORT on the progress bar). */
+    val resampling get() = job?.rs != null
+
     val options = mutableStateOf(Options())
     val showSheet = mutableStateOf(false)
     val active = mutableStateOf(false)
@@ -62,7 +76,8 @@ class Exporter(private val app: AppState) {
     private enum class Phase { SETTLE, PLAY, TAIL }
     private class Restore(val pattern: Int, val song: List<SongStep>, val songMode: Boolean, val songLoop: Boolean, val channels: List<Channel>)
     private inner class Job(val o: Options, val outs: List<Out>, val passes: List<Pass>, val restore: Restore,
-                            val steps: List<SongStep>, val playFrames: Long, val folder: String, val base: String) {
+                            val steps: List<SongStep>, val playFrames: Long, val folder: String, val base: String,
+                            val rs: Resample? = null, val sources: List<Int> = emptyList(), val ticks: Long = 0L) {
         var pass = 0
         var phase = Phase.SETTLE
         var phaseFrames = 0L
@@ -75,7 +90,19 @@ class Exporter(private val app: AppState) {
     private var job: Job? = null
 
     /** Validate, open the files, park the live output. Returns an error to show, or null when it's running. */
-    fun start(o: Options): String? {
+    fun start(o: Options): String? = start(o, null)
+
+    /** RESAMPLE [r]: bounce it to a WAV in Music/Clamshell Beats/Resamples and chop it onto pads. */
+    fun startResample(r: Resample): String? {
+        val tracks = app.tracks.value
+        if (r.source >= 0 && tracks.getOrNull(r.source)?.kind.let { it == null || it == TrackKind.EMPTY }) return "That track is empty"
+        val toSampler = r.target >= 0 && tracks.getOrNull(r.target)?.kind == TrackKind.SAMPLER
+        if (!toSampler && tracks.none { it.kind == TrackKind.EMPTY }) return "All 8 tracks are used: pick a sampler track to land on, or free one in the MIXER"
+        return start(Options(what = if (r.song) What.SONG else What.PATTERN, loops = r.loops, format = Format.WAV, bits = 24, rate = 48000,
+            stems = false, tail = false, midi = false), r)
+    }
+
+    private fun start(o: Options, rs: Resample?): String? {
         if (job != null) return "Already exporting"
         val g = app.groove
         val song = g.song.value
@@ -90,6 +117,8 @@ class Exporter(private val app: AppState) {
         }
         val patterns = steps.map { it.pattern }.distinct()
         if (patterns.none { g.hasNotes(it) }) return "Nothing to play: ${if (o.what == What.SONG) "those song steps are" else "this pattern is"} empty"
+        if (rs != null && rs.source >= 0 && patterns.none { p -> g.clipsOf(p).getOrNull(rs.source)?.notes?.isNotEmpty() == true })
+            return "${app.tracks.value[rs.source].name} has no notes ${if (o.what == What.SONG) "in the song" else "in this pattern"}"
         val ticks = steps.sumOf { g.patternTicks(it.pattern).toLong() * it.repeats }
         val tpf = g.groove.value.bpm.coerceIn(30f, 300f) * PPQN / (60.0 * o.rate)        // ticks per frame
         val playFrames = (ticks / tpf - 0.25).toLong().coerceAtLeast(1)
@@ -107,8 +136,10 @@ class Exporter(private val app: AppState) {
         val what = if (o.what == What.SONG) {
             if (steps.size == song.size) "song" else "song ${o.fromStep + 1}-${o.fromStep + steps.size}"
         } else "${g.patternName(steps[0].pattern)} x${steps[0].repeats}"
-        val base = "$project - $what"
-        val folder = "Music/Clamshell Beats/Exports/$project"
+        val srcName = rs?.let { if (it.source < 0) "mix" else sanitize(tracks[it.source].name.ifBlank { "T${it.source + 1}" }) }
+        val stamp = java.text.SimpleDateFormat("HHmmss", java.util.Locale.US).format(java.util.Date())
+        val base = if (rs == null) "$project - $what" else "$project - $srcName - $what - $stamp"
+        val folder = if (rs == null) "Music/Clamshell Beats/Exports/$project" else "Music/Clamshell Beats/Resamples/$project"
 
         // files: slot 0 the mix, then a slot per stem
         val outs = ArrayList<Out>()
@@ -121,14 +152,15 @@ class Exporter(private val app: AppState) {
         pendingFds.clear()
         if (create(base, 0) == null) { outs.forEach { delete(it.uri) }; return "Couldn't create the file in $folder" }
         val stemSlot = IntArray(com.thorbox.model.TRACK_COUNT) { -1 }
-        if (o.stems) for ((i, t) in used.withIndex()) {
+        if (o.stems && rs == null) for ((i, t) in used.withIndex()) {
             val nm = "$base - %02d %s".format(t + 1, sanitize(tracks[t].name.ifBlank { "T${t + 1}" }))
             if (create(nm, 1 + i) == null) { outs.forEach { delete(it.uri) }; closePending(); return "Couldn't create the stem files" }
             stemSlot[t] = 1 + i
         }
         val none = IntArray(com.thorbox.model.TRACK_COUNT) { -1 }
         val passes = ArrayList<Pass>()
-        if (o.stems && o.fxOnStems) {
+        if (rs != null) passes += Pass(if (rs.source < 0) "RESAMPLE MIX" else "RESAMPLE ${tracks[rs.source].name}", 0, none, rs.source)
+        else if (o.stems && o.fxOnStems) {
             passes += Pass("MIX", 0, none, -1)
             for (t in used) passes += Pass(tracks[t].name.ifBlank { "T${t + 1}" }, stemSlot[t], none, t)
         } else passes += Pass(if (o.stems) "MIX + STEMS" else "MIX", 0, stemSlot, -1)
@@ -138,7 +170,8 @@ class Exporter(private val app: AppState) {
         for ((slot, fd) in pendingFds) NativeEngine.exportOpen(slot, fd, o.format.code, o.bits)
         pendingFds.clear()
         g.exporting = true
-        job = Job(o, outs, passes, restore, steps, playFrames, folder, base)
+        val sources = if (rs == null) emptyList() else if (rs.source >= 0) listOf(rs.source) else used
+        job = Job(o, outs, passes, restore, steps, playFrames, folder, base, rs, sources, ticks)
         result.value = null; progress.floatValue = 0f; stage.value = "GETTING READY"
         active.value = true; showSheet.value = false
         return null
@@ -164,7 +197,10 @@ class Exporter(private val app: AppState) {
                 if (!j.started) {
                     j.started = true
                     g.silenceForExport()
-                    g.soloOnly(pass.solo, j.restore.channels)
+                    // RESAMPLE of one track: heard even if it's muted in the mix right now
+                    val base = if (j.rs != null && pass.solo >= 0) j.restore.channels.mapIndexed { i, c -> if (i == pass.solo) c.copy(mute = false) else c }
+                        else j.restore.channels
+                    g.soloOnly(pass.solo, base)
                     NativeEngine.exportRoute(-1, null)
                     j.phaseFrames = 0; j.quiet = 0
                     stage.value = if (j.passes.size > 1) "${pass.label} · ${j.pass + 1}/${j.passes.size}" else pass.label
@@ -228,6 +264,19 @@ class Exporter(private val app: AppState) {
         g.returnTo(j.restore.pattern, j.restore.song, j.restore.songMode, j.restore.songLoop)
         active.value = false; stage.value = ""
         val failed = j.outs.filter { it.frames < 0 }
+        if (j.rs != null) {
+            if (cancelled || failed.isNotEmpty() || j.outs.first().frames <= 0) {
+                j.outs.forEach { delete(it.uri) }
+                if (!cancelled) app.setError("RESAMPLE failed: couldn't write the file (is the storage full?)")
+                else com.thorbox.app.ui.Info.toast("RESAMPLE", "cancelled: nothing was kept")
+                return
+            }
+            val out = j.outs.first()
+            publish(out.uri)
+            android.util.Log.i("Thorbox", "resample: ${out.name} ${out.frames} fr in ${"%.2f".format((System.nanoTime() - j.t0) / 1e9)} s")
+            app.landResample(out.uri, out.name.removeSuffix(".wav"), j.rs, j.sources, j.ticks)
+            return
+        }
         if (cancelled || failed.isNotEmpty()) {
             j.outs.forEach { delete(it.uri) }
             result.value = if (cancelled) Result(false, "CANCELLED", "Nothing was saved.", j.folder, emptyList())

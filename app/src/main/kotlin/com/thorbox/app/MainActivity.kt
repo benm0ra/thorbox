@@ -138,6 +138,11 @@ class MainActivity : ComponentActivity() {
             }
             state.mixEq.intValue = t
         }
+        if (i?.hasExtra("resample") == true) state.exporter.showResample.value = i.getBooleanExtra("resample", false)
+        if (i?.getBooleanExtra("resamplego", false) == true) {                                  // RESAMPLE with the sheet's choices
+            state.exporter.showResample.value = false
+            state.exporter.startResample(state.exporter.resample.value)?.let { android.util.Log.w("Thorbox", "resample refused: $it") }
+        }
         if (i?.hasExtra("keylock") == true) state.setLockAll(i.getBooleanExtra("keylock", false))
         if (i?.hasExtra("keysheet") == true) state.showKeySheet.value = i.getBooleanExtra("keysheet", false)
         if (i?.hasExtra("exportsheet") == true) state.exporter.showSheet.value = i.getBooleanExtra("exportsheet", false)
