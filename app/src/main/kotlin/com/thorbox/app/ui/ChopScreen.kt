@@ -613,7 +613,7 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
             val on = active and (1 shl k) != 0
             val empty = k >= count
             val fill = if (empty) Tb.Raised else if (on) c else c.copy(alpha = 0.62f)
-            drawRoundRect(fill, o, s, r)
+            chromeCell(fill, o, s, r, active = on)
             val lightText = !empty && Tb.on(c) != Tb.palette.ink
             val nStyle = if (empty) num.copy(color = Tb.Dim) else if (lightText) numLight else numInk
             val dStyle = if (lightText) smallLight else smallInk
@@ -660,8 +660,7 @@ fun Pad16Deck(state: AppState, modifier: Modifier = Modifier) {
             for (k in 0 until 16) {
                 val col = k % 4; val rowTop = 3 - k / 4
                 val o = Offset(col * cw + gap, rowTop * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
-                drawRoundRect(Tb.Void, o, s, r)
-                drawRoundRect(c.copy(alpha = 0.25f + 0.6f * k / 15f + if (on) 0.12f else 0f), o, s, r)
+                chromeCell(c.copy(alpha = 0.25f + 0.6f * k / 15f + if (on) 0.12f else 0f), o, s, r, active = on)
                 if (k == 8 && lm == com.thorbox.app.levels.LevelMode.TUNE) drawRoundRect(Tb.Text, o, s, r, style = Stroke(2.dp.toPx()))
                 drawTextSafe(tm, com.thorbox.app.levels.Levels.label(lm, k), o + Offset(8.dp.toPx(), 6.dp.toPx()), num)
                 drawTextSafe(tm, "L${k + 1}", o + Offset(8.dp.toPx(), s.height - 16.dp.toPx()), hint)

@@ -209,3 +209,24 @@ fun DrawScope.blockbuster(
         sparkle(x + w * 0.96f, y + h * 0.36f, h * 0.11f)
     }
 }
+
+// ---------------------------------------------------------------- chrome drawn on a canvas (pads, keys, step keys)
+
+/**
+ * A pad / key / step cell in the house style, for canvases that draw their own grids: a hard block
+ * down-right (dropped onto when [pressed]), a solid backing so translucent [c] doesn't show the block
+ * through, the fill, a keyline, and a shine tick when [active]. Sizes in px.
+ */
+fun DrawScope.chromeCell(c: Color, o: Offset, s: Size, r: CornerRadius, pressed: Boolean = false, active: Boolean = false) {
+    val b = 3f * density; val lw = 1.5f * density
+    val d = if (pressed) b * 0.8f else 0f
+    if (!pressed) drawRoundRect(Tb.BlockShadow, o + Offset(b, b), s, r)
+    val p = o + Offset(d, d)
+    drawRoundRect(Tb.Panel, p, s, r)
+    drawRoundRect(c, p, s, r)
+    drawRoundRect(Tb.Keyline, p + Offset(lw / 2f, lw / 2f), Size(s.width - lw, s.height - lw), CornerRadius((r.x - lw / 2f).coerceAtLeast(0f)), style = Stroke(lw))
+    if (active && s.minDimension > 20f * density) {
+        val x = p.x + 8f * density; val y = p.y + 10f * density; val l = 7f * density
+        drawLine(Color.White.copy(alpha = 0.9f), Offset(x, y), Offset(x + l * 0.77f, y - l * 0.64f), 2f * density, cap = StrokeCap.Round)
+    }
+}

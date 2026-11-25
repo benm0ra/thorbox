@@ -564,7 +564,7 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: TextMeasu
     val fit = min(1f, (1.3f * r) / (t.size.width + 6f))
     withTransform({ scale(fit, fit, Offset(cx, cy - r * 0.08f)) }) {
         blockbuster(t, cx - t.size.width / 2f, cy - r * 0.08f - t.size.height / 2f, Line79.SILVER_LT, Line79.SILVER, null,
-            Line79.CASCADE_DK, t.size.height * 0.1f, t.size.height * 0.07f)
+            Line79.INK, t.size.height * 0.06f, t.size.height * 0.03f)
     }
     // the beater is behind the drum (his side): the front head bulges a touch as it's about to land
     val toGo = st.kickNext - now

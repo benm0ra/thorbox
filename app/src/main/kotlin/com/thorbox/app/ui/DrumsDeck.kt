@@ -105,7 +105,7 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
                 val src = state.levelSrc.intValue
                 val c = drumColor(src)
                 val lit = maxOf(pop, if (now - dc.hitTime[src] < 0.15f) 0.3f else 0f)
-                drawRoundRect(c.copy(alpha = 0.25f + 0.6f * s / 15f + 0.15f * lit), o, Size(w, h), r)
+                chromeCell(c.copy(alpha = 0.25f + 0.6f * s / 15f + 0.15f * lit), o, Size(w, h), r, active = lit > 0.2f)
                 if (s == 8 && lm == com.thorbox.app.levels.LevelMode.TUNE || s == 11 && lm == com.thorbox.app.levels.LevelMode.DECAY)
                     drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(2.dp.toPx()))     // "as it is"
                 drawTextSafe(tm, com.thorbox.app.levels.Levels.label(lm, s), o + Offset(9.dp.toPx(), 7.dp.toPx()), nameStyle)
@@ -113,7 +113,7 @@ fun DrumsDeck(state: AppState, modifier: Modifier = Modifier) {
                 continue
             }
             val c = drumColor(s)
-            drawRoundRect(c.copy(alpha = 0.62f + 0.38f * maxOf(pop, dc.levels[s].coerceIn(0f, 1f))), o, Size(w, h), r)
+            chromeCell(c.copy(alpha = 0.62f + 0.38f * maxOf(pop, dc.levels[s].coerceIn(0f, 1f))), o, Size(w, h), r, active = pop > 0.2f)
             if (s == dc.selected.intValue) drawRoundRect(Tb.Text, o, Size(w, h), r, style = Stroke(3.dp.toPx()))
             val v = voices.getOrNull(s) ?: continue
             // name top-left (same size on every pad), the sound type under it when the name doesn't say it,

@@ -138,6 +138,7 @@ fun KeysDeck(state: AppState, modifier: Modifier = Modifier) {
                                     .navTarget("${NOTE_NAMES[root % 12]}${root / 12 - 1}", corner = 10f,
                                         action = { state.keyDown(state.notesForKey(cell), 0.85f) },
                                         release = { state.keyUp(state.notesForKey(cell)) })
+                                    .graffFrame(10.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .drawBehind {
                                         tel.frame.longValue                // light from engine state, draw-only
