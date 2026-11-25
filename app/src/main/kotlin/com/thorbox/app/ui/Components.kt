@@ -46,12 +46,14 @@ fun HwButton(
     minHeight: Dp = Heights.touch,
     fontSize: Int = 14,
     hPad: Dp = 12.dp,
+    /** Narrow layouts (8 mixer strips) may go under the usual 44 dp, rather than overflow and get clipped. */
+    minWidth: Dp = 44.dp,
     onClick: () -> Unit,
 ) {
     Box(
         modifier
             .heightIn(min = minHeight)
-            .widthIn(min = 44.dp)
+            .widthIn(min = minWidth)
             .graffFrame(Radius.control, active = active)
             .clip(RoundedCornerShape(Radius.control))
             .background(if (active) accent else Tb.Raised)

@@ -386,8 +386,8 @@ private fun Strip(
 
         if (mute != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                HwButton("M", Modifier.weight(1f), active = mute == true, accent = Tb.Warn, onClick = onMute)
-                HwButton("S", Modifier.weight(1f), active = solo == true, accent = Tb.Key, onClick = onSolo)
+                HwButton("M", Modifier.weight(1f), active = mute == true, accent = Tb.Warn, hPad = 2.dp, minWidth = 20.dp, onClick = onMute)
+                HwButton("S", Modifier.weight(1f), active = solo == true, accent = Tb.Key, hPad = 2.dp, minWidth = 20.dp, onClick = onSolo)
             }
         } else {
             Box(Modifier.height(44.dp))   // keep faders aligned with the track strips
