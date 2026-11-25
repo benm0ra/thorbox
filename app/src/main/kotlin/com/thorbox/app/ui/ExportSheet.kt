@@ -159,7 +159,7 @@ fun ExportProgress(state: AppState, compact: Boolean = false) {
         Column(Modifier.align(Alignment.Center).width(if (compact) 420.dp else 560.dp).sheet(onClose = null).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("EXPORTING", style = Type.title, modifier = Modifier.weight(1f))
+                Text(if (ex.resampling) "RESAMPLING" else "EXPORTING", style = Type.title, modifier = Modifier.weight(1f))
                 Text("${(ex.progress.floatValue * 100).toInt()} %", style = Type.valueLg)
             }
             Text(ex.stage.value, style = Type.value, maxLines = 1)

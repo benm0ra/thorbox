@@ -576,6 +576,20 @@ class GrooveController(private val app: AppState) {
         } else ((e.note - synthBase()) / 24f).coerceIn(0f, 1f)
     }
 
+    /**
+     * RESAMPLE: [track] (a sampler track just given a bounce cut into 16 equal slices) plays those slices
+     * in order across [ticks], so it sounds exactly like what was bounced, ready to rearrange. One undo step.
+     */
+    fun writeSliceRun(track: Int, ticks: Long) {
+        if (ticks <= 0 || ticks > MAX_STEPS.toLong() * STEP_TICKS) return
+        update(track, saveUndo = true) { c ->
+            val len = ((ticks / STEP_TICKS).toInt().coerceIn(1, MAX_STEPS)) * STEP_TICKS
+            c.copy(lengthTicks = len, notes = List(16) { i ->
+                NoteEvent(tick = (len.toLong() * i / 16).toInt(), lengthTicks = (len / 16).coerceAtLeast(1), note = i, velocity = 1f)
+            })
+        }
+    }
+
     /** A track's pattern length, 1 step … 64 bars (shortening drops the notes past the end; UNDO brings them back). */
     fun setLength(track: Int, steps: Int) = update(track, saveUndo = true) { c ->
         val len = steps.coerceIn(1, MAX_STEPS) * STEP_TICKS

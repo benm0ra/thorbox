@@ -93,6 +93,7 @@ fun TopScreen(state: AppState) {
     CountInBadge(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showKeySheet.value) KeySheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.exporter.showSheet.value && !state.exporter.active.value) ExportSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
+    if (state.exporter.showResample.value && !state.exporter.active.value) ResampleSheet(state, Modifier.align(androidx.compose.ui.Alignment.Center))
     if (state.showDiagnostics.value) DiagnosticsPanel(state, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp))
     if (state.showSettings.value) SettingsSheet(state, Modifier.padding(10.dp))
     ControllerHud(state)   // hold SELECT: map of the physical controls
@@ -129,6 +130,9 @@ internal fun LibraryPanel(state: AppState, modifier: Modifier) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             HwButton("MIC", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12, accent = Tb.Warn) { state.openMic() }
             HwButton("FOLDER", Modifier.weight(1f), minHeight = 36.dp, fontSize = 12) { state.requestFolder() }
+        }
+        HwButton("RESAMPLE", Modifier.fillMaxWidth().padding(horizontal = 8.dp), minHeight = 34.dp, fontSize = 12, accent = Tb.Good) {
+            state.exporter.showResample.value = true
         }
         when {
             // The big CHOOSE FOLDER / RECORD lives in the empty sample area; here, just say what will appear.

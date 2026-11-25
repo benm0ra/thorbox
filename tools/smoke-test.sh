@@ -227,6 +227,14 @@ shots() {
   adb shell am start -n $PKG/$ACT --ez nav false --ez controlmap true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/controlmap.png"
   adb shell am start -n $PKG/$ACT --ez controlmap false --es view DRUM --es deck FX >/dev/null; sleep 1.5
   key DPAD_RIGHT; key DPAD_DOWN; adb exec-out screencap -p > "$d/fx-buttons.png"
+  # RESAMPLE: the sheet, then bounce the mix onto a new sampler track and see it land (chopped, playing back, sources muted)
+  adb shell am start -n $PKG/$ACT --es view MIX --ez resample true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/resample-sheet.png"
+  adb logcat -c
+  adb shell am start -n $PKG/$ACT --ez resamplego true >/dev/null; sleep 10
+  adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS >/dev/null; sleep 2; adb exec-out screencap -p > "$d/resample-pads.png"
+  adb shell am start -n $PKG/$ACT --es view MIX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/resample-mix.png"
+  adb logcat -d -s Thorbox:* | grep -E "resample|export" | tail -5 | tee "$d/resample-log.txt"
+  if ! grep -q "resample: " "$d/resample-log.txt"; then echo "RESAMPLE FAILED: nothing was bounced"; exit 1; fi
   adb shell am start -n $PKG/$ACT --es view SAMPLER --es deck PADS >/dev/null; sleep 2; adb exec-out screencap -p > "$d/sampler-after.png"
   adb shell am force-stop $PKG
   adb shell wm size reset; adb shell wm density reset; sleep 2

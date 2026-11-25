@@ -10,6 +10,12 @@ them), not for developers.
 - The engine is split by thread (`AudioEngine.cpp` for the main thread, `AudioRender.cpp` for the audio thread, `AudioExport.cpp` for the offline bounce). There's a code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), dead code is gone, and lint has zero findings.
 
 ### Player-facing
+- **RESAMPLE.** Bounce the mix, or one track, onto a sampler track's 16 pads, then chop and flip it.
+  - **Length:** one pass of the pattern, ×2, ×4 or the whole song.
+  - **Destination:** a new track or one of your sampler tracks, including in place.
+  - It renders faster than real time and arrives cut on the grid.
+  - A pattern bounce arrives already playing back in order, with the original muted, so nothing changes until you start rearranging.
+  - Open it from the sample library, the MIXER, or a track's ⋯ menu.
 - **EQ on every track.** Tap the curve on a mixer strip for its EQ:
   - **LOW CUT** and **HIGH CUT** filters, at 12 or 24 dB per octave.
   - Low and high **shelves**, and a **mid bell** with adjustable width.
