@@ -308,7 +308,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val o = Offset((k % 8) * cw + gap, (1 - k / 8) * ch + gap); val s = Size(cw - 2 * gap, ch - 2 * gap)
                 val tonic = state.keyLock.value && Math.floorMod(n - key.root.ordinal, 12) == 0
                 val lit = inStep != null && inStep.any { it.note == n }
-                drawRoundRect(if (lit) Tb.EncGreen else if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r)
+                chromeCell(if (lit) Tb.EncGreen else if (tel.isNoteOn(n)) Tb.EncOrange else if (tonic) Tb.EncOrange.copy(alpha = 0.35f) else Tb.Raised, o, s, r, active = lit || tel.isNoteOn(n))
                 drawTextSafe(tm, noteName(n), o + Offset(4.dp.toPx(), s.height - 15.dp.toPx()), small)
             }
             if (com.thorbox.app.input.Nav.enteredTag() == "stepkeys") {      // NAV cell cursor
@@ -350,7 +350,7 @@ fun StepDeck(state: AppState, modifier: Modifier) {
                 val o = Offset((k % 8) * cw + gap, (k / 8) * ch + gap); val sz = Size(cw - 2 * gap, ch - 2 * gap)
                 val has = s < steps && byStep.getOrNull(s) != null
                 val col = when { s >= steps -> Tb.Panel; has -> Tb.EncGreen; k % 4 == 0 -> Tb.Raised; else -> Tb.Panel }
-                drawRoundRect(col, o, sz, r)
+                chromeCell(col, o, sz, r, active = has)
                 if (!has && s < steps && tied[s])                     // a longer note still sounding here: its tail
                     drawRoundRect(Tb.EncGreen.copy(alpha = 0.45f), o + Offset(-2 * gap, sz.height * 0.35f), Size(sz.width + 2 * gap, sz.height * 0.3f), CornerRadius(3.dp.toPx()))
                 if (g.stepRec.value && s == g.stepRecPos.intValue) drawRoundRect(Tb.Warn, o, sz, r, style = Stroke(3.dp.toPx()))

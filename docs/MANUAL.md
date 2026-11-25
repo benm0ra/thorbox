@@ -116,7 +116,7 @@ An 8-voice, two-oscillator morphing synth (sine → triangle → saw → square)
 
 ### The cat
 
-Half the synth screen is a ginger tabby in shades making biscuits, and she reads your patch. What she kneads is the sound's family: a **pillow** (PAD), a **waterbed** (808), a **speaker** (BASS), a **turntable** (LEAD), a **keyboard** (KEYS), an **acoustic guitar** (PLUCK) or **slime** (WEIRD). While you turn a knob, a caption under her says what it does to her.
+Half the synth screen is Biscuit, a ginger tabby in white-frame chrome shades, making biscuits in her room by the elevated line, and she reads your patch. Now and then a train rolls past the window, more often while she's playing. What she kneads is the sound's family: a **pillow** (PAD), a **waterbed** (808), a **speaker** (BASS), a **turntable** (LEAD), a **keyboard** (KEYS), an **acoustic guitar** (PLUCK) or **slime** (WEIRD). While you turn a knob, a caption under her says what it does to her.
 
 | You turn | She |
 |---|---|

@@ -77,11 +77,20 @@ fun Encoder(
             val tl = Offset(c.x - arcR, c.y - arcR)
             val sz = Size(arcR * 2, arcR * 2)
             // 270° travel from 7:30 to 4:30
+            // NIGHT LINE '79: the track is keylined, the cap is a keylined disc with one hard shadow, a block and a shine
+            val kl = 1.5.dp.toPx()
+            drawArc(Tb.Keyline, 135f, 270f, false, tl, sz, style = Stroke(track + kl * 2f, cap = StrokeCap.Round))
             drawArc(Tb.Raised, 135f, 270f, false, tl, sz, style = Stroke(track, cap = StrokeCap.Round))
             drawArc(color, 135f, 270f * value.coerceIn(0f, 1f), false, tl, sz, style = Stroke(track, cap = StrokeCap.Round))
             // Cap
             val capR = r * (if (active) 0.66f else 0.6f)
-            drawCircle(color, capR, c)
+            val bd = 3.dp.toPx()
+            drawCircle(Tb.BlockShadow, capR, c + Offset(bd, bd))
+            // one hard shadow: the shadow disc, then the lit disc nudged up-left and just small enough to stay inside it
+            drawCircle(androidx.compose.ui.graphics.lerp(color, Color.Black, 0.28f), capR, c)
+            drawCircle(color, capR * 0.84f, c - Offset(capR * 0.12f, capR * 0.1f))
+            drawCircle(Tb.Keyline, capR, c, style = Stroke(kl))
+            drawLine(Color.White.copy(alpha = 0.9f), c + Offset(-capR * 0.55f, -capR * 0.12f), c + Offset(-capR * 0.42f, -capR * 0.45f), kl * 1.6f, cap = StrokeCap.Round)
             // Notch
             val a = Math.toRadians((135.0 + 270.0 * value.coerceIn(0f, 1f))).toFloat()
             val dir = Offset(cos(a), sin(a))

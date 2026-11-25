@@ -12,6 +12,7 @@ handheld, built on Oboe (C++) and Jetpack Compose.
 
 ## Start here
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** maps the code: modules, threads, which file owns what, and how to add an engine feature or a page.
+- **[docs/ART_STYLE.md](docs/ART_STYLE.md)** is the house style (NIGHT LINE '79). All art and UI chrome go through `GraffKit.kt`, so new drawings match the rest.
 - **[docs/MANUAL.md](docs/MANUAL.md)** is what the app does, from the player's side.
 - Issues labelled **good first issue** are small and self-contained.
 

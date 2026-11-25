@@ -184,7 +184,7 @@ fun FxDeck(state: AppState, modifier: Modifier = Modifier) {
                 val tail = !on && (id == Fx.ECHO && NativeEngineTails.echo(g) || id == Fx.REVERB && NativeEngineTails.reverb(g))
 
                 // tile: near-black, hairline edge; engaged = accent edge + a faint dot field (the XY pad)
-                drawRoundRect(Tb.Void.copy(alpha = 0.92f), o, s, rad)
+                chromeCell(Tb.Void.copy(alpha = 0.92f), o, s, rad)
                 drawRoundRect(if (on) accent else Tb.Line, o, s, rad, style = Stroke(if (on) 2f * hair else hair))
                 val fieldTop = o.y + 30.dp.toPx(); val fieldBot = o.y + s.height - 20.dp.toPx()
                 if (on) {
