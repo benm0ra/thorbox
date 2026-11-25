@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
@@ -38,8 +37,9 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /*
- * BIG DAWG, the drummer: a stocky, unbothered bulldog in a fitted cap, a hoodie, baggy jeans, fresh
- * sneakers and a gold chain, playing on a bodega corner at night. He plays exactly the kit the drum
+ * BIG DAWG, the drummer: a stocky, unbothered bulldog in a fitted cap, a cascade hoodie (the crew's
+ * colour), baggy jeans, fresh sneakers and a gold chain, playing on a bodega corner at night. Drawn in the
+ * house style (GraffKit.kt, docs/ART_STYLE.md). He plays exactly the kit the drum
  * synth has loaded.
  *
  * The kit is a real right-handed kit, seen from the audience:
@@ -119,20 +119,10 @@ private val COAT_DARK = Color(0xFFB07A3E)
 private val BLAZE = Color(0xFFF3E8DA)
 private val MASK = Color(0xFF4A3426)
 private val NOSE = Color(0xFF221814)
-private val GOLD = Color(0xFFE6B93C)
-private val GOLD_DARK = Color(0xFFB8892A)
-private val HOODIE = Color(0xFF8A2332)
-private val HOODIE_DARK = Color(0xFF5C1520)
-private val HOODIE_LIGHT = Color(0xFFB04A57)
-private val DENIM = Color(0xFF3C5A86)
-private val DENIM_DARK = Color(0xFF263B5C)
 private val SNEAKER = Color(0xFFF1F1EE)
-private val SNEAKER_SHADE = Color(0xFFC9CAD0)
-private val SNEAKER_STRIPE = Color(0xFF2FBF9F)
 private val GUM = Color(0xFFB9824A)
 
 // The kit's hardware and the street: fixed colours too (real drums don't change with the theme).
-private val CHROME = Color(0xFFC9CED6)
 private val CHROME_DARK = Color(0xFF7D838E)
 private val HEAD_SKIN = Color(0xFFE6E0D2)
 private val BRASS = Color(0xFFC79A3A)
@@ -154,14 +144,12 @@ private val ASPHALT = Color(0xFF1C1C22)
 private val HYDRANT = Color(0xFFC4352C)
 private val NEON_PINK = Color(0xFFFF4FA3)
 private val NEON_CYAN = Color(0xFF4FE3FF)
-private val SPRAY_ORANGE = Color(0xFFFF8A2A)
 private val SPRAY_INK = Color(0xFF15121C)
 private val CRATE = Color(0xFF2F64C8)
 private val CRATE_DARK = Color(0xFF1E4590)
 private const val ANTIC = 0.14f          // seconds of wind-up before a sequenced hit
 private const val FLOOR = 284f
 
-private val OUTLINE_THICK = Stroke(14f, join = StrokeJoin.Round)
 private val NEON_GLOW = Stroke(10f, join = StrokeJoin.Round)
 private val NEON_WASH = androidx.compose.ui.graphics.Brush.radialGradient(
     listOf(Color(0x2EFF4FA3), Color(0x00FF4FA3)), center = Offset(300f, 32f), radius = 90f)
@@ -210,8 +198,8 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
     val tel = state.telemetry
     val tm = rememberTextMeasurer(cacheSize = 64)
     val toms = remember { IntArray(2) }
-    val logo = remember { TextStyle(color = Color(0xFFF4F4F5), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp) }
-    val spray = remember { TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, letterSpacing = (-1).sp) }
+    val logo = remember { TextStyle(fontSize = 13.sp, fontFamily = Anton, letterSpacing = 1.sp) }
+    val spray = remember { TextStyle(fontSize = 40.sp, fontFamily = ArchivoBlack, letterSpacing = (-1).sp) }
     val neon = remember { TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) }
     Canvas(modifier) {
         tel.frame.longValue                                   // redraw every frame, never recompose
@@ -304,6 +292,7 @@ fun Drummer(state: AppState, modifier: Modifier = Modifier) {
         // virtual stage 400 × 280 (y 8..288): cap top to floor, no dead band above
         val sc = min(size.width / 400f, size.height / 280f)
         val ox = (size.width - 400f * sc) / 2f; val oy = (size.height - 280f * sc) / 2f - 8f * sc
+        Graff.begin(density, sc)                              // house-style line weights for this scale
         withTransform({ translate(ox, oy); scale(sc, sc, Offset.Zero) }) {
             val playing = state.groove.transport[1] != 0.0
             val beatPhase = ((state.groove.transport[0] / com.thorbox.model.PPQN) % 1.0).toFloat()
@@ -418,20 +407,22 @@ private fun DrawScope.ripple(st: DrummerState, p: Piece, cx: Float, cy: Float, r
 // ----------------------------------------------------------------------------- kit
 
 /**
- * A drum, three-quarter view: shell lacquered in the voice's colour (so you can tell which sound it
- * is), chrome lugs with tension rods, top and bottom hoops, and a coated head that flexes (squash)
- * and lights on a hit.
+ * A drum, three-quarter view, in the house style: a keylined shell lacquered in the kit's finish, silver
+ * lugs, a silver top hoop, and a coated head that flexes (squash) and lights on a hit.
  */
 private fun DrawScope.drumShell(cx: Float, top: Float, w: Float, h: Float, depth: Float, squash: Float, accent: Color, flash: Float, finish: Color = KitFinish.color) {
+    // House style: the shell is one keylined, cel-shaded body (lacquer in the kit's finish), silver lugs,
+    // a silver top hoop, and a coated head that flexes (squash) and lights in the voice's colour on a hit.
     val sh = h * (1f - 0.35f * squash)
     val l = cx - w / 2
-    drawOval(lerp(finish, Color.Black, 0.35f), Offset(l, top + depth - sh / 2), Size(w, sh))   // bottom edge
-    drawRect(finish, Offset(l, top), Size(w, depth))
-    drawRect(Color.White.copy(alpha = 0.13f), Offset(cx - w * 0.30f, top), Size(w * 0.07f, depth))         // lacquer shine
-    drawRect(Color.Black.copy(alpha = 0.18f), Offset(cx + w * 0.30f, top), Size(w * 0.20f, depth))         // shade
-    if (KitFinish.sparkle) for (i in 0 until (w * depth / 60f).toInt().coerceAtMost(40)) {                  // sparkle flake
-        val fx = l + ((i * 37 + (cx * 7).toInt()) % 100) / 100f * w; val fy = top + ((i * 53) % 97) / 97f * depth
-        drawCircle(Color.White.copy(alpha = 0.35f), 0.7f, Offset(fx, fy))
+    val p = Graff.c; p.reset()
+    p.moveTo(l, top); p.lineTo(l, top + depth)
+    p.arcTo(androidx.compose.ui.geometry.Rect(l, top + depth - sh / 2, l + w, top + depth + sh / 2), 180f, -180f, false)
+    p.lineTo(l + w, top); p.close()
+    inkCel(p, finish, lerp(finish, Color.Black, 0.38f), w * 0.09f)
+    if (KitFinish.sparkle) for (i in 0 until (w * depth / 90f).toInt().coerceAtMost(24)) {                  // sparkle flake
+        val fx = l + 3f + ((i * 37 + (cx * 7).toInt()) % 100) / 100f * (w - 6f); val fy = top + 2f + ((i * 53) % 97) / 97f * (depth - 3f)
+        drawCircle(Color.White.copy(alpha = 0.4f), 0.7f, Offset(fx, fy))
     }
     // lugs: tension casings round the visible side (bigger towards the middle = they face you)
     val nl = if (w > 54f) 5 else 3
@@ -439,35 +430,32 @@ private fun DrawScope.drumShell(cx: Float, top: Float, w: Float, h: Float, depth
         val u = (i + 0.5f) / nl
         val face = sin(PI.toFloat() * u)
         val lx = l + u * w
-        drawRoundRect(CHROME, Offset(lx - 1.6f - face, top + depth * 0.22f), Size(3.2f + 2f * face, depth * 0.56f), CornerRadius(2f))
-        drawLine(CHROME_DARK, Offset(lx, top + 1f), Offset(lx, top + depth * 0.22f), 1.2f)               // tension rods
-        drawLine(CHROME_DARK, Offset(lx, top + depth * 0.78f), Offset(lx, top + depth - 1f), 1.2f)
+        drawLine(Line79.INK, Offset(lx, top + 1f), Offset(lx, top + depth - 1f), 1.2f)                   // tension rods
+        inkRRect(lx - 1.8f - face, top + depth * 0.22f, 3.6f + 2f * face, depth * 0.56f, 2f, Line79.SILVER, w = Graff.kl * 0.5f)
     }
-    drawOval(CHROME_DARK, Offset(l, top + depth - sh / 2), Size(w, sh), style = Stroke(2.2f))             // bottom hoop
+    shine(l + w * 0.16f, top + 3f, depth * 0.5f, 90f, Graff.kl * 0.9f)                                    // the lacquer catches the light
     val hy = top - sh / 2 + squash * 2f
-    drawOval(lerp(HEAD_SKIN, accent, 0.12f + 0.7f * flash), Offset(l, hy), Size(w, sh))                    // coated head
-    drawOval(Color.White.copy(alpha = 0.18f * (1f - flash)), Offset(cx - w * 0.28f, hy + sh * 0.18f), Size(w * 0.3f, sh * 0.35f))   // sheen
-    drawOval(CHROME, Offset(l - 1.5f, hy - 1f), Size(w + 3f, sh + 2f), style = Stroke(3f))                 // top hoop
+    inkOval(l, hy, w, sh, lerp(HEAD_SKIN, accent, 0.12f + 0.7f * flash), lerp(HEAD_SKIN, Color.Black, 0.14f), sh * 0.12f)   // coated head
+    drawOval(Line79.SILVER, Offset(l - 1f, hy - 1f), Size(w + 2f, sh + 2f), style = Stroke(2.4f))                         // top hoop
+    drawOval(Line79.INK, Offset(l - 2.4f, hy - 2.4f), Size(w + 4.8f, sh + 4.8f), style = Stroke(Graff.kl * 0.6f))
+    if (flash < 0.3f) shine(cx - w * 0.3f, hy + sh * 0.35f, w * 0.12f, -10f, Graff.kl * 0.8f, 0.8f)
 }
 
-/** A tripod stand: centre tube from [topY] down, three legs splayed onto the floor. */
+/** A tripod stand: centre tube from [topY] down, three legs splayed onto the floor (silver tubes, keylined). */
 private fun DrawScope.tripod(x: Float, topY: Float, spread: Float = 16f) {
     val knee = FLOOR - 22f
-    drawLine(CHROME_DARK, Offset(x, topY), Offset(x, knee), 3f)
-    drawLine(CHROME, Offset(x - 0.8f, topY), Offset(x - 0.8f, knee), 0.8f)                     // tube highlight
-    drawLine(CHROME_DARK, Offset(x, knee), Offset(x - spread, FLOOR), 2.4f, cap = StrokeCap.Round)
-    drawLine(CHROME_DARK, Offset(x, knee), Offset(x + spread, FLOOR), 2.4f, cap = StrokeCap.Round)
-    drawLine(CHROME_DARK.copy(alpha = 0.6f), Offset(x, knee), Offset(x + spread * 0.25f, FLOOR - 3f), 2f, cap = StrokeCap.Round)
-    drawCircle(CHROME, 2.4f, Offset(x, knee))
-    drawCircle(IRON, 1.8f, Offset(x - spread, FLOOR)); drawCircle(IRON, 1.8f, Offset(x + spread, FLOOR))   // rubber feet
+    limb(x + spread * 0.25f, knee, x + spread * 0.25f, FLOOR - 3f, 1.8f, Line79.SILVER_DK)                 // the back leg
+    limb(x, topY, x, knee, 2.6f, Line79.SILVER, Line79.SILVER_DK)
+    limb(x, knee, x - spread, FLOOR, 2.2f, Line79.SILVER, Line79.SILVER_DK)
+    limb(x, knee, x + spread, FLOOR, 2.2f, Line79.SILVER, Line79.SILVER_DK)
+    inkCircle(x, knee, 2.6f, Line79.SILVER, w = Graff.kl * 0.6f)
 }
 
 /** A boom cymbal stand: tripod, a height tube up to [jointY], the boom arm out to the cymbal. */
 private fun DrawScope.boomStand(x: Float, jointY: Float, cx: Float, cy: Float) {
     tripod(x, jointY, 17f)
-    drawLine(CHROME_DARK, Offset(x, jointY), Offset(cx, cy + 3f), 2.6f, cap = StrokeCap.Round)
-    drawCircle(CHROME, 3f, Offset(x, jointY))                                                  // tilter / boom clamp
-    drawCircle(CHROME_DARK, 3f, Offset(x, jointY), style = Stroke(1f))
+    limb(x, jointY, cx, cy + 3f, 2.4f, Line79.SILVER, Line79.SILVER_DK)
+    inkCircle(x, jointY, 3.2f, Line79.SILVER, w = Graff.kl * 0.7f)                                       // tilter / boom clamp
 }
 
 private fun DrawScope.snare(st: DrummerState, now: Float) {
@@ -478,16 +466,15 @@ private fun DrawScope.snare(st: DrummerState, now: Float) {
     val cx = 240f; val top = 202f; val w = 58f * s; val depth = 15f * s
     // snare stand: tripod + a basket whose three arms grip the bottom hoop
     tripod(cx, top + depth + 8f, 17f)
-    drawLine(CHROME, Offset(cx - w * 0.42f, top + depth + 1f), Offset(cx, top + depth + 8f), 2f)
-    drawLine(CHROME, Offset(cx + w * 0.42f, top + depth + 1f), Offset(cx, top + depth + 8f), 2f)
-    drawLine(CHROME_DARK, Offset(cx, top + depth + 2f), Offset(cx, top + depth + 8f), 2f)
+    limb(cx - w * 0.42f, top + depth + 1f, cx, top + depth + 8f, 1.8f, Line79.SILVER)
+    limb(cx + w * 0.42f, top + depth + 1f, cx, top + depth + 8f, 1.8f, Line79.SILVER)
     drumShell(cx, top, w, 18f * s, depth, env(dt, 30f), c, envFor(dt, ringSec(v) * 0.7f) * hitGain(st.pieceVel[Piece.SNARE.ordinal], v))
     // throw-off lever on the side, and the wires rattling under the bottom head for as long as it rings
-    drawRoundRect(CHROME, Offset(cx + w / 2f - 7f, top + depth * 0.25f), Size(4f, depth * 0.5f), CornerRadius(1.5f))
+    inkRRect(cx + w / 2f - 7f, top + depth * 0.25f, 4f, depth * 0.5f, 1.5f, Line79.SILVER, w = Graff.kl * 0.5f)
     val rattle = envFor(dt, ringSec(v))
     if (rattle > 0.05f) for (i in 0 until 3) {
         val y = top + depth + 2f + i * 1.6f + sin(now * 90f + i) * 1.2f * rattle
-        drawLine(CHROME.copy(alpha = rattle), Offset(cx - w * 0.34f, y), Offset(cx + w * 0.34f, y), 0.9f)
+        drawLine(Line79.SILVER.copy(alpha = rattle), Offset(cx - w * 0.34f, y), Offset(cx + w * 0.34f, y), 0.9f)
     }
     ripple(st, Piece.SNARE, cx, top, w / 2f, 9f * s, now)
     // RIM: a click on the hoop: the rim lights instead of the skin
@@ -502,10 +489,10 @@ private fun DrawScope.rackTom(st: DrummerState, now: Float) {
     val dt = now - st.pieceHit[Piece.RACK_TOM.ordinal]
     val c = slotColor(st, Piece.RACK_TOM)
     val cx = 212f; val w = 44f * s; val depth = 24f * s; val top = 188f - depth
-    drawLine(CHROME_DARK, Offset(204f, 206f), Offset(204f, top + depth * 0.7f), 3.4f)            // tom arm
-    drawLine(CHROME_DARK, Offset(204f, top + depth * 0.7f), Offset(cx - w * 0.2f, top + depth * 0.7f), 3f)
+    limb(204f, 206f, 204f, top + depth * 0.7f, 3f, Line79.SILVER, Line79.SILVER_DK)                      // tom arm
+    limb(204f, top + depth * 0.7f, cx - w * 0.2f, top + depth * 0.7f, 2.6f, Line79.SILVER, Line79.SILVER_DK)
     drumShell(cx, top, w, 14f * s, depth, env(dt, 26f), c, envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.RACK_TOM.ordinal], v))
-    drawRoundRect(CHROME, Offset(cx - w * 0.26f, top + depth * 0.55f), Size(7f, 6f), CornerRadius(1.5f))   // mount bracket
+    inkRRect(cx - w * 0.26f, top + depth * 0.55f, 7f, 6f, 1.5f, Line79.SILVER, w = Graff.kl * 0.6f)        // mount bracket
     ripple(st, Piece.RACK_TOM, cx, top, w / 2f, 7f * s, now)
 }
 
@@ -516,15 +503,13 @@ private fun DrawScope.floorTom(st: DrummerState, now: Float) {
     val dt = now - st.pieceHit[Piece.FLOOR_TOM.ordinal]
     val c = slotColor(st, Piece.FLOOR_TOM)
     val cx = 112f; val w = 64f * s; val depth = 34f * s; val top = 202f
-    // the back leg first (dimmer), then the two you see, each out of a bracket on the shell
-    drawLine(CHROME_DARK.copy(alpha = 0.55f), Offset(cx + 4f, top + depth * 0.4f), Offset(cx + 8f, FLOOR - 4f), 2.2f, cap = StrokeCap.Round)
+    limb(cx + 4f, top + depth * 0.4f, cx + 8f, FLOOR - 4f, 2f, Line79.SILVER_DK)                         // the back leg
     for (k in floatArrayOf(-1f, 1f)) {
         val bx = cx + k * w * 0.44f
-        drawLine(CHROME_DARK, Offset(bx, top + depth * 0.35f), Offset(bx + k * 7f, FLOOR), 2.8f, cap = StrokeCap.Round)
-        drawCircle(IRON, 2.4f, Offset(bx + k * 7f, FLOOR))
+        limb(bx, top + depth * 0.35f, bx + k * 7f, FLOOR, 2.6f, Line79.SILVER, Line79.SILVER_DK)
     }
     drumShell(cx, top, w, 20f * s, depth, env(dt, 26f), c, envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.FLOOR_TOM.ordinal], v))
-    for (k in floatArrayOf(-1f, 1f)) drawRoundRect(CHROME, Offset(cx + k * w * 0.44f - 3f, top + depth * 0.3f), Size(6f, 6f), CornerRadius(1.5f))
+    for (k in floatArrayOf(-1f, 1f)) inkRRect(cx + k * w * 0.44f - 3f, top + depth * 0.3f, 6f, 6f, 1.5f, Line79.SILVER, w = Graff.kl * 0.6f)
     ripple(st, Piece.FLOOR_TOM, cx, top, w / 2f, 10f * s, now)
 }
 
@@ -556,36 +541,30 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: TextMeasu
     val cx = 200f; val cy = FLOOR - r - 1f
     val glow = envFor(dt, ringSec(v)) * hitGain(st.pieceVel[Piece.KICK.ordinal], v)
     // spurs: legs out of the shell's sides that stop it creeping forward
-    for (sd in floatArrayOf(-1f, 1f)) {
-        drawLine(CHROME_DARK, Offset(cx + sd * r * 0.86f, cy + r * 0.32f), Offset(cx + sd * (r + 13f), FLOOR + 1f), 2.6f, cap = StrokeCap.Round)
-        drawCircle(CHROME, 2.4f, Offset(cx + sd * r * 0.86f, cy + r * 0.32f))
-    }
-    // resonant head (black, a soft thump of the voice's colour when it hits) inside a lacquered wooden hoop
-    drawCircle(lerp(Color(0xFF15131A), c, 0.10f + 0.28f * glow), r, Offset(cx, cy))
+    for (sd in floatArrayOf(-1f, 1f)) limb(cx + sd * r * 0.86f, cy + r * 0.32f, cx + sd * (r + 13f), FLOOR + 1f, 2.4f, Line79.SILVER, Line79.SILVER_DK)
+    // resonant head (black, a thump of the voice's colour when it hits) in a hoop of the kit's finish
+    inkCircle(cx, cy, r, lerp(Color(0xFF15131A), c, 0.10f + 0.28f * glow))
     val flex = 1f - 0.03f * k
     drawCircle(Color.White.copy(alpha = 0.05f + 0.05f * k), r * 0.78f * flex, Offset(cx, cy), style = Stroke(1.2f))
-    drawCircle(KitFinish.color, r - 3.5f, Offset(cx, cy), style = Stroke(7f))                                // the hoop, in the kit's finish
-    if (glow > 0.03f) drawCircle(c.copy(alpha = 0.8f * glow), r - 3.5f, Offset(cx, cy), style = Stroke(3f))  // the hit, in the pad's colour
-    drawCircle(CHROME, r, Offset(cx, cy), style = Stroke(1.6f))
-    drawCircle(CHROME_DARK, r - 7.5f, Offset(cx, cy), style = Stroke(1.2f))
-    for (i in 0 until 10) {                                    // claws + T-rods round the hoop
+    drawCircle(KitFinish.color, r - 3.5f, Offset(cx, cy), style = Stroke(7f))
+    if (glow > 0.03f) drawCircle(c.copy(alpha = 0.8f * glow), r - 3.5f, Offset(cx, cy), style = Stroke(3f))
+    drawCircle(Line79.INK, r - 7.5f, Offset(cx, cy), style = Stroke(Graff.kl * 0.6f))
+    for (i in 0 until 10) {                                    // claws round the hoop
         val a = i * (2f * PI.toFloat() / 10f) + 0.31f
-        val ca = cos(a); val sa = sin(a)
-        drawLine(CHROME_DARK, Offset(cx + ca * (r - 6f), cy + sa * (r - 6f)), Offset(cx + ca * (r + 2f), cy + sa * (r + 2f)), 1.6f)
-        drawCircle(CHROME, 2.4f, Offset(cx + ca * (r - 3.5f), cy + sa * (r - 3.5f)))
+        inkCircle(cx + cos(a) * (r - 3.5f), cy + sin(a) * (r - 3.5f), 2.6f, Line79.SILVER, w = Graff.kl * 0.4f)
     }
     // port hole, with the muffling pillow peeking out
     val px = cx + r * 0.42f; val py = cy + r * 0.40f; val pr = r * 0.17f
-    drawCircle(Color.Black.copy(alpha = 0.7f), pr, Offset(px, py))
+    inkCircle(px, py, pr, Color(0xFF0B0A0E), w = Graff.kl * 0.6f)
     drawOval(Color(0xFFDCD6E6).copy(alpha = 0.55f), Offset(px - pr * 0.8f, py + pr * 0.1f), Size(pr * 1.6f, pr * 0.8f))
-    drawCircle(CHROME_DARK, pr, Offset(px, py), style = Stroke(1.2f))
-    drawOval(Color.White.copy(alpha = 0.06f), Offset(cx - r * 0.7f, cy - r * 0.8f), Size(r * 0.9f, r * 0.6f))
-    // the band name on the front head, like every proper kick
+    shine(cx - r * 0.55f, cy - r * 0.5f, r * 0.28f, -40f, Graff.kl)
+    sparkle(cx - r * 0.62f, cy - r * 0.62f, r * 0.12f)
+    // the band name on the front head, like every proper kick: a silver blockbuster on a cascade block
     val t = tm.measure("BIG DAWG", logo)
-    val fit = min(1f, (1.25f * r) / (t.size.width + 12f))
+    val fit = min(1f, (1.3f * r) / (t.size.width + 6f))
     withTransform({ scale(fit, fit, Offset(cx, cy - r * 0.08f)) }) {
-        drawRoundRect(MASK, Offset(cx - t.size.width / 2f - 6f, cy - r * 0.08f - t.size.height / 2f - 3f), Size(t.size.width + 12f, t.size.height + 6f), CornerRadius(6f))
-        drawText(t, topLeft = Offset(cx - t.size.width / 2f, cy - r * 0.08f - t.size.height / 2f))
+        blockbuster(t, cx - t.size.width / 2f, cy - r * 0.08f - t.size.height / 2f, Line79.SILVER_LT, Line79.SILVER, null,
+            Line79.CASCADE_DK, t.size.height * 0.1f, t.size.height * 0.07f)
     }
     // the beater is behind the drum (his side): the front head bulges a touch as it's about to land
     val toGo = st.kickNext - now
@@ -593,17 +572,15 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: TextMeasu
     ripple(st, Piece.KICK, cx, cy, r, r, now)
 }
 
-/** A brass cymbal seen slightly from above: lathe rings, a raised bell, and a glow in the voice's colour when it rings. */
+/** A brass cymbal seen slightly from above: keylined, one hard shadow, a raised bell, a sparkle; glows in the voice's colour when it rings. */
 private fun DrawScope.cymbal(cx: Float, cy: Float, w: Float, tilt: Float, wobble: Float, c: Color, flash: Float) {
     rotate(tilt + wobble, Offset(cx, cy)) {
         if (flash > 0.04f) drawOval(c.copy(alpha = 0.35f * flash), Offset(cx - w / 2 - 6f, cy - 11f), Size(w + 12f, 22f))
-        drawOval(BRASS_DARK, Offset(cx - w / 2, cy - 5f), Size(w, 12f))                       // underside
-        drawOval(lerp(BRASS, c, 0.35f * flash), Offset(cx - w / 2, cy - 6f), Size(w, 11f))
-        drawOval(BRASS_LIGHT.copy(alpha = 0.55f), Offset(cx - w * 0.36f, cy - 4.2f), Size(w * 0.72f, 7.4f), style = Stroke(0.9f))
-        drawOval(BRASS_LIGHT.copy(alpha = 0.35f), Offset(cx - w * 0.22f, cy - 3f), Size(w * 0.44f, 5f), style = Stroke(0.9f))
-        drawOval(lerp(BRASS_LIGHT, c, 0.4f * flash), Offset(cx - w * 0.11f, cy - 5.5f), Size(w * 0.22f, 6f))   // bell
-        drawOval(BRASS_DARK, Offset(cx - w / 2, cy - 6f), Size(w, 11f), style = Stroke(1.2f))
-        drawCircle(CHROME, 1.8f, Offset(cx, cy - 3.5f))                                         // felt + wing nut
+        inkOval(cx - w / 2, cy - 6f, w, 11f, lerp(BRASS, c, 0.35f * flash), BRASS_DARK, 2.5f)
+        drawOval(BRASS_LIGHT.copy(alpha = 0.6f), Offset(cx - w * 0.34f, cy - 4f), Size(w * 0.68f, 7f), style = Stroke(0.9f))
+        inkOval(cx - w * 0.11f, cy - 5.5f, w * 0.22f, 6f, lerp(BRASS_LIGHT, c, 0.4f * flash), w = Graff.kl * 0.6f)   // bell
+        sparkle(cx - w * 0.26f, cy - 3.5f, 3.6f + 2f * flash)
+        inkCircle(cx, cy - 3.5f, 1.8f, Line79.SILVER, w = Graff.kl * 0.4f)                                      // felt + wing nut
     }
 }
 
@@ -645,14 +622,12 @@ private fun DrawScope.hihat(st: DrummerState, now: Float, open: Float, footLift:
     val gap = 2.5f + 10f * open + 2f * sin(dt * 40f) * open
     val wob = sin(dt * 30f) * open * 6f
     tripod(x, y + 4f, 16f)
-    // pedal: base plate at the stand, footboard running back toward him, heel plate under the heel
-    drawLine(CHROME_DARK, Offset(x, FLOOR - 22f), Offset(x, FLOOR - 2f), 2f)                     // pull chain housing
-    drawLine(IRON, Offset(x - 4f, FLOOR - 1f), Offset(x - 26f, FLOOR - 7f - footLift * 0.5f), 5f, cap = StrokeCap.Round)
-    drawLine(CHROME_DARK, Offset(x - 4f, FLOOR - 2f), Offset(x - 26f, FLOOR - 8f - footLift * 0.5f), 1.2f)
-    drawLine(CHROME, Offset(x, y - gap), Offset(x, y - gap - 8f), 1.6f)                          // pull rod over the clutch
+    // pedal: base plate at the stand, footboard running back toward him
+    limb(x - 4f, FLOOR - 1f, x - 26f, FLOOR - 7f - footLift * 0.5f, 4f, Color(0xFF2A2A31))
+    limb(x, y - gap, x, y - gap - 8f, 1.4f, Line79.SILVER)                                       // pull rod over the clutch
     cymbal(x, y, 66f, 0f, 0f, c, envFor(dt, ring))
     cymbal(x, y - gap, 66f, 0f, wob, c, envFor(dt, ring))
-    drawRoundRect(CHROME, Offset(x - 2.5f, y - gap - 6f), Size(5f, 5f), CornerRadius(1f))        // clutch
+    inkRRect(x - 2.5f, y - gap - 6f, 5f, 5f, 1f, Line79.SILVER, w = Graff.kl * 0.5f)               // clutch
 }
 
 /** Cowbell on a clamp off the kick's hoop, mouth toward him. */
@@ -662,12 +637,12 @@ private fun DrawScope.cowbell(st: DrummerState, now: Float) {
     val c = slotColor(st, Piece.COWBELL)
     val s = sizeOf(v)
     val shake = if (dt in 0f..0.4f) sin(dt * 60f) * exp(-dt * 10f) * 4f else 0f
-    drawLine(CHROME_DARK, Offset(176f, 212f), Offset(168f, 192f), 2.4f)                       // the clamp rod
+    limb(176f, 212f, 168f, 192f, 2f, Line79.SILVER, Line79.SILVER_DK)                             // the clamp rod
     rotate(shake, Offset(166f, 186f)) {
         val p = st.path.apply { reset(); moveTo(158f - 2f * s, 176f); lineTo(172f + 2f * s, 178f); lineTo(176f + 4f * s, 194f); lineTo(154f - 4f * s, 192f); close() }
-        drawPath(p, lerp(Color(0xFF3A3640), c, 0.25f + 0.7f * envFor(dt, ringSec(v))))
-        drawPath(p, CHROME_DARK, style = Stroke(1.6f))
-        drawLine(Color.White.copy(alpha = 0.25f), Offset(160f, 180f), Offset(158f, 190f), 1.5f)
+        val body = lerp(Color(0xFF3A3640), c, 0.25f + 0.7f * envFor(dt, ringSec(v)))
+        inkCel(p, body, lerp(body, Color.Black, 0.35f), 2.4f)
+        shine(160f, 181f, 7f, 100f, Graff.kl * 0.8f)
     }
 }
 
@@ -678,9 +653,9 @@ private fun DrawScope.zapPad(st: DrummerState, now: Float) {
     val c = slotColor(st, Piece.ZAP)
     val k = envFor(dt, ringSec(v))
     if (!st.present[Piece.CYMBAL.ordinal]) tripod(352f, 200f, 15f)                             // own stand if no crash
-    drawLine(CHROME_DARK, Offset(352f, 200f), Offset(340f, 196f), 2.4f)
-    drawRoundRect(Color(0xFF26232C), Offset(316f, 186f), Size(30f, 12f), CornerRadius(3f))
-    drawRoundRect(lerp(Color(0xFF3A3642), c, 0.2f + 0.8f * k), Offset(318f, 187f), Size(26f, 8f), CornerRadius(2f))
+    limb(352f, 200f, 340f, 196f, 2f, Line79.SILVER)
+    inkRRect(316f, 186f, 30f, 12f, 3f, Color(0xFF26232C))
+    inkRRect(318f, 187f, 26f, 8f, 2f, lerp(Color(0xFF3A3642), c, 0.2f + 0.8f * k), w = Graff.kl * 0.5f)
     if (k > 0.05f) for (i in 0 until 3) {
         val a = -PI.toFloat() / 2f + (i - 1) * 0.6f
         val x0 = 331f + cos(a) * 10f; val y0 = 186f + sin(a) * 5f
@@ -695,8 +670,8 @@ private fun DrawScope.shaker(st: DrummerState, now: Float, x: Float, y: Float) {
     val dt = now - st.pieceHit[Piece.SHAKER.ordinal]
     val c = slotColor(st, Piece.SHAKER)
     val j = sin(dt * 70f) * exp(-dt * 6f) * 6f
-    drawOval(c, Offset(x - 7f + j, y - 22f), Size(14f, 19f))
-    drawOval(Color.Black.copy(alpha = 0.5f), Offset(x - 7f + j, y - 22f), Size(14f, 19f), style = Stroke(1.6f))
+    inkOval(x - 7f + j, y - 22f, 14f, 19f, c, lerp(c, Color.Black, 0.35f), 2.4f)
+    shine(x - 3f + j, y - 17f, 4f, -60f, Graff.kl * 0.8f)
 }
 
 /** CLAP: paws meet in front of his chest, with a burst in the clap's colour. */
@@ -707,6 +682,7 @@ private fun DrawScope.clapBurst(st: DrummerState, now: Float) {
     for (i in 0 until 8) {
         val a = PI.toFloat() * 2f * i / 8f + 0.2f
         val r0 = 14f + 10f * (1f - k); val r1 = r0 + 9f
+        drawLine(Line79.INK.copy(alpha = k), Offset(200f + cos(a) * r0, 146f + sin(a) * r0), Offset(200f + cos(a) * r1, 146f + sin(a) * r1), 3f + Graff.kl, cap = StrokeCap.Round)
         drawLine(c, Offset(200f + cos(a) * r0, 146f + sin(a) * r0), Offset(200f + cos(a) * r1, 146f + sin(a) * r1), 3f, cap = StrokeCap.Round)
     }
 }
@@ -730,37 +706,32 @@ private fun DrawScope.legs(y: Float, footLift: Float, kickK: Float, hats: Boolea
     sneaker(ankle.x + 2f, ankle.y + 5f, if (hats) -8f - footLift * 1.2f else 0f)
 }
 
-/** One leg of baggy jeans: thigh, shin, and the stacked hem. */
+/** One leg of baggy jeans: an outlined tube (thigh, shin) with its shadow side, and the stacked hem. */
 private fun DrawScope.denimLeg(hip: Offset, knee: Offset, ankle: Offset) {
-    drawLine(DENIM_DARK, hip, knee, 25f, cap = StrokeCap.Round)
-    drawLine(DENIM_DARK, knee, ankle, 21f, cap = StrokeCap.Round)
-    drawLine(DENIM, hip, knee, 22f, cap = StrokeCap.Round)
-    drawLine(DENIM, knee, ankle, 18f, cap = StrokeCap.Round)
-    // a highlight down the front crease, and the stack at the hem
-    drawLine(Color.White.copy(alpha = 0.10f), Offset(knee.x - 2f, knee.y - 4f), Offset((knee.x + ankle.x) / 2f - 2f, (knee.y + ankle.y) / 2f), 2f, cap = StrokeCap.Round)
-    drawOval(DENIM_DARK, Offset(ankle.x - 12f, ankle.y - 7f), Size(24f, 10f))
-    drawOval(DENIM, Offset(ankle.x - 11f, ankle.y - 7f), Size(22f, 8f))
+    val p = Graff.c; p.reset(); p.moveTo(hip.x, hip.y); p.lineTo(knee.x, knee.y); p.lineTo(ankle.x, ankle.y)
+    limbPath(p, 22f, Line79.DENIM, Line79.DENIM_DK)
+    inkOval(ankle.x - 12f, ankle.y - 7f, 24f, 10f, Line79.DENIM_LT, w = Graff.kl * 0.7f)
 }
 
-/** A fresh white high-top (our own design: a mint side stripe, a gum sole), toe angled by [angle] degrees. */
+/** A fresh white high-top (our own design: a cascade side stripe, a gum sole), toe angled by [angle] degrees. */
 private fun DrawScope.sneaker(x: Float, y: Float, angle: Float) {
     rotate(angle, Offset(x - 6f, y)) {
-        drawRoundRect(GUM, Offset(x - 14f, y + 3f), Size(28f, 5f), CornerRadius(2.5f))
-        drawRoundRect(SNEAKER_SHADE, Offset(x - 13f, y - 7f), Size(26f, 12f), CornerRadius(6f))
-        drawRoundRect(SNEAKER, Offset(x - 12.5f, y - 7f), Size(24f, 10.5f), CornerRadius(5.5f))
-        drawOval(SNEAKER, Offset(x + 2f, y - 4f), Size(12f, 9f))                                     // toe box
-        drawLine(SNEAKER_STRIPE, Offset(x - 9f, y + 1f), Offset(x + 6f, y - 4f), 2.4f, cap = StrokeCap.Round)
-        for (i in 0 until 3) drawLine(SNEAKER_SHADE, Offset(x - 6f + i * 3.5f, y - 7f), Offset(x - 4f + i * 3.5f, y - 4f), 1.1f)   // laces
+        inkRRect(x - 14f, y + 3f, 28f, 5.5f, 2.5f, GUM, w = Graff.kl * 0.7f)
+        val p = rrectPath(Graff.b, x - 13f, y - 8f, 26f, 12.5f, 6f)
+        inkCel(p, Line79.WHITE, Line79.WHITE_DK, 2f)
+        limb(x - 9f, y + 1f, x + 6f, y - 4f, 2.2f, Line79.CASCADE)
+        for (i in 0 until 3) drawLine(Line79.INK, Offset(x - 6f + i * 3.5f, y - 7f), Offset(x - 4f + i * 3.5f, y - 4f), Graff.kl * 0.4f)   // laces
+        shine(x + 5f, y - 6f, 4f, -15f, Graff.kl * 0.7f)
     }
 }
 
 /**
- * Broad and stocky: a maroon hoodie with the hood bunched behind his neck, shoulders out at the
- * edges of the frame (that's where the arms come from), drawstrings, and the gold chain with a
- * bone pendant over the top.
+ * Broad and stocky: a cascade hoodie (the crew's colour) with the hood bunched behind his neck,
+ * shoulders out at the edges of the frame (that's where the arms come from), drawstrings, and the gold
+ * chain with a bone pendant over the top.
  */
 private fun DrawScope.body(st: DrummerState, y: Float, swingNow: Float) {
-    drawRoundRect(HOODIE_DARK, Offset(170f, 110f + y), Size(60f, 24f), CornerRadius(12f))          // hood, behind the neck
+    inkRRect(170f, 110f + y, 60f, 24f, 12f, Line79.CASCADE_DK, Color(0xFF0A5444), 2f)                     // hood, behind the neck
     val p = st.path; p.reset()
     p.moveTo(157f, 160f + y)
     p.quadraticTo(156f, 130f + y, 182f, 125f + y)
@@ -769,95 +740,92 @@ private fun DrawScope.body(st: DrummerState, y: Float, swingNow: Float) {
     p.lineTo(238f, 228f + y)
     p.lineTo(162f, 228f + y)
     p.close()
-    drawPath(p, HOODIE)
-    drawPath(p, HOODIE_DARK, style = Stroke(2f))
-    drawRect(Color.Black.copy(alpha = 0.14f), Offset(222f, 132f + y), Size(18f, 96f))           // shade on his left side
-    drawLine(HOODIE_LIGHT.copy(alpha = 0.6f), Offset(166f, 136f + y), Offset(164f, 180f + y), 2f, cap = StrokeCap.Round)
+    inkCel(p, Line79.CASCADE, Line79.CASCADE_DK, 7f)
+    shine(166f, 140f + y, 18f, 95f, Graff.kl)
     // neckline + drawstrings
-    drawArc(HOODIE_DARK, 0f, 180f, false, Offset(180f, 118f + y), Size(40f, 16f), style = Stroke(3f))
-    drawLine(BLAZE, Offset(192f, 132f + y), Offset(190f, 160f + y), 1.6f, cap = StrokeCap.Round)
-    drawLine(BLAZE, Offset(208f, 132f + y), Offset(210f, 162f + y), 1.6f, cap = StrokeCap.Round)
-    drawRect(CHROME, Offset(188.8f, 159f + y), Size(2.4f, 4f)); drawRect(CHROME, Offset(208.8f, 161f + y), Size(2.4f, 4f))
+    drawArc(Line79.INK, 0f, 180f, false, Offset(180f, 118f + y), Size(40f, 16f), style = Stroke(Graff.kl))
+    limb(192f, 132f + y, 190f, 160f + y, 1.4f, Line79.WHITE)
+    limb(208f, 132f + y, 210f, 162f + y, 1.4f, Line79.WHITE)
     // gold chain: a pendulum (a spring), knocked by the kick and the lean, a gold bone on the end
     val swing = swingNow
     p.reset()
     p.moveTo(181f, 128f + y); p.quadraticTo(200f + swing, 172f + y, 219f, 128f + y)
-    drawPath(p, GOLD_DARK, style = Stroke(4.2f))
-    drawPath(p, GOLD, style = Stroke(2.4f))
+    limbPath(p, 2.6f, Line79.GOLD, Line79.GOLD_DK)
     val bx = 200f + swing * 0.55f; val by = 154f + y
-    drawRoundRect(GOLD_DARK, Offset(bx - 7f, by - 2.2f), Size(14f, 5f), CornerRadius(2f))
-    for (ex in floatArrayOf(bx - 7f, bx + 7f)) for (ey in floatArrayOf(by - 2f, by + 2.5f)) drawCircle(GOLD, 2.6f, Offset(ex, ey))
-    drawRoundRect(GOLD, Offset(bx - 6f, by - 1.4f), Size(12f, 3.5f), CornerRadius(1.5f))
-    drawCircle(Color.White.copy(alpha = 0.7f), 0.9f, Offset(bx - 3f, by - 0.6f))
+    inkRRect(bx - 8f, by - 2.6f, 16f, 5.6f, 2.5f, Line79.GOLD, w = Graff.kl * 0.7f)
+    for (ex in floatArrayOf(bx - 8f, bx + 8f)) for (ey in floatArrayOf(by - 2f, by + 2.5f)) inkCircle(ex, ey, 2.8f, Line79.GOLD, w = Graff.kl * 0.5f)
+    drawRoundRect(Line79.GOLD, Offset(bx - 6f, by - 1.6f), Size(12f, 3.6f), CornerRadius(1.5f))
+    sparkle(bx - 3f, by - 3f, 4.5f)
 }
 
 private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boolean, kickK: Float,
                            jowlLag: Float = 0f, earLag: Float = 0f, capLag: Float = 0f) {
+    val kl = Graff.kl
     val cx = 200f; val cy = 90f + y
     val hop = 4f * kickK + (if (now < st.grinUntil) 2f else 0f) + capLag
     val jowl = 1.5f * kickK - jowlLag                             // jowls trail the head and wobble after it
     // rose ears: small, folded back; they flop a beat late (follow-through)
     val flap = 4f * kickK + earLag * 2.2f
     rotate(-18f - flap, Offset(cx - 38f, cy - 30f)) {
-        drawOval(COAT_DARK, Offset(cx - 52f, cy - 40f), Size(22f, 16f))
+        inkOval(cx - 52f, cy - 40f, 22f, 16f, COAT_DARK, Color(0xFF8C5E2C), 2f)
         drawOval(MASK, Offset(cx - 48f, cy - 36f), Size(12f, 8f))
     }
     rotate(18f + flap, Offset(cx + 38f, cy - 30f)) {
-        drawOval(COAT_DARK, Offset(cx + 30f, cy - 40f), Size(22f, 16f))
+        inkOval(cx + 30f, cy - 40f, 22f, 16f, COAT_DARK, Color(0xFF8C5E2C), 2f)
         drawOval(MASK, Offset(cx + 36f, cy - 36f), Size(12f, 8f))
     }
-    // big square-ish head
-    drawRoundRect(COAT, Offset(cx - 44f, cy - 40f), Size(88f, 74f), CornerRadius(30f))
+    // big square-ish head + two round jowls: one keylined silhouette (outline all three, then fill them)
+    val skull = rrectPath(Graff.b, cx - 44f, cy - 40f, 88f, 74f, 30f)
+    val jl = ovalPath(Graff.c, cx - 46f, cy + 2f + jowl, 40f, 32f)
+    keyline(skull, kl * 2f); keyline(jl, kl * 2f)
+    val jr = ovalPath(Graff.a, cx + 6f, cy + 2f + jowl, 40f, 32f); keyline(jr, kl * 2f)
+    cel(skull, COAT, COAT_DARK, 6f)
+    cel(ovalPath(Graff.c, cx - 46f, cy + 2f + jowl, 40f, 32f), COAT, COAT_DARK, 4f)
+    cel(ovalPath(Graff.a, cx + 6f, cy + 2f + jowl, 40f, 32f), COAT, COAT_DARK, 4f)
+    shine(cx - 34f, cy - 22f, 9f, -70f, kl)
     // brow wrinkles
     drawLine(COAT_DARK, Offset(cx - 14f, cy - 26f), Offset(cx + 14f, cy - 26f), 2.5f, cap = StrokeCap.Round)
     drawLine(COAT_DARK, Offset(cx - 10f, cy - 21f), Offset(cx + 10f, cy - 21f), 2f, cap = StrokeCap.Round)
-    // jowls + dark muzzle mask
-    drawOval(COAT, Offset(cx - 46f, cy + 2f + jowl), Size(40f, 32f))
-    drawOval(COAT, Offset(cx + 6f, cy + 2f + jowl), Size(40f, 32f))
-    drawRoundRect(MASK, Offset(cx - 26f, cy - 4f), Size(52f, 30f + jowl), CornerRadius(14f))
+    // dark muzzle mask
+    inkRRect(cx - 26f, cy - 4f, 52f, 30f + jowl, 14f, MASK, w = kl * 0.8f)
     // underbite: lower jaw juts out, two little fangs up, and the gold tooth on a grin
     val grin = now < st.grinUntil
     val open = env(now - st.pieceHit[Piece.KICK.ordinal], 16f) * 3f + (if (grin) 3f else 0f)
-    drawRoundRect(COAT_DARK, Offset(cx - 22f, cy + 20f + jowl), Size(44f, 12f + open), CornerRadius(6f))
+    inkRRect(cx - 22f, cy + 20f + jowl, 44f, 12f + open, 6f, COAT_DARK, w = kl * 0.8f)
     drawRoundRect(NOSE, Offset(cx - 18f, cy + 22f + jowl), Size(36f, 4f + open), CornerRadius(3f))
     val path = st.path
     for (fx in floatArrayOf(cx - 12f, cx + 12f)) {
         path.reset(); path.moveTo(fx - 3f, cy + 22f + jowl); path.lineTo(fx, cy + 15f + jowl); path.lineTo(fx + 3f, cy + 22f + jowl); path.close()
-        drawPath(path, BLAZE)
+        ink(path, Line79.WHITE, kl * 0.5f)
     }
-    if (grin) drawRect(GOLD, Offset(cx - 3f, cy + 18f + jowl), Size(6f, 5f))
-    // nose: wide and wet (a highlight)
-    drawRoundRect(NOSE, Offset(cx - 13f, cy - 6f), Size(26f, 14f), CornerRadius(7f))
-    drawOval(Color.White.copy(alpha = 0.35f), Offset(cx - 7f, cy - 4f), Size(8f, 4f))
-    // eyes: half-lidded, unbothered
+    if (grin) { inkRect(cx - 3f, cy + 18f + jowl, 6f, 5f, Line79.GOLD, kl * 0.5f); sparkle(cx, cy + 18f + jowl, 3f) }
+    // nose: wide and wet (a hard shine)
+    inkRRect(cx - 13f, cy - 6f, 26f, 14f, 7f, NOSE, w = kl * 0.8f)
+    shine(cx - 7f, cy - 3f, 6f, -10f, kl)
+    // eyes: the crew eye, half-lidded and unbothered; a happy squint on a grin, a line when asleep or blinking
     if (now > st.nextBlink + 0.12f) st.nextBlink = now + 2.8f + (now * 7.13f % 3f)
     val blinking = now in st.nextBlink..(st.nextBlink + 0.12f)
+    var look = 0f; var newest = -10f
+    for (p in Piece.entries) if (st.pieceHit[p.ordinal] > newest) { newest = st.pieceHit[p.ordinal]; look = (strikeX(p) - 200f) / 200f }
+    val glance = env(now - newest, 3f) * look * 2.2f
     for (ex in floatArrayOf(cx - 20f, cx + 20f)) {
         when {
             grin -> {   // happy squint
-                drawLine(NOSE, Offset(ex - 7f, cy - 10f), Offset(ex, cy - 15f), 3.5f, cap = StrokeCap.Round)
-                drawLine(NOSE, Offset(ex, cy - 15f), Offset(ex + 7f, cy - 10f), 3.5f, cap = StrokeCap.Round)
+                drawLine(Line79.INK, Offset(ex - 7f, cy - 10f), Offset(ex, cy - 15f), 3.5f, cap = StrokeCap.Round)
+                drawLine(Line79.INK, Offset(ex, cy - 15f), Offset(ex + 7f, cy - 10f), 3.5f, cap = StrokeCap.Round)
             }
-            sleepy || blinking -> drawLine(NOSE, Offset(ex - 7f, cy - 12f), Offset(ex + 7f, cy - 12f), 3f, cap = StrokeCap.Round)
-            else -> {
-                var look = 0f; var newest = -10f
-                for (p in Piece.entries) if (st.pieceHit[p.ordinal] > newest) { newest = st.pieceHit[p.ordinal]; look = (strikeX(p) - 200f) / 200f }
-                val glance = env(now - newest, 3f) * look * 3f
-                drawOval(BLAZE, Offset(ex - 8f, cy - 18f), Size(16f, 12f))
-                drawCircle(NOSE, 4f, Offset(ex + glance, cy - 12f))
-                // heavy lid over the top half: the chill look
-                drawArc(COAT_DARK, 180f, 180f, true, Offset(ex - 9f, cy - 20f), Size(18f, 14f))
-                drawLine(MASK, Offset(ex - 9f, cy - 13f), Offset(ex + 9f, cy - 13f), 2f)
-            }
+            sleepy || blinking -> drawLine(Line79.INK, Offset(ex - 7f, cy - 12f), Offset(ex + 7f, cy - 12f), 3f, cap = StrokeCap.Round)
+            else -> crewEye(ex, cy - 12f, 17f, 13f, COAT, 0.46f, glance.coerceIn(-1f, 1f))
         }
     }
     if (sleepy) {
         val zt = (now % 2.4f) / 2.4f
         val zx = cx + 48f + zt * 14f; val zy = cy - 40f - zt * 26f; val zs = 6f + zt * 4f
         val za = (1f - zt)
-        drawLine(Tb.Muted.copy(alpha = za), Offset(zx, zy), Offset(zx + zs, zy), 2.5f)
-        drawLine(Tb.Muted.copy(alpha = za), Offset(zx + zs, zy), Offset(zx, zy + zs), 2.5f)
-        drawLine(Tb.Muted.copy(alpha = za), Offset(zx, zy + zs), Offset(zx + zs, zy + zs), 2.5f)
+        for ((a, b) in listOf(Offset(zx, zy) to Offset(zx + zs, zy), Offset(zx + zs, zy) to Offset(zx, zy + zs), Offset(zx, zy + zs) to Offset(zx + zs, zy + zs))) {
+            drawLine(Line79.INK.copy(alpha = za), a, b, 2.5f + kl, cap = StrokeCap.Round)
+            drawLine(Line79.WHITE.copy(alpha = za), a, b, 2.5f, cap = StrokeCap.Round)
+        }
     }
     fittedCap(cx, cy - 6f, cy - 62f - hop, hop)
 }
@@ -901,8 +869,7 @@ private fun reach(sx: Float, sy: Float, tip: Offset): Offset {
 /**
  * Hoodie sleeve with a real elbow: two-bone IK (fixed upper arm + forearm), and of the two possible
  * elbows the one nearer a natural spot, out to the side and down from the shoulder (drummers keep
- * their elbows out). The old version pushed the elbow sideways by a formula that, on a reaching arm,
- * folded it up into the chest.
+ * their elbows out).
  */
 private fun DrawScope.arm(sx: Float, sy: Float, hx: Float, hy: Float, mirror: Boolean) {
     val out = if (mirror) 1f else -1f
@@ -915,15 +882,13 @@ private fun DrawScope.arm(sx: Float, sy: Float, hx: Float, hy: Float, mirror: Bo
     val hx0 = sx + out * 24f; val hy0 = sy + 30f
     val pick1 = (e1x - hx0) * (e1x - hx0) + (e1y - hy0) * (e1y - hy0) <= (e2x - hx0) * (e2x - hx0) + (e2y - hy0) * (e2y - hy0)
     val ex = if (pick1) e1x else e2x; val ey = if (pick1) e1y else e2y
-    drawLine(HOODIE_DARK, Offset(sx, sy), Offset(ex, ey), 18f, cap = StrokeCap.Round)
-    drawLine(HOODIE_DARK, Offset(ex, ey), Offset(hx, hy), 15f, cap = StrokeCap.Round)
-    drawLine(HOODIE, Offset(sx, sy), Offset(ex, ey), 15f, cap = StrokeCap.Round)
-    drawLine(HOODIE, Offset(ex, ey), Offset(hx, hy), 12f, cap = StrokeCap.Round)
-    drawLine(HOODIE_LIGHT.copy(alpha = 0.35f), Offset(sx + out * 3f, sy + 2f), Offset(ex + out * 3f, ey), 3f, cap = StrokeCap.Round)   // sleeve highlight
-    // cuff: the last few units before the paw, a darker ribbed band
+    // a cascade sleeve: one outlined tube through the elbow, its shadow side, a darker ribbed cuff
+    val p = Graff.c; p.reset(); p.moveTo(sx, sy); p.lineTo(ex, ey); p.lineTo(hx, hy)
+    limbPath(p, 14f, Line79.CASCADE, Line79.CASCADE_DK)
     val fx = hx - ex; val fy = hy - ey; val fl = max(1f, sqrt(fx * fx + fy * fy))
     val cx0 = hx - fx / fl * 9f; val cy0 = hy - fy / fl * 9f
-    drawLine(HOODIE_DARK, Offset(cx0, cy0), Offset(hx - fx / fl * 3f, hy - fy / fl * 3f), 13f, cap = StrokeCap.Butt)
+    drawLine(Line79.CASCADE_DK, Offset(cx0, cy0), Offset(hx - fx / fl * 3f, hy - fy / fl * 3f), 13f, cap = StrokeCap.Butt)
+    drawLine(Line79.INK, Offset(cx0, cy0).let { o -> Offset(o.x - fy / fl * 6.5f, o.y + fx / fl * 6.5f) }, Offset(cx0, cy0).let { o -> Offset(o.x + fy / fl * 6.5f, o.y - fx / fl * 6.5f) }, Graff.kl * 0.6f)
 }
 
 /** Paw + stick, on top of the kit. The stick points down at the strike and tips back up at rest. */
@@ -945,20 +910,18 @@ private fun DrawScope.paw(h: Hand, hx: Float, hy: Float, tip: Offset, now: Float
         // held, not balanced on the paw: the butt end pokes out behind the grip
         val sl = max(1f, sqrt((tipX - hx) * (tipX - hx) + (tipY - hy) * (tipY - hy)))
         val bx = hx - (tipX - hx) / sl * 7f; val by = hy - (tipY - hy) / sl * 7f
-        drawLine(STICK_DARK, Offset(bx, by), Offset(tipX, tipY), 5.5f, cap = StrokeCap.Round)
-        drawLine(STICK_WOOD, Offset(bx, by), Offset(tipX, tipY), 3.5f, cap = StrokeCap.Round)
-        drawCircle(STICK_WOOD, 2.6f, Offset(tipX, tipY))
+        limb(bx, by, tipX, tipY, 3.6f, STICK_WOOD, STICK_DARK)
+        inkCircle(tipX, tipY, 2.8f, STICK_WOOD, w = Graff.kl * 0.6f)
     }
-    drawCircle(COAT_DARK, 8.5f, Offset(hx, hy))
-    drawCircle(BLAZE, 7f, Offset(hx, hy))
-    for (i in -1..1) drawLine(COAT_DARK.copy(alpha = 0.7f), Offset(hx + i * 3f, hy + 2f), Offset(hx + i * 3f, hy + 5.5f), 1.3f, cap = StrokeCap.Round)
+    inkCircle(hx, hy, 8f, BLAZE, Color(0xFFD6C6B0), 1.6f)
+    for (i in -1..1) drawLine(Line79.INK, Offset(hx + i * 3f, hy + 2f), Offset(hx + i * 3f, hy + 5.5f), Graff.kl * 0.45f, cap = StrokeCap.Round)
 }
 
 
 // ----------------------------------------------------------------------------- the corner
 
-/** Scene colours sit back from the dog and kit: blended a little toward the theme's deepest tone. */
-private fun back(c: Color, k: Float = 0.38f) = lerp(c, Tb.Void, k)
+/** Scene colours sit back from the dog and kit: blended a little toward the night (the same on every theme: it's the art). */
+private fun back(c: Color, k: Float = 0.38f) = lerp(c, Line79.NIGHT_DK, k * 0.55f)
 
 /**
  * The corner BIG DAWG plays on, at night: a brick wall with wheatpasted posters and a tag on your
@@ -993,6 +956,7 @@ private fun DrawScope.street(
         }
     }
     drawPath(st.bricks, back(MORTAR, 0.2f).copy(alpha = 0.55f), style = Stroke(0.8f))
+    drawLine(Line79.INK, Offset(l, walk), Offset(shopL, walk), Graff.kl * 0.6f)
     if (snareK > 0.02f) drawRect(Color.White.copy(alpha = 0.07f * snareK), Offset(l, t), Size(shopL - l, walk - t))   // the snare cracks off the bricks
     // wheatpasted posters, layered and a bit torn; their loose corners flap on the snare
     val flap = sin(now * 38f) * 3f * snareK
@@ -1002,11 +966,14 @@ private fun DrawScope.street(
     // a tag low on the bricks: one fat stroke and a flick
     val p = st.path; p.reset()
     p.moveTo(10f, 196f); p.cubicTo(22f, 168f, 34f, 210f, 44f, 180f); p.cubicTo(52f, 160f, 60f, 206f, 72f, 178f)
-    drawPath(p, back(Color(0xFFF4F4F5), 0.35f), style = Stroke(3.2f, cap = StrokeCap.Round))
-    drawLine(back(Color(0xFFF4F4F5), 0.35f), Offset(16f, 204f), Offset(74f, 196f), 2f, cap = StrokeCap.Round)
+    drawPath(p, back(Line79.INK, 0.1f), style = Stroke(3.2f + Graff.kl, cap = StrokeCap.Round))
+    drawPath(p, back(Line79.SILVER, 0.2f), style = Stroke(3.2f, cap = StrokeCap.Round))
+    drawLine(back(Line79.SILVER, 0.2f), Offset(16f, 204f), Offset(74f, 196f), 2f, cap = StrokeCap.Round)
+    drip(44f, 182f, 9f, 1.6f, back(Line79.SILVER, 0.2f))
 
     // ---- bodega front (your right): pillar, sign band, roll-down gate ----
     drawRect(back(STONE), Offset(shopL - 4f, t), Size(8f, walk - t))
+    drawRect(Line79.INK, Offset(shopL - 4f, t), Size(8f, walk - t), style = Stroke(Graff.kl * 0.6f))
     drawRect(back(Color(0xFF1B1A22), 0.15f), Offset(shopL + 4f, t), Size(r - shopL - 4f, walk - t))
     val signT = 12f; val signB = 50f
     drawRect(back(Color(0xFF111018), 0.1f), Offset(shopL + 4f, signT), Size(r - shopL - 4f, signB - signT))
@@ -1028,24 +995,21 @@ private fun DrawScope.street(
     drawRect(back(STEEL_DARK, 0.2f), Offset(shopL + 8f, gB - 6f), Size(r - shopL - 8f, 6f))      // bottom bar
     drawRoundRect(back(BRASS, 0.3f), Offset(shopL + 40f, gB - 10f), Size(7f, 8f), CornerRadius(1.5f))   // padlock
     drawArc(back(CHROME_DARK, 0.3f), 180f, 180f, false, Offset(shopL + 40.5f, gB - 14f), Size(6f, 8f), style = Stroke(1.4f))
-    // the piece across the gate: fat italic letters, a hard shadow, a black outline, highlights + drips
+    // the piece across the gate: silver blockbusters with a cascade fill-in cut, a cascade 3D block, a black
+    // keyline, sparkles and silver drips; it glows with the bass
     val gl = tm.measure("DAWG", spray)
     val pw = 140f
     val fit = pw / max(1f, gl.size.width.toFloat())
     val gx = 254f; val gy = 152f
     withTransform({ translate(gx, gy); rotate(-5f, Offset.Zero); scale(fit, fit, Offset.Zero) }) {
         val glow = 0.35f * kickK + 0.15f * level
-        if (glow > 0.02f) drawText(gl, color = SPRAY_ORANGE.copy(alpha = glow), drawStyle = NEON_GLOW)   // the piece glows with the bass
-        drawText(gl, color = back(SPRAY_INK, 0.05f), topLeft = Offset(9f, 9f))
-        drawText(gl, color = back(SPRAY_INK, 0.05f), drawStyle = OUTLINE_THICK)
-        drawText(gl, color = back(SPRAY_ORANGE, 0.22f))
-        drawText(gl, color = back(Color(0xFFFFE08A), 0.25f).copy(alpha = 0.5f), topLeft = Offset(-2f, -3f), drawStyle = Stroke(2f))
+        if (glow > 0.02f) drawText(gl, color = Line79.CASCADE_LT.copy(alpha = glow), drawStyle = NEON_GLOW)
+        blockbuster(gl, 0f, 0f, back(Line79.SILVER_LT, 0.15f), back(Line79.SILVER, 0.2f), back(Line79.CASCADE, 0.2f),
+            back(Line79.CASCADE_DK, 0.15f), gl.size.height * 0.09f, gl.size.height * 0.05f, sparkles = true)
     }
     for (k in 0 until 5) {                                      // drips under the letters
         val dx = gx + 14f + k * 27f; val dy = gy + gl.size.height * fit * 0.78f - k * 2.4f
-        val dl = 6f + (k * 37 % 11)
-        drawLine(back(SPRAY_ORANGE, 0.25f), Offset(dx, dy), Offset(dx, dy + dl), 1.8f, cap = StrokeCap.Round)
-        drawCircle(back(SPRAY_ORANGE, 0.25f), 1.4f, Offset(dx, dy + dl + 0.6f))
+        drip(dx, dy, 6f + (k * 37 % 11), 2f, back(Line79.SILVER, 0.2f))
     }
     // neon: BODEGA in pink (brighter with the music, a punch on the kick, white-hot on a crash, the odd flicker),
     // and the little cyan OPEN sign that flickers on the hats
@@ -1077,7 +1041,7 @@ private fun DrawScope.street(
             drawRoundRect(back(GUM, 0.15f), Offset(ex - 12f, ey + 4f), Size(26f, 4f), CornerRadius(2f))
             drawRoundRect(back(SNEAKER, 0.15f), Offset(ex - 12f, ey - 6f), Size(24f, 11f), CornerRadius(5f))
             drawOval(back(SNEAKER, 0.15f), Offset(ex + 2f, ey - 3f), Size(12f, 8f))
-            drawLine(back(SNEAKER_STRIPE, 0.15f), Offset(ex - 8f, ey + 2f), Offset(ex + 5f, ey - 3f), 2.2f, cap = StrokeCap.Round)
+            drawLine(back(Line79.CASCADE, 0.15f), Offset(ex - 8f, ey + 2f), Offset(ex + 5f, ey - 3f), 2.2f, cap = StrokeCap.Round)
         }
     }
 
@@ -1126,34 +1090,35 @@ private fun DrawScope.street(
 
     // ---- boombox on a milk crate (your left); the woofers pump on the kick ----
     val cx0 = 2f; val cyT = 256f
-    drawRect(back(CRATE, 0.3f), Offset(cx0, cyT), Size(40f, FLOOR - cyT))
+    inkRect(cx0, cyT, 40f, FLOOR - cyT, back(CRATE, 0.3f), Graff.kl * 0.7f)
     for (i in 0 until 3) for (j in 0 until 2) drawRoundRect(back(CRATE_DARK, 0.3f), Offset(cx0 + 4f + i * 12f, cyT + 5f + j * 12f), Size(8f, 8f), CornerRadius(2f))
     val bbT = 234f
-    drawLine(back(CHROME, 0.3f), Offset(cx0 + 6f, bbT), Offset(cx0 + 10f, bbT - 6f), 2f)        // handle
-    drawLine(back(CHROME, 0.3f), Offset(cx0 + 10f, bbT - 6f), Offset(cx0 + 32f, bbT - 6f), 2f)
-    drawLine(back(CHROME, 0.3f), Offset(cx0 + 32f, bbT - 6f), Offset(cx0 + 36f, bbT), 2f)
-    drawLine(back(CHROME, 0.3f), Offset(cx0 + 36f, bbT), Offset(cx0 + 48f, bbT - 22f), 1f)        // antenna
-    drawRoundRect(back(Color(0xFF2A2A31), 0.2f), Offset(cx0 - 1f, bbT), Size(44f, 22f), CornerRadius(3f))
-    drawRoundRect(back(CHROME_DARK, 0.3f), Offset(cx0 + 15f, bbT + 4f), Size(12f, 8f), CornerRadius(1f))   // tape deck
+    limb(cx0 + 6f, bbT, cx0 + 10f, bbT - 6f, 2f, back(Line79.SILVER, 0.2f)); limb(cx0 + 10f, bbT - 6f, cx0 + 32f, bbT - 6f, 2f, back(Line79.SILVER, 0.2f))
+    limb(cx0 + 32f, bbT - 6f, cx0 + 36f, bbT, 2f, back(Line79.SILVER, 0.2f))
+    drawLine(back(Line79.SILVER, 0.2f), Offset(cx0 + 36f, bbT), Offset(cx0 + 48f, bbT - 22f), 1f)        // antenna
+    inkRRect(cx0 - 1f, bbT, 44f, 22f, 3f, back(Line79.SILVER, 0.2f), back(Line79.SILVER_DK, 0.2f), 2.2f, Graff.kl * 0.8f)
+    inkRRect(cx0 + 15f, bbT + 4f, 12f, 8f, 1f, back(Line79.NIGHT, 0.1f), w = Graff.kl * 0.5f)   // tape deck
     val cone = 6.2f + 1.6f * kickK
     for (sx in floatArrayOf(cx0 + 8f, cx0 + 34f)) {
-        drawCircle(back(Color(0xFF15151A), 0.1f), 7.5f, Offset(sx, bbT + 12f))
-        drawCircle(back(CHROME_DARK, 0.3f), cone, Offset(sx, bbT + 12f), style = Stroke(1.2f))
-        drawCircle(back(CHROME, 0.3f), 1.6f + 0.6f * kickK, Offset(sx, bbT + 12f))
+        inkCircle(sx, bbT + 12f, 7.5f, back(Color(0xFF15151A), 0.1f), w = Graff.kl * 0.6f)
+        drawCircle(back(Line79.SILVER_DK, 0.3f), cone, Offset(sx, bbT + 12f), style = Stroke(1.2f))
+        drawCircle(back(Line79.SILVER, 0.3f), 1.6f + 0.6f * kickK, Offset(sx, bbT + 12f))
     }
     for (i in 0 until 4) drawRect(lerp(back(Color(0xFF3B3B44), 0.2f), NEON_CYAN, if (i < 1 + (3 * maxOf(kickK, level)).toInt()) 0.7f else 0f), Offset(cx0 + 15f + i * 3.2f, bbT + 15f), Size(2.2f, 3f))
     if (kickK > 0.05f) for (sx in floatArrayOf(cx0 + 8f, cx0 + 34f)) {                      // the woofers push air on the kick
         val rr = 9f + (1f - kickK) * 16f
         drawCircle(Color.White.copy(alpha = 0.22f * kickK), rr, Offset(sx, bbT + 12f), style = Stroke(1f))
     }
+    sparkle(cx0 + 5f, bbT + 3f, 3f)
 
-    // ---- hydrant, sidewalk right ----
+    // ---- hydrant, sidewalk right (keylined, one hard shadow, a shine) ----
     val hx = 388f
-    drawRoundRect(back(HYDRANT, 0.15f), Offset(hx - 7f, 262f), Size(14f, 22f), CornerRadius(3f))
-    drawRoundRect(back(HYDRANT, 0.1f), Offset(hx - 9f, 280f), Size(18f, 5f), CornerRadius(2f))
-    drawOval(back(HYDRANT, 0.1f), Offset(hx - 8f, 256f), Size(16f, 10f))
-    drawRect(back(HYDRANT, 0.05f), Offset(hx - 12f, 268f), Size(24f, 5f))
-    drawCircle(back(CHROME_DARK, 0.2f), 1.6f, Offset(hx, 256f))
+    inkRRect(hx - 7f, 262f, 14f, 22f, 3f, back(HYDRANT, 0.15f), back(Line79.RED_DK, 0.15f), 2.4f, Graff.kl * 0.7f)
+    inkRRect(hx - 9f, 280f, 18f, 5f, 2f, back(HYDRANT, 0.1f), w = Graff.kl * 0.7f)
+    inkOval(hx - 8f, 256f, 16f, 10f, back(HYDRANT, 0.1f), back(Line79.RED_DK, 0.1f), 1.6f, Graff.kl * 0.7f)
+    inkRect(hx - 12f, 268f, 24f, 5f, back(HYDRANT, 0.05f), Graff.kl * 0.7f)
+    inkCircle(hx, 256f, 1.8f, back(Line79.SILVER, 0.2f), w = Graff.kl * 0.4f)
+    shine(hx - 4f, 266f, 8f, 90f, Graff.kl * 0.8f)
     // a crash lights the whole corner up for a moment
     if (crashK > 0.02f) drawRect(NEON_PINK.copy(alpha = 0.06f * crashK), Offset(l, t), Size(r - l, b - t))
 }
@@ -1162,6 +1127,7 @@ private fun DrawScope.street(
 private fun DrawScope.poster(x: Float, y: Float, w: Float, h: Float, tilt: Float, paper: Color, ink: Color) {
     rotate(tilt, Offset(x + w / 2f, y + h / 2f)) {
         drawRect(paper, Offset(x, y), Size(w, h))
+        drawRect(Line79.INK, Offset(x, y), Size(w, h), style = Stroke(Graff.kl * 0.6f))
         drawRect(ink, Offset(x + 4f, y + 4f), Size(w - 8f, h * 0.3f))
         for (k in 0 until 3) drawLine(ink.copy(alpha = 0.8f), Offset(x + 5f, y + h * 0.45f + k * 5f), Offset(x + w - 5f - (k % 2) * 8f, y + h * 0.45f + k * 5f), 1.3f)
         drawLine(Color.Black.copy(alpha = 0.25f), Offset(x + w - 9f, y + h), Offset(x + w, y + h - 9f), 1f)
@@ -1194,12 +1160,15 @@ private val STICKER = Color(0xFFE0B03A)
  */
 private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float) {
     val base = cy - 22f - hop * 0.5f
-    drawArc(CAP, 180f, 180f, true, Offset(cx - 44f, capTop), Size(88f, (base - capTop) * 2f))
-    drawRect(CAP, Offset(cx - 44f, base - 6f), Size(88f, 8f))
+    val p = Graff.c; p.reset()
+    p.arcTo(androidx.compose.ui.geometry.Rect(cx - 44f, capTop, cx + 44f, capTop + (base - capTop) * 2f), 180f, 180f, false)
+    p.lineTo(cx + 44f, base + 2f); p.lineTo(cx - 44f, base + 2f); p.close()
+    inkCel(p, CAP, CAP_SHADE, 6f)
     drawLine(CAP_SHADE, Offset(cx, capTop + 2f), Offset(cx, base), 1.5f)
     drawLine(CAP_SHADE, Offset(cx - 16f, capTop + 6f), Offset(cx - 25f, base), 1.5f)
     drawLine(CAP_SHADE, Offset(cx + 16f, capTop + 6f), Offset(cx + 25f, base), 1.5f)
-    drawCircle(CAP_SHADE, 3.5f, Offset(cx, capTop + 1f))
+    inkCircle(cx, capTop + 1f, 3.5f, CAP, w = Graff.kl * 0.6f)
+    shine(cx - 30f, capTop + 18f, 9f, -55f, Graff.kl)
     val mx = cx; val my = capTop + (base - capTop) * 0.55f
     // the patch: a dog's face (floppy ears, a muzzle, a little smile), embroidered in white
     val ink = Color(0xFFF4F4F5)
@@ -1207,13 +1176,13 @@ private fun DrawScope.fittedCap(cx: Float, cy: Float, capTop: Float, hop: Float)
         rotate(25f, Offset(-7.5f, -1f)) { drawOval(ink, Offset(-10.9f, -6.4f), Size(6.8f, 10.8f)) }
         rotate(-25f, Offset(7.5f, -1f)) { drawOval(ink, Offset(4.1f, -6.4f), Size(6.8f, 10.8f)) }
         drawOval(ink, Offset(-7f, -7f), Size(14f, 13f))
-        drawOval(CHROME, Offset(-4.6f, -0.6f), Size(9.2f, 6.4f))
+        drawOval(Line79.SILVER, Offset(-4.6f, -0.6f), Size(9.2f, 6.4f))
         drawOval(CAP, Offset(-2f, 0.1f), Size(4f, 2.6f))
         drawCircle(CAP, 1f, Offset(-3f, -2.6f)); drawCircle(CAP, 1f, Offset(3f, -2.6f))
         drawArc(CAP, 20f, 140f, false, Offset(-2f, 2.6f), Size(4f, 3f), style = Stroke(0.7f))
     }
-    drawOval(CAP_SHADE, Offset(cx - 50f, base - 4f), Size(100f, 14f))
-    drawOval(CAP, Offset(cx - 50f, base - 6f), Size(100f, 12f))
-    drawCircle(STICKER, 4.5f, Offset(cx + 28f, base))
+    inkOval(cx - 50f, base - 6f, 100f, 13f, CAP, CAP_SHADE, 2f)                                      // the brim
+    inkCircle(cx + 28f, base, 4.6f, STICKER, w = Graff.kl * 0.5f)                                     // the size sticker, left on
     drawCircle(Color(0xFFC0C0C8), 1.8f, Offset(cx + 28f, base))
+    sparkle(cx + 27f, base - 1f, 3f)
 }
