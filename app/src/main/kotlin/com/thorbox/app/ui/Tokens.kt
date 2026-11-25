@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -165,11 +164,19 @@ fun SectionTag(state: AppState, section: Section, modifier: Modifier = Modifier)
  */
 @Composable
 fun FitText(text: String, style: TextStyle, modifier: Modifier = Modifier, minSize: Float = 8f) {
-    var size by remember(text, style.fontSize) { mutableFloatStateOf(style.fontSize.value) }
-    var ready by remember(text, style.fontSize) { androidx.compose.runtime.mutableStateOf(false) }
-    Text(text, style = style.copy(fontSize = size.sp), maxLines = 1, softWrap = false,
-        modifier = modifier.drawWithContent { if (ready) drawContent() },
-        onTextLayout = { r ->
-            if (r.didOverflowWidth && size > minSize) size = (size - 1f).coerceAtLeast(minSize) else ready = true
-        })
+    // Measures the text against the width it's given and picks the biggest size that fits, in one pass
+    // (the old shrink-a-point-per-frame loop could leave a label hidden in the display face).
+    val tm = androidx.compose.ui.text.rememberTextMeasurer(cacheSize = 4)
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val maxW = constraints.maxWidth
+        val fs = remember(text, style, maxW) {
+            var s = style.fontSize.value
+            if (maxW in 1 until androidx.compose.ui.unit.Constraints.Infinity) {
+                while (s > minSize && tm.measure(text, style.copy(fontSize = s.sp), maxLines = 1, softWrap = false).size.width > maxW)
+                    s = (s - 0.5f).coerceAtLeast(minSize)
+            }
+            s
+        }
+        Text(text, style = style.copy(fontSize = fs.sp), maxLines = 1, softWrap = false)
+    }
 }
