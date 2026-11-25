@@ -307,6 +307,8 @@ fun DrawScope.chromeCell(c: Color, o: Offset, s: Size, r: CornerRadius, pressed:
  * paints it once into a bitmap at the on-screen resolution and reuses it until the text, colours or scale
  * change. One cache per piece.
  */
+object ArtDebug { @JvmField var flags = 0 }
+
 class PieceCache {
     var key = 0L
     var img: androidx.compose.ui.graphics.ImageBitmap? = null

@@ -244,7 +244,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
             Graff.begin(density, sc)                                      // house-style line weights for this scale
             withTransform({ translate(ox, oy); scale(sc, sc, Offset.Zero) }) {
                 // her room by the El: the wall, a window onto the elevated line (a train goes by), the floor
-                room(cs, -ox / sc, (size.width - ox) / sc, -oy / sc, (size.height - oy) / sc, now, amp, accent, tm, tagStyle, trainStyle)
+                if (ArtDebug.flags and 4 == 0) room(cs, -ox / sc, (size.width - ox) / sc, -oy / sc, (size.height - oy) / sc, now, amp, accent, tm, tagStyle, trainStyle)
                 drawOval(Line79.INK.copy(alpha = 0.35f), Offset(20f, 182f), Size(200f, 14f))
 
                 // press amount per paw: 1 = fully down, 0 = lifted; near paw on the beat, far on the off-beat.
@@ -283,7 +283,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
 
                 // DETUNE: her twin, a tinted ghost drifting in and out of step beside her
                 val det = patch.osc2.detuneCents
-                if (abs(det) > 2f) {
+                if (abs(det) > 2f && ArtDebug.flags and 1 == 0) {
                     val drift = sign(det) * (3f + abs(det) * 0.16f) * (0.55f + 0.45f * sin(now * (0.8f + abs(det) * 0.05f)))
                     if (cs.twinTint != accent.toArgb()) { cs.twinTint = accent.toArgb(); cs.twin.colorFilter = ColorFilter.tint(accent, BlendMode.Modulate) }
                     cs.twin.alpha = (0.18f + 0.35f * mix).coerceAtMost(0.5f)
@@ -298,9 +298,11 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                     drawIntoCanvas { it.restore() }
                 }
                 val squashL = (cs.land0 * 0.02f).coerceIn(-0.12f, 0.12f)
-                withTransform({ translate(0f, hop); scale(catSize * (1f + squashL * 0.6f), catSize * (1f - squashL), Offset(120f, 142f)) }) {
+                if (ArtDebug.flags and 2 != 0) Graff.lite = true
+                if (ArtDebug.flags and 16 == 0) withTransform({ translate(0f, hop); scale(catSize * (1f + squashL * 0.6f), catSize * (1f - squashL), Offset(120f, 142f)) }) {
                     cat(cs, now, beat, playing, amp, lfo, dl, dr, sink * depth, 82f, 108f)
                 }
+                Graff.lite = false
                 // POLY: kittens kneading along the front edge
                 for (k in 0 until 3) {
                     val pop = (cs.kittens - k).coerceIn(0f, 1f)
@@ -593,7 +595,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     }
     withTransform({ translate(0f, pk) }) {
     // Y2K sport shades: two oval lenses in a thick glossy white frame, chrome mirror lenses, a glint sweeping across
-    y2kShades(cs, hx, hy - 4f, now)
+    if (ArtDebug.flags and 8 == 0) y2kShades(cs, hx, hy - 4f, now)
     }   // (end of the shades peek)
 }
 

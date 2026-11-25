@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity() {
                 stems = k.contains("stems"), fxOnStems = k.contains("fx"), midi = k.contains("midi"))
             state.exporter.start(o)?.let { android.util.Log.w("Thorbox", "export: not started: $it") }
         }
+        if (i?.hasExtra("artdebug") == true) com.thorbox.app.ui.ArtDebug.flags = i.getIntExtra("artdebug", 0)
         if (i?.hasExtra("toponly") == true) topOnly.value = i.getBooleanExtra("toponly", false)
         i?.getStringExtra("theme")?.let { state.setTheme(com.thorbox.app.ui.Themes.byId(it)) }
         if (i?.getBooleanExtra("play", false) == true && !state.groove.playing.value) state.groove.togglePlay()
