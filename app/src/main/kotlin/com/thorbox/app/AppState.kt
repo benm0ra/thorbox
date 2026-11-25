@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app
 
+import com.thorbox.app.groove.toTrackEq
 import android.app.Application
 import android.net.Uri
 import android.os.SystemClock

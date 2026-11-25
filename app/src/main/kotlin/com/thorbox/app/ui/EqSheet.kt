@@ -144,25 +144,25 @@ fun EqSheet(state: AppState, track: Int, onTrack: (Int) -> Unit, onDone: () -> U
                     when (b) {
                         Band.HP -> {
                             DragValue("FREQ", if (eq.hpOn) eqHz(eq.hpHz) else "OFF", c, row, pxPerUnit = 700f, compact = true,
-                                onReset = { set { it.copy(hpHz = TrackEq.HP_OFF) } }) { d -> sel = b.ordinal; set { it.copy(hpHz = glideHz(it.hpHz, d)) } }
+                                onReset = { set { it.copy(hpHz = TrackEq.HP_OFF) } }, onDelta = { d -> sel = b.ordinal; set { it.copy(hpHz = glideHz(it.hpHz, d)) } })
                             HwButton(if (eq.hp24) "24 dB/OCT" else "12 dB/OCT", row, minHeight = 34.dp, fontSize = 10, hPad = 4.dp) { set { it.copy(hp24 = !it.hp24) } }
                         }
                         Band.LOW -> {
-                            DragValue("GAIN", eqDb(eq.lowDb), c, row, pxPerUnit = 300f, compact = true, onReset = { set { it.copy(lowDb = 0f) } }) { d -> sel = b.ordinal; set { it.copy(lowDb = it.lowDb + d * 12f) } }
-                            DragValue("FREQ", eqHz(eq.lowHz), c, row, pxPerUnit = 700f, compact = true, onReset = { set { it.copy(lowHz = 100f) } }) { d -> set { it.copy(lowHz = glideHz(it.lowHz, d)) } }
+                            DragValue("GAIN", eqDb(eq.lowDb), c, row, pxPerUnit = 300f, compact = true, onReset = { set { it.copy(lowDb = 0f) } }, onDelta = { d -> sel = b.ordinal; set { it.copy(lowDb = it.lowDb + d * 12f) } })
+                            DragValue("FREQ", eqHz(eq.lowHz), c, row, pxPerUnit = 700f, compact = true, onReset = { set { it.copy(lowHz = 100f) } }, onDelta = { d -> set { it.copy(lowHz = glideHz(it.lowHz, d)) } })
                         }
                         Band.MID -> {
-                            DragValue("GAIN", eqDb(eq.midDb), c, row, pxPerUnit = 300f, compact = true, onReset = { set { it.copy(midDb = 0f) } }) { d -> sel = b.ordinal; set { it.copy(midDb = it.midDb + d * 12f) } }
-                            DragValue("FREQ", eqHz(eq.midHz), c, row, pxPerUnit = 700f, compact = true, onReset = { set { it.copy(midHz = 1000f) } }) { d -> set { it.copy(midHz = glideHz(it.midHz, d)) } }
-                            DragValue("Q", String.format(Locale.US, "%.1f", eq.midQ), c, row, pxPerUnit = 400f, compact = true, onReset = { set { it.copy(midQ = 0.7f) } }) { d -> set { it.copy(midQ = it.midQ * exp(d * 2f)) } }
+                            DragValue("GAIN", eqDb(eq.midDb), c, row, pxPerUnit = 300f, compact = true, onReset = { set { it.copy(midDb = 0f) } }, onDelta = { d -> sel = b.ordinal; set { it.copy(midDb = it.midDb + d * 12f) } })
+                            DragValue("FREQ", eqHz(eq.midHz), c, row, pxPerUnit = 700f, compact = true, onReset = { set { it.copy(midHz = 1000f) } }, onDelta = { d -> set { it.copy(midHz = glideHz(it.midHz, d)) } })
+                            DragValue("Q", String.format(Locale.US, "%.1f", eq.midQ), c, row, pxPerUnit = 400f, compact = true, onReset = { set { it.copy(midQ = 0.7f) } }, onDelta = { d -> set { it.copy(midQ = it.midQ * exp(d * 2f)) } })
                         }
                         Band.HIGH -> {
-                            DragValue("GAIN", eqDb(eq.highDb), c, row, pxPerUnit = 300f, compact = true, onReset = { set { it.copy(highDb = 0f) } }) { d -> sel = b.ordinal; set { it.copy(highDb = it.highDb + d * 12f) } }
-                            DragValue("FREQ", eqHz(eq.highHz), c, row, pxPerUnit = 700f, compact = true, onReset = { set { it.copy(highHz = 8000f) } }) { d -> set { it.copy(highHz = glideHz(it.highHz, d)) } }
+                            DragValue("GAIN", eqDb(eq.highDb), c, row, pxPerUnit = 300f, compact = true, onReset = { set { it.copy(highDb = 0f) } }, onDelta = { d -> sel = b.ordinal; set { it.copy(highDb = it.highDb + d * 12f) } })
+                            DragValue("FREQ", eqHz(eq.highHz), c, row, pxPerUnit = 700f, compact = true, onReset = { set { it.copy(highHz = 8000f) } }, onDelta = { d -> set { it.copy(highHz = glideHz(it.highHz, d)) } })
                         }
                         Band.LP -> {
                             DragValue("FREQ", if (eq.lpOn) eqHz(eq.lpHz) else "OFF", c, row, pxPerUnit = 700f, compact = true,
-                                onReset = { set { it.copy(lpHz = TrackEq.LP_OFF) } }) { d -> sel = b.ordinal; set { it.copy(lpHz = glideHz(it.lpHz, d)) } }
+                                onReset = { set { it.copy(lpHz = TrackEq.LP_OFF) } }, onDelta = { d -> sel = b.ordinal; set { it.copy(lpHz = glideHz(it.lpHz, d)) } })
                             HwButton(if (eq.lp24) "24 dB/OCT" else "12 dB/OCT", row, minHeight = 34.dp, fontSize = 10, hPad = 4.dp) { set { it.copy(lp24 = !it.lp24) } }
                         }
                     }
