@@ -391,6 +391,11 @@ JNIEXPORT void JNICALL JNI_FN(nativeGetLoudness)(JNIEnv* env, jobject, jfloatArr
     float o[6]; gEngine->getLoudness(o);
     env->SetFloatArrayRegion(out, 0, 6, o);
 }
+JNIEXPORT void JNICALL JNI_FN(nativeGetMasterGr)(JNIEnv* env, jobject, jfloatArray out) {
+    if (!gEngine || !out || env->GetArrayLength(out) < 2) return;
+    float o[2]; gEngine->getMasterGr(o);
+    env->SetFloatArrayRegion(out, 0, 2, o);
+}
 JNIEXPORT void JNICALL JNI_FN(nativeResetLoudness)(JNIEnv*, jobject) { if (gEngine) gEngine->resetLoudness(); }
 JNIEXPORT jint JNICALL JNI_FN(nativeGetStereo)(JNIEnv* env, jobject, jfloatArray jMid, jfloatArray jSide) {
     if (!gEngine || !jMid || !jSide) return 0;

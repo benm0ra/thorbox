@@ -138,6 +138,8 @@ class MainActivity : ComponentActivity() {
             }
             state.mixEq.intValue = t
         }
+        i?.getStringExtra("masterpreset")?.let { n -> com.thorbox.app.groove.MasterBus.PRESETS.firstOrNull { it.first == n.replace('_', ' ') }?.let { state.groove.setMasterBus(it.second) } }
+        if (i?.hasExtra("master") == true) { state.showMaster.value = i.getBooleanExtra("master", false); if (state.showMaster.value) state.selectTop(TopView.MIX) }
         if (i?.hasExtra("resample") == true) state.exporter.showResample.value = i.getBooleanExtra("resample", false)
         if (i?.getBooleanExtra("resamplego", false) == true) {                                  // RESAMPLE with the sheet's choices
             state.exporter.showResample.value = false

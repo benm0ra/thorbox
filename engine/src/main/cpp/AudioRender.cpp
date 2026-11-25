@@ -10,6 +10,11 @@
 // Part 1 (AudioEngine.cpp): lifecycle, the main-thread API, sample loading, polling.
 // Part 3 (AudioExport.cpp): the offline bounce.
 
+static inline void atomicMax(std::atomic<float>& a, float v) {
+    float cur = a.load(std::memory_order_relaxed);
+    while (v > cur && !a.compare_exchange_weak(cur, v, std::memory_order_relaxed)) {}
+}
+
 // ================= Audio thread =================
 
 SamplerVoice* AudioEngine::allocVoice() {
@@ -142,8 +147,11 @@ void AudioEngine::handleCommand(const Command& c) {
             else if (mTrackType[c.pad] == TrackType::Sampler) mFocusSampler = c.pad;
             break;
         case CmdType::SetChannel: {
-            if (c.pad == kStrips) {                       // master: volume only
+            if (c.pad == kStrips) {                       // master: volume, EQ, GLUE, LIMIT
                 if (c.i0 == (int)ChannelParam::VolumeDb) mMasterGainTarget = std::pow(10.f, std::clamp(c.f0, -60.f, 6.f) / 20.f);
+                else if (c.i0 >= (int)ChannelParam::LimBase) master::set(mLimiter.s, c.i0 - (int)ChannelParam::LimBase, c.f0);
+                else if (c.i0 >= (int)ChannelParam::GlueBase) master::set(mGlue.s, c.i0 - (int)ChannelParam::GlueBase, c.f0);
+                else if (c.i0 >= (int)ChannelParam::EqBase) eq::set(mMasterEq.s, c.i0 - (int)ChannelParam::EqBase, c.f0);
                 break;
             }
             Strip& s = mStrips[c.pad];
@@ -156,7 +164,7 @@ void AudioEngine::handleCommand(const Command& c) {
                 case ChannelParam::ScSource: { const int src = (int)c.f0; s.scSrc = (src >= 0 && src < kStrips && src != c.pad) ? src : -1; break; }
                 case ChannelParam::ScAmount: s.scAmount = std::clamp(c.f0, 0.f, 1.f); break;
                 case ChannelParam::ScRelease: s.scReleaseMs = std::clamp(c.f0, 20.f, 1000.f); break;
-                case ChannelParam::EqBase: break;                                  // handled above
+                case ChannelParam::EqBase: case ChannelParam::GlueBase: case ChannelParam::LimBase: break;   // handled above
             }
             break;
         }
@@ -384,17 +392,26 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
         s.peakL = pL; s.peakR = pR;
     }
     mFx.process(out, n, sr, mSeq.bpm(), tick, tps);   // punch-in FX: post-mix, pre master fader
+    // the master bus: EQ and GLUE before the fader, LIMIT after it (so the ceiling holds whatever the fader does)
+    mMasterEq.process(out, n, sr);
+    mGlue.process(out, n, sr);
+    for (int i = 0; i < n; ++i) {
+        mMasterGain += (mMasterGainTarget - mMasterGain) * mcoeff;
+        mGainScratch[i] = mMasterGain;
+        out[2 * i] *= mMasterGain; out[2 * i + 1] *= mMasterGain;
+    }
+    mLimiter.process(out, n, sr);
+    atomicMax(mGlueGr, mGlue.grMax); mGlue.grMax = 0.f;
+    atomicMax(mLimGr, mLimiter.grMax); mLimiter.grMax = 0.f;
     float mL = mMasterPeakL, mR = mMasterPeakR;
     uint32_t tw = mMasterTapWrite.load(std::memory_order_relaxed);
     for (int i = 0; i < n; ++i) {
-        mMasterGain += (mMasterGainTarget - mMasterGain) * mcoeff;
-        const float l = std::clamp(out[2 * i] * mMasterGain, -1.f, 1.f);
-        const float r = std::clamp(out[2 * i + 1] * mMasterGain, -1.f, 1.f);
+        const float l = std::clamp(out[2 * i], -1.f, 1.f);
+        const float r = std::clamp(out[2 * i + 1], -1.f, 1.f);
         mL = std::max(mL, std::fabs(l)); mR = std::max(mR, std::fabs(r));
         mMasterSide[tw & (kScope - 1)].store(0.5f * (l - r), std::memory_order_relaxed);
         mMasterTap[(tw++) & (kScope - 1)].store(0.5f * (l + r), std::memory_order_relaxed);
         mLoud.process(l, r);
-        mGainScratch[i] = mMasterGain;
         out[2 * i] = std::clamp(l + mClickBus[2 * i], -1.f, 1.f);         // click: monitoring only, after master
         out[2 * i + 1] = std::clamp(r + mClickBus[2 * i + 1], -1.f, 1.f);
         if (mCapturing) { mCapMix[2 * (mCapOff + i)] = l; mCapMix[2 * (mCapOff + i) + 1] = r; }   // EXPORT: no click
@@ -434,11 +451,6 @@ int AudioEngine::getStereo(float* mid, float* side, int n) const {
         side[i] = mMasterSide[k].load(std::memory_order_relaxed);
     }
     return n;
-}
-
-static inline void atomicMax(std::atomic<float>& a, float v) {
-    float cur = a.load(std::memory_order_relaxed);
-    while (v > cur && !a.compare_exchange_weak(cur, v, std::memory_order_relaxed)) {}
 }
 
 oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* stream, void* audioData, int32_t numFrames) {

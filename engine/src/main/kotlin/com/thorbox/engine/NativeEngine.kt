@@ -175,8 +175,10 @@ object NativeEngine {
     // ---- Mixer: strip 0 sampler, 1 synth, 2 drums, 3 master (volume only) ----
     object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3
         const val SC_SOURCE = 4; const val SC_AMOUNT = 5; const val SC_RELEASE = 6
-        /** The strip's EQ: EQ_BASE + eq::Param id (ChannelEq.h). Track strips only. */
-        const val EQ_BASE = 16 }
+        /** The strip's EQ: EQ_BASE + eq::Param id (ChannelEq.h). Tracks and the master. */
+        const val EQ_BASE = 16
+        /** Master only (MasterChain.h): GLUE_BASE + master::GlueParam, LIM_BASE + master::LimParam. */
+        const val GLUE_BASE = 32; const val LIM_BASE = 48 }
     const val STRIP_MASTER = TRACKS
 
     // ---- Drum synth: 8 slots, each a synthesis model (ordinals match drums::Model in DrumSynth.h) ----
@@ -239,6 +241,8 @@ object NativeEngine {
     /** Master loudness (R128): [0] momentary, [1] short-term, [2] integrated LUFS, [3]/[4] peak L/R dBFS, [5] seconds. −100 = nothing yet. */
     fun loudness(out: FloatArray) = nativeGetLoudness(out)
     fun resetLoudness() = nativeResetLoudness()
+    /** Master GLUE / LIMIT gain reduction since the last call, dB (positive): out[0] glue, out[1] limit. One reader only. */
+    fun masterGr(out: FloatArray) = nativeGetMasterGr(out)
     /** The last n master samples as mid/side (n = min of the array sizes, ≤ 2048). Returns n. */
     fun stereo(mid: FloatArray, side: FloatArray): Int = nativeGetStereo(mid, side)
 
@@ -373,5 +377,6 @@ object NativeEngine {
     private external fun nativeGetVisual(bands: FloatArray, wave: FloatArray, energy: FloatArray)
     private external fun nativeGetLoudness(out: FloatArray)
     private external fun nativeResetLoudness()
+    private external fun nativeGetMasterGr(out: FloatArray)
     private external fun nativeGetStereo(mid: FloatArray, side: FloatArray): Int
 }

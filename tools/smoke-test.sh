@@ -227,6 +227,9 @@ shots() {
   adb shell am start -n $PKG/$ACT --ez nav false --ez controlmap true >/dev/null; sleep 3; adb exec-out screencap -p > "$d/controlmap.png"
   adb shell am start -n $PKG/$ACT --ez controlmap false --es view DRUM --es deck FX >/dev/null; sleep 1.5
   key DPAD_RIGHT; key DPAD_DOWN; adb exec-out screencap -p > "$d/fx-buttons.png"
+  # MASTER: the bus page with PUNCHY glue working on the playing beat (GLUE open), then LIMIT and LOUDNESS
+  adb shell am start -n $PKG/$ACT --ez play true --es masterpreset PUNCHY --ez master true >/dev/null; sleep 4; adb exec-out screencap -p > "$d/master-glue.png"
+  adb shell am start -n $PKG/$ACT --ez master false --es masterpreset CLEAN >/dev/null; sleep 1
   # RESAMPLE: the sheet, then bounce the mix onto a new sampler track and see it land (chopped, playing back, sources muted)
   adb shell am start -n $PKG/$ACT --es view MIX --ez resample true >/dev/null; sleep 2; adb exec-out screencap -p > "$d/resample-sheet.png"
   adb logcat -c

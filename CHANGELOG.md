@@ -10,6 +10,11 @@ them), not for developers.
 - The engine is split by thread (`AudioEngine.cpp` for the main thread, `AudioRender.cpp` for the audio thread, `AudioExport.cpp` for the offline bounce). There's a code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), dead code is gone, and lint has zero findings.
 
 ### Player-facing
+- **The MASTER bus.** Tap MASTER in the mixer. The signal chain runs EQ → GLUE (a bus compressor) → fader → LIMIT, then LOUDNESS, with each stage live along the top.
+  - **GLUE:** 2:1, 4:1 or 10:1, attack, AUTO release, makeup, parallel MIX and a sidechain high-pass. A curve and a gain-reduction meter show what it's doing.
+  - **LIMIT:** a look-ahead brickwall, so a hot mix no longer clips harshly. It's on by default at −0.3 dB, with INPUT to push for loudness.
+  - **LOUDNESS:** LUFS against a streaming, loud or club target.
+  - **Presets:** CLEAN, GENTLE GLUE, PUNCHY, LOUD and OFF. Undoable, saved with the project and included in exports.
 - **RESAMPLE.** Bounce the mix, or one track, onto a sampler track's 16 pads, then chop and flip it.
   - **Length:** one pass of the pattern, ×2, ×4 or the whole song.
   - **Destination:** a new track or one of your sampler tracks, including in place.

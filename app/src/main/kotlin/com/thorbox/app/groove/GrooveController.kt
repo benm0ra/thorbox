@@ -33,6 +33,8 @@ class GrooveController(private val app: AppState) {
         const val MAX_STEPS = 64 * 16
         const val PATTERNS = 16
         const val BAR = 4 * com.thorbox.model.PPQN
+        /** UndoLog track index for the master bus. */
+        const val MASTER_STRIP_INDEX = com.thorbox.model.TRACK_COUNT
     }
     /** True when [track]'s pattern has something to undo. */
     fun hasUndo(track: Int) = undo.getOrNull(track)?.isNotEmpty() == true
@@ -162,6 +164,7 @@ class GrooveController(private val app: AppState) {
         clips.value.indices.forEach(::sendClip)
         channels.value.indices.forEach(::pushChannel)
         NativeEngine.setChannel(NativeEngine.STRIP_MASTER, NativeEngine.Ch.VOLUME_DB, masterDb.floatValue)
+        pushMasterBus(null, masterBus.value)
     }
 
     private fun pushGroove() {
@@ -619,7 +622,8 @@ class GrooveController(private val app: AppState) {
     /** A track was added or removed: empty pattern, fresh strip (named after the track), any sidechain on it dropped. */
     /** Opening a project (or starting a new one): replace the whole sequencer / mixer state and resend it. */
     fun restore(g: Groove, s: ScaleSetting, clipList: List<com.thorbox.model.Clip>, channelList: List<Channel>, feelList: List<TrackFeel>,
-                master: Float, lanes: Map<String, List<Automation.Point>>, duckSaved: com.thorbox.model.DuckSettings? = null) {
+                master: Float, lanes: Map<String, List<Automation.Point>>, duckSaved: com.thorbox.model.DuckSettings? = null,
+                bus: MasterBus = MasterBus()) {
         if (playing.value) togglePlay()
         val n = com.thorbox.model.TRACK_COUNT
         groove.value = g; scale.value = s
@@ -633,6 +637,7 @@ class GrooveController(private val app: AppState) {
         pushDuck(duck.value)
         feels.value = List(n) { t -> feelList.getOrNull(t) ?: TrackFeel() }
         masterDb.floatValue = master
+        masterBus.value = bus.clamped(); masterUndo.clear()
         auto.clearAll(); auto.lanes.value = lanes
         undo.forEach { it.clear() }; canUndo.value = false
         eqUndo.forEach { it.clear() }
@@ -965,6 +970,40 @@ class GrooveController(private val app: AppState) {
             if (new.pan != old.pan) auto.touch(Automation.panKey(i), autoArmed(), loopTick, loopLen(i), new.pan)
             if (new.scAmount != old.scAmount) auto.touch(Automation.scKey(i), autoArmed(), loopTick, loopLen(i), new.scAmount)
         }
+    }
+
+    // ================= master bus =================
+    val masterBus = mutableStateOf(MasterBus())
+    private val masterUndo = ArrayDeque<MasterBus>()
+    private var masterEditAt = 0L
+    /** The MASTER page's EQ, GLUE and LIMIT. A burst of moves (one drag) is one undo step. */
+    fun setMasterBus(f: (MasterBus) -> MasterBus) {
+        val old = masterBus.value
+        val new = f(old).clamped()
+        if (new == old) return
+        val now = System.nanoTime() / 1_000_000L
+        if (now - masterEditAt > 700) {
+            masterUndo.addLast(old); while (masterUndo.size > 32) masterUndo.removeFirst()
+            app.undoLog.note(UndoLog.MASTER, MASTER_STRIP_INDEX)
+        }
+        masterEditAt = now
+        masterBus.value = new
+        pushMasterBus(old, new)
+    }
+    fun canUndoMaster() = masterUndo.isNotEmpty()
+    fun undoMaster() {
+        val prev = masterUndo.removeLastOrNull() ?: return
+        val old = masterBus.value
+        masterBus.value = prev; masterEditAt = 0L
+        pushMasterBus(old, prev)
+    }
+    /** Send what changed ([old] null: everything). */
+    private fun pushMasterBus(old: MasterBus?, new: MasterBus) {
+        val m = NativeEngine.STRIP_MASTER
+        fun send(base: Int, a: FloatArray?, b: FloatArray) { for (id in b.indices) if (a == null || a[id] != b[id]) NativeEngine.setChannel(m, base + id, b[id]) }
+        send(NativeEngine.Ch.EQ_BASE, old?.eq?.values(), new.eq.values())
+        send(NativeEngine.Ch.GLUE_BASE, old?.glue?.values(), new.glue.values())
+        send(NativeEngine.Ch.LIM_BASE, old?.limit?.values(), new.limit.values())
     }
 
     // ================= EQ =================

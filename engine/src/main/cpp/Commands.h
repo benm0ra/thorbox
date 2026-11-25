@@ -77,8 +77,10 @@ enum class TrackType : int32_t { None = 0, Sampler = 1, Synth = 2, Drums = 3 };
 // buf lifetime is guaranteed by the engine's registry refcount (see AudioEngine::assignSample).
 // Sidechain: SC_SOURCE = the strip whose signal ducks this one (-1 off), SC_AMOUNT 0..1, SC_RELEASE ms.
 enum class ChannelParam : int32_t { VolumeDb = 0, Pan = 1, Mute = 2, Solo = 3, ScSource = 4, ScAmount = 5, ScRelease = 6,
-    // the strip's EQ (ChannelEq.h): EqBase + eq::Param, value range-checked by eq::set
-    EqBase = 16 };
+    // the strip's EQ (ChannelEq.h): EqBase + eq::Param, value range-checked by eq::set (tracks and master)
+    EqBase = 16,
+    // master only (MasterChain.h): GLUE compressor and LIMIT, + master::GlueParam / LimParam
+    GlueBase = 32, LimBase = 48 };
 
 struct Command {
     CmdType type = CmdType::NoteOn;

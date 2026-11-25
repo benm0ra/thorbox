@@ -17,6 +17,7 @@
 #include "SpscQueue.h"
 #include "Ducker.h"
 #include "ChannelEq.h"
+#include "MasterChain.h"
 #include "Export.h"
 #include "Synth.h"
 #include "DrumSynth.h"
@@ -137,6 +138,8 @@ public:
     void getVisual(float* bands, int nBands, float* wave, int nWave, float* energy, int nEnergy = 3);
     // Master loudness: [0] momentary, [1] short-term, [2] integrated (LUFS), [3]/[4] peak L/R since reset (dBFS), [5] seconds measured
     void getLoudness(float* out6) const;
+    // Master GLUE / LIMIT gain reduction since the last call (dB, positive): out = {glue, limit}.
+    void getMasterGr(float* out2) { out2[0] = mGlueGr.exchange(0.f, std::memory_order_relaxed); out2[1] = mLimGr.exchange(0.f, std::memory_order_relaxed); }
     void resetLoudness() { mLoud.reset(); }
     // The last n master samples as mid (L+R)/2 and side (L−R)/2, oldest first (n ≤ kScope)
     int getStereo(float* mid, float* side, int n) const;
@@ -261,6 +264,11 @@ private:
     int mClickSound = 0; float mClickLevel = 0.5f; bool mClickAccent = true;
     float mMasterGain = 0.8f;
     float mMasterGainTarget = 0.8f;
+    // the master bus: EQ → GLUE → (fader) → LIMIT
+    eq::ChannelEq mMasterEq;
+    master::Glue mGlue;
+    master::Limiter mLimiter;
+    std::atomic<float> mGlueGr{0.f}, mLimGr{0.f};
 
     // Cross-thread
     SpscQueue<Command, 1024> mCmds;

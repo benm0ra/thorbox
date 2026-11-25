@@ -35,6 +35,7 @@ class UndoLog(private val limit: Int = 64) {
         const val PATCH = 1
         const val KIT = 2
         const val EQ = 3
-        fun label(kind: Int) = when (kind) { PATTERN -> "pattern"; PATCH -> "synth sound"; KIT -> "drum kit"; EQ -> "EQ"; else -> "" }
+        const val MASTER = 4
+        fun label(kind: Int) = when (kind) { PATTERN -> "pattern"; PATCH -> "synth sound"; KIT -> "drum kit"; EQ -> "EQ"; MASTER -> "master"; else -> "" }
     }
 }

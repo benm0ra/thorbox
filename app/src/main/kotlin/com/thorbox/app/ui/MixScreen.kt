@@ -114,6 +114,8 @@ fun MixScreen(state: AppState) {
             db = g.masterDb.floatValue, pan = null, mute = null, solo = null, meterIdx = 2 * com.thorbox.model.TRACK_COUNT,
             onDb = { d -> g.mixSelected.intValue = MASTER_STRIP; g.setMaster(d) }, onPan = {}, onMute = {}, onSolo = {},
             modifier = Modifier.weight(1f).fillMaxHeight(),
+            onName = { state.showMaster.value = true },
+            eq = g.masterBus.value.eq, onEq = { state.showMaster.value = true }, eqTag = "BUS",
         )
     }
     }
@@ -122,6 +124,7 @@ fun MixScreen(state: AppState) {
         modifier = Modifier.align(Alignment.Center).padding(16.dp))
     // a removed track can't keep its EQ page open
     val eqShown = eqFor.takeIf { it >= 0 && tracks.getOrNull(it)?.kind.let { k -> k != null && k != com.thorbox.model.TrackKind.EMPTY } } ?: -1
+    if (state.showMaster.value) MasterSheet(state, onDone = { state.showMaster.value = false }, modifier = Modifier.align(Alignment.Center).padding(8.dp))
     if (eqShown >= 0) EqSheet(state, eqShown, onTrack = { eqFor = it; g.mixSelected.intValue = it }, onDone = { eqFor = -1 },
         modifier = Modifier.align(Alignment.Center).padding(8.dp))
     }
@@ -241,7 +244,7 @@ private fun Strip(
     state: AppState, name: String, color: Color, selected: Boolean, db: Float, pan: Float?, mute: Boolean?, solo: Boolean?,
     meterIdx: Int, onDb: (Float) -> Unit, onPan: (Float) -> Unit, onMute: () -> Unit, onSolo: () -> Unit, modifier: Modifier,
     onName: (() -> Unit)? = null, onMenu: (() -> Unit)? = null, pump: Float = 0f, scIdx: Int = -1,
-    eq: com.thorbox.app.groove.TrackEq? = null, onEq: (() -> Unit)? = null,
+    eq: com.thorbox.app.groove.TrackEq? = null, onEq: (() -> Unit)? = null, eqTag: String = "EQ",
 ) {
     val g = state.groove
     val tel = state.telemetry
@@ -280,7 +283,7 @@ private fun Strip(
         }
 
         // ---- EQ: its curve in miniature; tap for the EQ page ----
-        if (eq != null && onEq != null) EqThumb(eq, color, name, Modifier.fillMaxWidth().height(30.dp), onEq)
+        if (eq != null && onEq != null) EqThumb(eq, color, name, Modifier.fillMaxWidth().height(30.dp), eqTag, onEq)
         else Box(Modifier.height(30.dp))
         // ---- PAN: above the fader, sideways drags only ----
         if (pan != null) {

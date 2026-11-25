@@ -20,6 +20,8 @@ data class ProjectFile(
     val transport: TransportDto = TransportDto(),
     val scale: ScaleDto = ScaleDto(),
     val masterDb: Float = 0f,
+    /** The master bus (EQ, GLUE, LIMIT). Added later: older projects open with just the limiter on. */
+    val masterBus: MasterBusDto = MasterBusDto(),
     val tracks: List<TrackInfo> = emptyList(),
     val clips: List<Clip> = emptyList(),
     val channels: List<ChannelDto> = emptyList(),
@@ -68,6 +70,12 @@ data class ProjectFile(
     val lowDb: Float = 0f, val lowHz: Float = 100f, val midDb: Float = 0f, val midHz: Float = 1000f, val midQ: Float = 0.7f,
     val highDb: Float = 0f, val highHz: Float = 8000f,
 )
+@Serializable data class GlueDto(
+    val on: Boolean = false, val thresholdDb: Float = -18f, val ratio: Float = 2f, val attackMs: Float = 10f,
+    val releaseMs: Float = 0f, val makeupDb: Float = 0f, val mix: Float = 1f, val scHpHz: Float = 0f,
+)
+@Serializable data class LimitDto(val on: Boolean = true, val inputDb: Float = 0f, val ceilingDb: Float = -0.3f, val releaseMs: Float = 80f)
+@Serializable data class MasterBusDto(val eq: EqDto = EqDto(), val glue: GlueDto = GlueDto(), val limit: LimitDto = LimitDto(), val targetLufs: Float = -14f)
 @Serializable data class FeelDto(val template: String = "STRAIGHT", val amount: Float = 1f)
 @Serializable data class AutoPointDto(val tick: Int, val value: Float)
 @Serializable data class PadDto(

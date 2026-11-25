@@ -99,7 +99,6 @@ fun EqSheet(state: AppState, track: Int, onTrack: (Int) -> Unit, onDone: () -> U
     val tr = tracks[track]
     val eq = g.channels.value[track].eq
     val color = kindColor(tr.kind)
-    var sel by remember { mutableIntStateOf(Band.MID.ordinal) }
     val set: ((TrackEq) -> TrackEq) -> Unit = { f -> g.setEq(track) { f(it) } }
     val order = tracks.indices.filter { tracks[it].kind != com.thorbox.model.TrackKind.EMPTY }
 
@@ -119,11 +118,23 @@ fun EqSheet(state: AppState, track: Int, onTrack: (Int) -> Unit, onDone: () -> U
             HwButton(if (eq.on) "EQ ON" else "BYPASSED", minHeight = 36.dp, fontSize = 12, active = eq.on, accent = color) { set { it.copy(on = !it.on) } }
             HwButton("✕", Modifier.width(44.dp), minHeight = 36.dp, fontSize = 14, onClick = onDone)
         }
+        EqEditor(eq, color, set, Modifier.weight(1f).fillMaxWidth())
+    }
+}
+
+/**
+ * The EQ itself (curve, START points, exact values): used by a track's EQ page and the MASTER page.
+ * [starts] false hides the START row (the master has its own presets).
+ */
+@Composable
+fun EqEditor(eq: TrackEq, color: Color, set: ((TrackEq) -> TrackEq) -> Unit, modifier: Modifier = Modifier, starts: Boolean = true) {
+    var sel by remember { mutableIntStateOf(Band.MID.ordinal) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // ---- the curve ----
         EqCurve(eq, color, Band.entries[sel], onSelect = { sel = it.ordinal }, set = set,
             modifier = Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Tb.Void))
         // ---- starting points ----
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (starts) Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("START", style = Type.label)
             STARTS.forEach { (name, preset) ->
                 HwButton(name, Modifier.weight(1f), minHeight = 32.dp, fontSize = 10, hPad = 4.dp,
@@ -310,10 +321,10 @@ private fun DrawScope.handleDot(c: Offset, col: Color, lit: Boolean, selected: B
 
 /** The strip's EQ button: a small picture of its curve (a flat line when untouched). */
 @Composable
-fun EqThumb(eq: TrackEq, color: Color, label: String, modifier: Modifier, onOpen: () -> Unit) {
+fun EqThumb(eq: TrackEq, color: Color, label: String, modifier: Modifier, tag: String = "EQ", onOpen: () -> Unit) {
     val tm = rememberTextMeasurer(cacheSize = 4)
     val style = remember(Tb.palette) { TextStyle(color = Tb.Muted, fontSize = 8.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Black) }
-    Canvas(modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Raised).navClickable(label = "$label EQ") { Info.show("TRACK EQ"); onOpen() }) {
+    Canvas(modifier.clip(RoundedCornerShape(8.dp)).background(Tb.Raised).navClickable(label = "$label $tag") { Info.show(if (tag == "EQ") "TRACK EQ" else "MASTER BUS"); onOpen() }) {
         val w = size.width; val h = size.height
         val pad = 4.dp.toPx()
         val ink = if (!eq.on) Tb.Dim else if (eq.shaped) color else Tb.Muted
@@ -326,7 +337,7 @@ fun EqThumb(eq: TrackEq, color: Color, label: String, modifier: Modifier, onOpen
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
         drawPath(path, ink, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-        val t = tm.measure(if (!eq.on) "EQ OFF" else "EQ", style)
+        val t = tm.measure(if (!eq.on) "$tag OFF" else tag, style)
         drawRoundRect(Tb.Raised.copy(alpha = 0.8f), Offset(2.dp.toPx(), 1.dp.toPx()), androidx.compose.ui.geometry.Size(t.size.width + 4.dp.toPx(), t.size.height.toFloat()), CornerRadius(3.dp.toPx()))
         drawText(t, topLeft = Offset(4.dp.toPx(), 1.dp.toPx()))
     }
