@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -169,7 +168,7 @@ private fun DrawScope.chainTile(st: Stage, m: MasterBus, mt: MasterMeters, on: B
                 TextStyle(color = Tb.Text, fontSize = 16.sp, fontFamily = Tb.Mono, fontWeight = FontWeight.Black))
             drawText(t, topLeft = Offset(p, top))
             val d = v - m.targetLufs
-            val s = tm.measure(if (v <= -70f) "target ${m.targetLufs.toInt()}" else String.format(Locale.US, "%+.1f vs %d", d, m.targetLufs.toInt()),
+            val s = tm.measure(if (v <= -70f) "→ ${m.targetLufs.toInt()}" else String.format(Locale.US, "%+.1f LU", d),
                 TextStyle(color = if (v > -70f && kotlin.math.abs(d) <= 1f) Tb.Good else Tb.Muted, fontSize = 10.sp, fontFamily = Tb.Mono))
             drawText(s, topLeft = Offset(p, top + t.size.height))
         }
@@ -182,7 +181,7 @@ private fun GluePanel(gl: MasterBus.Glue, mt: MasterMeters, tel: com.thorbox.app
     val c = stageColor(Stage.GLUE)
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         // the transfer curve (in → out), the threshold, and the gain reduction meter
-        Canvas(Modifier.fillMaxHeight().aspectRatio(1.15f).clip(RoundedCornerShape(10.dp)).background(Tb.Void)) {
+        Canvas(Modifier.weight(0.85f).fillMaxHeight().clip(RoundedCornerShape(10.dp)).background(Tb.Void)) {
             tel.frame.longValue; mt.poll(tel.frame.longValue)
             val w = size.width; val h = size.height; val p = 10.dp.toPx()
             val meterW = 14.dp.toPx(); val gw = w - meterW - 3 * p; val gh = h - 2 * p
@@ -242,7 +241,7 @@ private fun LimitPanel(li: MasterBus.Limit, mt: MasterMeters, tel: com.thorbox.a
     val c = stageColor(Stage.LIMIT)
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         // output peak against the ceiling, and the gain reduction
-        Canvas(Modifier.fillMaxHeight().aspectRatio(0.9f).clip(RoundedCornerShape(10.dp)).background(Tb.Void)) {
+        Canvas(Modifier.weight(0.5f).fillMaxHeight().clip(RoundedCornerShape(10.dp)).background(Tb.Void)) {
             tel.frame.longValue; mt.poll(tel.frame.longValue)
             val w = size.width; val h = size.height; val p = 10.dp.toPx()
             val gh = h - 2 * p - 16.dp.toPx()
