@@ -14,6 +14,16 @@ This product includes third-party software:
   AndroidX / Jetpack Compose / Kotlin / kotlinx.coroutines / kotlinx.serialization
     Licensed under the Apache License, Version 2.0 - third_party/licenses/Apache-2.0.txt
 
+  Anton (fonts: app/src/main/res/font/anton.ttf) - Copyright 2020 The Anton Project Authors
+    Licensed under the SIL Open Font License 1.1 - third_party/licenses/OFL-1.1-Anton.txt
+    https://github.com/googlefonts/AntonFont
+
+  Archivo Black (app/src/main/res/font/archivo_black.ttf) - Copyright 2017 The Archivo Black Project Authors
+    Licensed under the SIL Open Font License 1.1 - third_party/licenses/OFL-1.1-ArchivoBlack.txt
+    https://github.com/Omnibus-Type/ArchivoBlack
+
+The fonts are bundled unmodified under the OFL, which permits bundling with software under any license.
+
 Apache-2.0 is compatible with GPL-3.0; the combined work is distributed under GPL-3.0-or-later.
 
 Trademarks: "AYN" and "Thor" are trademarks of their respective owner; "MPC" is a trademark of
