@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Paint
@@ -31,6 +32,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,7 +54,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /*
- * THE CAT: a ginger tabby in shades (gold hoop in one ear), side-on and crouched, making biscuits
+ * THE CAT: a ginger tabby in Y2K shades (white oval frames, chrome lenses; a gold hoop in one ear), side-on
+ * and crouched in her room by the El (house style: GraffKit.kt, docs/ART_STYLE.md), making biscuits
  * with both front paws in turn, on whatever suits the sound family of the current patch:
  *
  *   PAD    a fat pillow          (slow, deep presses; the pillow puffs back up)
@@ -122,7 +125,7 @@ private val CREAM = Color(0xFFF6E9D8)
 private val BEAN = Color(0xFFF2A1A8)
 private val SHADES = Color(0xFF111118)
 private val HOOP = Color(0xFFE6B93C)
-private val OUT = Color(0xFF7A4018)
+private val OUT = Line79.INK
 private val FUR_SHADOW = Color(0xFF9C5A28)
 private val CREAM_SHADOW = Color(0xFFD9CBB9)
 private val KITTEN_FUR = longArrayOf(0xFFE9A15A, 0xFF9AA0AA, 0xFFF0E2CC)
@@ -174,6 +177,11 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                hint: String, hintAlpha: Float, modifier: Modifier = Modifier) {
     val cs = remember { CatState() }
     val tel = state.telemetry
+    val tm = androidx.compose.ui.text.rememberTextMeasurer(cacheSize = 8)
+    val dens = androidx.compose.ui.platform.LocalDensity.current
+    fun unitSp(u: Float) = (u / dens.density / dens.fontScale).sp
+    val tagStyle = remember(dens) { androidx.compose.ui.text.TextStyle(fontSize = unitSp(15f), fontFamily = Anton, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic) }
+    val trainStyle = remember(dens) { androidx.compose.ui.text.TextStyle(fontSize = unitSp(17f), fontFamily = ArchivoBlack) }
     // the closed-filter shade, in stage units: full in the middle, gone by the rim (alpha set per frame)
     val dimPool = remember {
         androidx.compose.ui.graphics.Brush.radialGradient(
@@ -231,11 +239,11 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
 
             val sc = min(size.width / 240f, size.height / 200f)
             val ox = (size.width - 240f * sc) / 2f; val oy = (size.height - 200f * sc) / 2f
+            Graff.begin(density, sc)                                      // house-style line weights for this scale
             withTransform({ translate(ox, oy); scale(sc, sc, Offset.Zero) }) {
-                // a soft spotlight in the family colour, and the floor she's on
-                drawCircle(accent.copy(alpha = (0.06f + 0.10f * amp) * (0.4f + 0.6f * bright)), 110f, Offset(120f, 110f))
-                drawCircle(accent.copy(alpha = 0.08f * (0.4f + 0.6f * bright)), 70f, Offset(120f, 100f))
-                drawOval(Color.Black.copy(alpha = 0.35f), Offset(20f, 182f), Size(200f, 16f))
+                // her room by the El: the wall, a window onto the elevated line (a train goes by), the floor
+                room(cs, -ox / sc, (size.width - ox) / sc, -oy / sc, (size.height - oy) / sc, now, amp, accent, tm, tagStyle, trainStyle)
+                drawOval(Line79.INK.copy(alpha = 0.35f), Offset(20f, 182f), Size(200f, 14f))
 
                 // press amount per paw: 1 = fully down, 0 = lifted; near paw on the beat, far on the off-beat.
                 // ATTACK sets how slowly she pushes down, RELEASE how slowly she lifts.
@@ -312,7 +320,7 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                     val k = (bright - 0.72f) / 0.28f
                     for (i in 0 until 5) {
                         val tw = 0.5f + 0.5f * sin(now * (2.3f + i) + i * 1.7f)
-                        sparkle(24f + i * 46f, 16f + (i * 37 % 4) * 10f, 2.5f + 2f * tw, Color.White.copy(alpha = k * tw * 0.8f))
+                        sparkle(24f + i * 46f, 16f + (i * 37 % 4) * 10f, 3f + 2.5f * tw, k * tw * 0.9f)
                     }
                 }
             }
@@ -341,10 +349,6 @@ private fun press(ph: Float, atk: Float, rel: Float): Float {
     return x * x * (3f - 2f * x)
 }
 
-private fun DrawScope.sparkle(x: Float, y: Float, r: Float, c: Color) {
-    drawLine(c, Offset(x - r, y), Offset(x + r, y), 1.2f, cap = StrokeCap.Round)
-    drawLine(c, Offset(x, y - r), Offset(x, y + r), 1.2f, cap = StrokeCap.Round)
-}
 
 /** A little ♪: head, stem, flag. */
 private fun DrawScope.musicNote(x: Float, y: Float, c: Color) {
@@ -362,10 +366,10 @@ private fun DrawScope.moth(now: Float, lfo: Float, phase: Float, rate: Float, de
     drawCircle(accent.copy(alpha = 0.10f + 0.25f * (1f - bright)), 12f, Offset(x, y))
     for (sd in floatArrayOf(-1f, 1f)) {
         val w = 3f + 6f * flap
-        drawOval(Color(0xFFEDE3C8), Offset(if (sd < 0) x - w - 1f else x + 1f, y - 6f), Size(w, 7f))
-        drawOval(Color(0xFFD9CCA8), Offset(if (sd < 0) x - w * 0.8f - 1f else x + 1f, y), Size(w * 0.8f, 5f))
+        inkOval(if (sd < 0) x - w - 1f else x + 1f, y - 6f, w, 7f, Color(0xFFEDE3C8), w = Graff.kl * 0.5f)
+        inkOval(if (sd < 0) x - w * 0.8f - 1f else x + 1f, y, w * 0.8f, 5f, Color(0xFFD9CCA8), w = Graff.kl * 0.5f)
     }
-    drawOval(Color(0xFF6B5A44), Offset(x - 1.4f, y - 5f), Size(2.8f, 10f))
+    inkOval(x - 1.4f, y - 5f, 2.8f, 10f, Color(0xFF6B5A44), w = Graff.kl * 0.4f)
     drawLine(Color(0xFF6B5A44), Offset(x, y - 5f), Offset(x - 3f, y - 9f), 0.7f)
     drawLine(Color(0xFF6B5A44), Offset(x, y - 5f), Offset(x + 3f, y - 9f), 0.7f)
 }
@@ -375,22 +379,20 @@ private fun DrawScope.kitten(cs: CatState, x: Float, y: Float, pop: Float, now: 
     val dark = lerp2(fur, Color.Black, 0.3f)
     val b = 1.5f * abs(sin(PI.toFloat() * (beat % 1f)))
     withTransform({ scale(pop, pop, Offset(x, y + 14f)) }) {
-        drawOval(dark, Offset(x - 1f, y + 2f), Size(20f, 13f))                                      // body
-        drawOval(fur, Offset(x, y + 3f), Size(18f, 11f))
-        drawLine(fur, Offset(x + 17f, y + 8f), Offset(x + 22f, y - 1f + sin(now * 3f + x) * 2f), 2.6f, cap = StrokeCap.Round)   // tail
+        limb(x + 17f, y + 8f, x + 22f, y - 1f + sin(now * 3f + x) * 2f, 2.6f, fur)                    // tail
+        inkOval(x, y + 3f, 18f, 11f, fur, dark, 2f, Graff.kl * 0.8f)                                // body
         val p = cs.path2
         for (sd in floatArrayOf(-1f, 1f)) {                                                        // ears
             p.reset(); p.moveTo(x + 4f + sd * 4f, y - 6f + b); p.lineTo(x + 4f + sd * 7f, y - 14f + b); p.lineTo(x + 4f + sd * 1f, y - 9f + b); p.close()
-            drawPath(p, fur)
+            ink(p, fur, Graff.kl * 0.7f)
         }
-        drawCircle(dark, 7.5f, Offset(x + 4f, y - 3f + b))                                          // head
-        drawCircle(fur, 6.8f, Offset(x + 4f, y - 3f + b))
+        inkCircle(x + 4f, y - 3f + b, 6.8f, fur, dark, 1.6f, Graff.kl * 0.8f)                       // head
         for (sd in floatArrayOf(-1f, 1f)) {                                                        // big eyes
             drawCircle(Color(0xFF1A1A22), 1.9f, Offset(x + 4f + sd * 2.8f, y - 4f + b))
             drawCircle(Color.White, 0.7f, Offset(x + 4.5f + sd * 2.8f, y - 4.6f + b))
         }
         drawCircle(BEAN, 0.9f, Offset(x + 4f, y - 1.4f + b))
-        drawOval(CREAM, Offset(x - 1f, y + 11f - b * 0.6f), Size(6f, 3.5f))                          // kneading paw
+        inkOval(x - 1f, y + 11f - b * 0.6f, 6f, 3.5f, CREAM, w = Graff.kl * 0.5f)                    // kneading paw
     }
 }
 
@@ -424,9 +426,8 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
         if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
         tipX = x; tipY = y
     }
-    drawPath(p, OUT, style = Stroke(11f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawPath(p, FUR, style = Stroke(8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawCircle(FUR_DARK, 4.2f, Offset(tipX, tipY))
+    limbPath(p, 8f, FUR, FUR_DARK)
+    inkCircle(tipX, tipY, 4.4f, FUR_DARK, w = Graff.kl * 0.8f)
 
     // the chest dips into each press: everything from here to the head tilts around her haunch
     val lean = cs.lean0
@@ -439,8 +440,8 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     val pfx = farX + 2f - 4f * (1f - df); val pfy = 140f + sink * df - liftF
     val fsx = tiltX(112f, 110f + rock); val fsy = tiltY(112f, 110f + rock)
     p.reset(); p.moveTo(fsx, fsy); p.quadraticTo((fsx + pfx) / 2f - 4f, (fsy + pfy) / 2f, pfx, pfy - 4f)
-    drawPath(p, FUR_SHADOW, style = Stroke(12f, cap = StrokeCap.Round))
-    drawOval(CREAM_SHADOW, Offset(pfx - 2f - 8f - 2f * df, pfy - 5f), Size(16f + 4f * df, 10f))
+    limbPath(p, 12f, FUR_SHADOW)
+    inkOval(pfx - 2f - 8f - 2f * df, pfy - 5f, 16f + 4f * df, 10f, CREAM_SHADOW, w = Graff.kl * 0.8f)
 
     // ---- body: back, haunch, belly ----
     // DRIVE: a mohawk along her back (drawn first, so the body hides the roots)
@@ -453,7 +454,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
             val by = u * u * u * 98f + 3f * u * u * t * 80f + 3f * u * t * t * 78f + t * t * t * 94f
             val hk = h * (0.7f + 0.3f * sin(k * 1.7f)) + sin(now * 9f + k) * cs.mohawk
             p.reset(); p.moveTo(bx - 5f, by + 3f); p.lineTo(bx + 3f, by - hk); p.lineTo(bx + 5f, by + 3f); p.close()
-            drawPath(p, col)
+            ink(p, col, Graff.kl * 0.8f)
         }
     }
     rotate(-lean, pivot) {
@@ -467,11 +468,11 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     body.cubicTo(102f, 119f, 90f, 114f, 87f, 106f)
     body.cubicTo(86f, 102f, 87f, 100f, 90f, 98f)
     body.close()
-    drawPath(body, FUR)
+    keyline(body, Graff.kl * 2f)                                                                // the silhouette's keyline, under the fill
+    cel(body, FUR, FUR_DARK, 6f)
     p.reset(); p.moveTo(150f, 142f); p.cubicTo(146f, 120f, 160f, 100f, 184f, 100f)            // haunch
-    drawPath(p, FUR_DARK, style = Stroke(2f, cap = StrokeCap.Round))
-    drawOval(CREAM, Offset(150f, 136.5f), Size(20f, 9f))                                        // hind paw
-    drawOval(OUT, Offset(150f, 136.5f), Size(20f, 9f), style = Stroke(1f))
+    drawPath(p, Line79.INK, style = Stroke(Graff.kl * 0.7f, cap = StrokeCap.Round))
+    inkOval(150f, 136.5f, 20f, 9f, CREAM, w = Graff.kl * 0.8f)                                // hind paw
     clipPath(body) {                                                                            // tabby stripes, inside her coat only
         for (k in 0 until 4) {
             val x = 130f + k * 14.5f; val y = 78f
@@ -479,7 +480,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
             drawPath(p, FUR_DARK, style = Stroke(3f, cap = StrokeCap.Round))
         }
     }
-    drawPath(body, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+    shine(118f, 90f, 10f, -15f, Graff.kl)
     // NOISE: static crackling off her fur
     if (cs.static > 0.03f) {
         val frame = (now * 14f).toInt()
@@ -505,13 +506,11 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     val pnx = nearX + 2f - 4f * (1f - dn); val pny = 140f + sink * dn - liftN
     val nsx = tiltX(98f, 108f); val nsy = tiltY(98f, 108f)
     p.reset(); p.moveTo(nsx, nsy); p.quadraticTo((nsx + pnx) / 2f - 5f, (nsy + pny) / 2f, pnx, pny - 4f)
-    drawPath(p, OUT, style = Stroke(15f, cap = StrokeCap.Round))
-    drawPath(p, FUR, style = Stroke(12f, cap = StrokeCap.Round))
+    limbPath(p, 12f, FUR, FUR_DARK)
     drawOval(FUR, Offset(nsx - 9f, nsy - 10f), Size(18f, 16f))                                  // shoulder, blended into the chest
     val sp = 1f + 2.5f * dn                                                                     // toes spread as it presses
-    drawOval(CREAM, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f))
-    drawOval(OUT, Offset(pnx - 2f - 9f - sp, pny - 5.5f), Size(18f + 2f * sp, 11f), style = Stroke(1f))
-    for (t in -1..1) drawLine(OUT.copy(alpha = 0.6f), Offset(pnx - 2f + t * (3f + sp * 0.5f), pny + 1f), Offset(pnx - 2f + t * (3.5f + sp * 0.7f), pny + 5f), 1f, cap = StrokeCap.Round)
+    inkOval(pnx - 2f - 9f - sp, pny - 5.5f, 18f + 2f * sp, 11f, CREAM, w = Graff.kl * 0.8f)
+    for (t in -1..1) drawLine(OUT, Offset(pnx - 2f + t * (3f + sp * 0.5f), pny + 1f), Offset(pnx - 2f + t * (3.5f + sp * 0.7f), pny + 5f), 1f, cap = StrokeCap.Round)
     if (dn < 0.3f) drawCircle(BEAN, 2.4f, Offset(pnx - 2f, pny + 1f))                         // a bean shows on the lift
     if (cs.glide > 0.02f && dn in 0.05f..0.95f) for (k in 0 until 3) {                          // GLIDE: she slides into it
         val len = 6f + 14f * cs.glide
@@ -524,14 +523,16 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     val twitch = if (tw in 0f..0.3f) sin(tw * 40f) * 9f * (1f - tw / 0.3f) else 0f
     rotate(twitch * 0.6f + cs.ear0, Offset(hx + 18f, hy - 20f)) {                              // far ear (gold hoop)
         p.reset(); p.moveTo(hx + 10f, hy - 22f); p.lineTo(hx + 26f, hy - 44f); p.lineTo(hx + 28f, hy - 14f); p.close()
-        drawPath(p, FUR); drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+        inkCel(p, FUR, FUR_DARK, 2.5f)
         p.reset(); p.moveTo(hx + 14f, hy - 22f); p.lineTo(hx + 24f, hy - 37f); p.lineTo(hx + 24f, hy - 18f); p.close()
         drawPath(p, BEAN)
-        drawCircle(HOOP, 3f, Offset(hx + 27f, hy - 16f), style = Stroke(1.4f))
+        drawCircle(Line79.INK, 3.2f, Offset(hx + 27f, hy - 16f), style = Stroke(1.6f + Graff.kl))
+        drawCircle(HOOP, 3.2f, Offset(hx + 27f, hy - 16f), style = Stroke(1.6f))
+        sparkle(hx + 25f, hy - 18f, 2.4f)
     }
     rotate(-twitch - cs.ear0, Offset(hx - 14f, hy - 18f)) {                                     // near ear
         p.reset(); p.moveTo(hx - 26f, hy - 12f); p.lineTo(hx - 24f, hy - 44f); p.lineTo(hx - 4f, hy - 24f); p.close()
-        drawPath(p, FUR); drawPath(p, OUT, style = Stroke(1.6f, join = StrokeJoin.Round))
+        inkCel(p, FUR, FUR_DARK, 2.5f)
         p.reset(); p.moveTo(hx - 22f, hy - 17f); p.lineTo(hx - 21f, hy - 37f); p.lineTo(hx - 9f, hy - 24f); p.close()
         drawPath(p, BEAN)
     }
@@ -541,8 +542,8 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     p.cubicTo(hx + 32f, hy + 16f, hx + 16f, hy + 24f, hx, hy + 24f)
     p.cubicTo(hx - 18f, hy + 24f, hx - 30f, hy + 14f, hx - 30f, hy)
     p.close()
-    drawPath(p, FUR)
-    drawPath(p, OUT, style = Stroke(1.6f))
+    inkCel(p, FUR, FUR_DARK, 5f)
+    shine(hx - 20f, hy - 18f, 7f, -30f, Graff.kl)
     for (sd in floatArrayOf(-1f, 1f)) {                                                         // cheek tufts
         p.reset(); p.moveTo(hx + sd * 29f, hy + 5f); p.lineTo(hx + sd * 35f, hy + 10f); p.lineTo(hx + sd * 28f, hy + 11f); p.close()
         drawPath(p, FUR)
@@ -551,6 +552,8 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     drawPath(p, FUR_DARK, style = Stroke(2f, cap = StrokeCap.Round, join = StrokeJoin.Round))   // the tabby M
     // muzzle, nose, a pleased little mouth
     val mx = hx - 4f
+    drawOval(Line79.INK, Offset(mx - 15f - Graff.kl * 0.8f, hy + 4f - Graff.kl * 0.8f), Size(18f + Graff.kl * 1.6f, 14f + Graff.kl * 1.6f))
+    drawOval(Line79.INK, Offset(mx - 3f - Graff.kl * 0.8f, hy + 4f - Graff.kl * 0.8f), Size(18f + Graff.kl * 1.6f, 14f + Graff.kl * 1.6f))
     drawOval(CREAM, Offset(mx - 15f, hy + 4f), Size(18f, 14f))
     drawOval(CREAM, Offset(mx - 3f, hy + 4f), Size(18f, 14f))
     p.reset(); p.moveTo(mx - 4f, hy + 4f); p.lineTo(mx + 4f, hy + 4f); p.lineTo(mx, hy + 8f); p.close()
@@ -558,7 +561,7 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
     p.reset(); p.moveTo(mx, hy + 8f); p.lineTo(mx, hy + 11f)
     p.moveTo(mx, hy + 11f); p.quadraticTo(mx - 3f, hy + 14f, mx - 6f, hy + 11f)
     p.moveTo(mx, hy + 11f); p.quadraticTo(mx + 4f, hy + 15f, mx + 8f, hy + 10f)
-    drawPath(p, OUT, style = Stroke(1.2f, cap = StrokeCap.Round))
+    drawPath(p, OUT, style = Stroke(Graff.kl * 0.55f, cap = StrokeCap.Round))
     // whiskers: short and soft; RESONANCE makes them buzz and glow
     val buzz = cs.whisker * cs.whisker * 2.2f
     val wc = lerp2(CREAM, cs.accent, cs.whisker).copy(alpha = 0.8f)
@@ -585,22 +588,105 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
         }
     }
     withTransform({ translate(0f, pk) }) {
-    // shades: the near lens bigger (three-quarter), a bridge, an arm back to the far ear, a sweeping glint
-    p.reset(); p.moveTo(hx - 26f, hy - 9f); p.lineTo(hx - 3f, hy - 9f); p.lineTo(hx - 5f, hy + 1f); p.quadraticTo(hx - 14f, hy + 5f, hx - 24f, hy + 1f); p.close()
-    drawPath(p, SHADES)
-    p.reset(); p.moveTo(hx + 3f, hy - 9f); p.lineTo(hx + 24f, hy - 9f); p.lineTo(hx + 23f, hy); p.quadraticTo(hx + 14f, hy + 4f, hx + 5f, hy + 1f); p.close()
-    drawPath(p, SHADES)
-    drawLine(SHADES, Offset(hx - 3f, hy - 8f), Offset(hx + 3f, hy - 8f), 2f)
-    drawLine(SHADES, Offset(hx + 24f, hy - 8f), Offset(hx + 30f, hy - 10f), 2f)
-    drawLine(Color.White.copy(alpha = 0.25f), Offset(hx - 21f, hy - 7f), Offset(hx - 16f, hy - 7f), 2f, cap = StrokeCap.Round)
-    drawLine(Color.White.copy(alpha = 0.25f), Offset(hx + 7f, hy - 7f), Offset(hx + 12f, hy - 7f), 2f, cap = StrokeCap.Round)
-    val g = (now * 0.35f) % 1f
-    if (g < 0.2f) {
-        val gx = hx - 24f + g / 0.2f * 46f
-        if (gx < hx - 5f || gx > hx + 5f) drawLine(Color.White.copy(alpha = 0.6f), Offset(gx, hy - 8f), Offset(gx + 4f, hy), 1.5f, cap = StrokeCap.Round)
-    }
+    // Y2K sport shades: two oval lenses in a thick glossy white frame, chrome mirror lenses, a glint sweeping across
+    y2kShades(cs, hx, hy - 4f, now)
     }   // (end of the shades peek)
 }
+
+/** Her Y2K shades: thick white oval frames (a hard shadow inside the rim), chrome lenses (sky, steel, dark), a streak + a sweeping glint. */
+private fun DrawScope.y2kShades(cs: CatState, hx: Float, ey: Float, now: Float) {
+    val kl = Graff.kl
+    // bridge + the arm back to the far ear, under the frames
+    drawLine(Line79.INK, Offset(hx - 6f, ey - 2f), Offset(hx + 6f, ey - 2f), 2.6f + kl, cap = StrokeCap.Round)
+    drawLine(FRAME, Offset(hx - 6f, ey - 2f), Offset(hx + 6f, ey - 2f), 2.6f, cap = StrokeCap.Round)
+    drawLine(Line79.INK, Offset(hx + 26f, ey - 3f), Offset(hx + 32f, ey - 7f), 2.8f + kl, cap = StrokeCap.Round)
+    drawLine(FRAME, Offset(hx + 26f, ey - 3f), Offset(hx + 32f, ey - 7f), 2.8f, cap = StrokeCap.Round)
+    val glint = (now * 0.35f) % 1f
+    for (k in 0..1) {
+        val cx = if (k == 0) hx - 15f else hx + 15f
+        val w = if (k == 0) 20f else 18f; val h = if (k == 0) 11f else 10.5f
+        rotate(if (k == 0) -6.9f else 6.9f, Offset(cx, ey)) {
+            val outer = ovalPath(cs.path2, cx - (w + 7f) / 2f, ey - (h + 6f) / 2f, w + 7f, h + 6f)
+            keyline(outer, kl * 2f)
+            cel(outer, FRAME, FRAME_DK, 2.2f)
+            val lens = ovalPath(cs.path, cx - w / 2f, ey - h / 2f, w, h)
+            drawPath(lens, Brush.verticalGradient(0f to Color(0xFFCFE8F7), 0.35f to Color(0xFFA9B3BE), 0.62f to Color(0xFF4E5560), 1f to Color(0xFF2A2E36),
+                startY = ey - h / 2f, endY = ey + h / 2f))
+            clipPath(lens) {
+                drawLine(Color.White, Offset(cx - w * 0.3f, ey + h * 0.5f), Offset(cx + w * 0.05f, ey - h * 0.6f), 2.4f)
+                drawLine(Color.White.copy(alpha = 0.6f), Offset(cx - w * 0.05f, ey + h * 0.6f), Offset(cx + w * 0.22f, ey - h * 0.5f), 1.2f)
+                if (glint < 0.2f) {
+                    val gx = hx - 26f + glint / 0.2f * 52f
+                    drawLine(Color.White.copy(alpha = 0.8f), Offset(gx, ey + h * 0.6f), Offset(gx + 5f, ey - h * 0.6f), 2f)
+                }
+            }
+            keyline(lens, kl * 0.8f)
+            shine(cx - w * 0.42f, ey - h * 0.62f, 3.5f, -15f, 1.6f)
+        }
+    }
+    sparkle(hx - 21f, ey - 6f, 3.5f)
+}
+private val FRAME = Color(0xFFF7F5F0)
+private val FRAME_DK = Color(0xFFD9D6D0)
+
+/**
+ * Her room by the elevated line, filling the panel ([l]…[r] × [t]…[b] in stage units): faded striped
+ * wallpaper with a marker tag (she lives with writers), a window onto the El where a silver train with
+ * pieces end to end rolls by now and then (faster and brighter while the synth sounds), and floorboards.
+ */
+private fun DrawScope.room(cs: CatState, l: Float, r: Float, t: Float, b: Float, now: Float, amp: Float, accent: Color,
+                           tm: androidx.compose.ui.text.TextMeasurer, tagStyle: androidx.compose.ui.text.TextStyle, trainStyle: androidx.compose.ui.text.TextStyle) {
+    val kl = Graff.kl * 0.6f
+    drawRect(WALL, Offset(l, t), Size(r - l, 150f - t))
+    var x = l - ((l % 26f) + 26f) % 26f
+    while (x < r) { drawLine(WALL_STRIPE, Offset(x, t), Offset(x, 150f), 3f); x += 26f }
+    // the window onto the El
+    val wx = 134f; val wy = 14f; val ww = 96f; val wh = 78f
+    inkRRect(wx - 6f, wy - 6f, ww + 12f, wh + 12f, 3f, SASH, w = kl)
+    val pane = rrectPath(cs.path2, wx, wy, ww, wh, 2f)
+    clipPath(pane) {
+        drawRect(Line79.NIGHT, Offset(wx, wy), Size(ww, wh))
+        for (i in 0 until 6) {                                       // the block across the street, lit windows
+            val bx = wx + i * 17f - 4f; val bh = 20f + (i * 37 % 26)
+            inkRect(bx, wy + wh - bh - 18f, 15f, bh + 20f, Line79.NIGHT_LT, kl * 0.7f)
+            for (w in 0 until 4) if ((i * 7 + w * 3) % 5 < 3)
+                drawRect(Line79.SODIUM.copy(alpha = 0.85f), Offset(bx + 3f + (w % 2) * 6f, wy + wh - bh - 13f + (w / 2) * 8f), Size(3f, 4f))
+        }
+        // the El's steel
+        inkRect(wx - 2f, wy + 46f, ww + 4f, 5f, EL_STEEL, kl)
+        var px = wx + 4f
+        while (px < wx + ww) { inkRect(px, wy + 51f, 4f, 30f, EL_STEEL, kl); px += 22f }
+        // the train: every ~12 s (sooner while she's playing), a silver car with pieces on its side
+        val ph = (now * (0.06f + 0.05f * amp) + 0.3f) % 1f
+        if (ph < 0.45f) {
+            val tx = wx + ww - ph / 0.45f * 300f
+            inkRRect(tx, wy + 16f, 190f, 30f, 4f, Line79.SILVER, w = kl)
+            for (k in 0 until 6) inkRRect(tx + 8f + k * 30f, wy + 19f, 16f, 9f, 2f, Line79.NIGHT_DK, w = kl * 0.7f)
+            val j = tm.measure("JAM", trainStyle)
+            blockbuster(j, tx + 14f, wy + 44f - j.size.height * 0.9f, Line79.CASCADE_LT, Line79.CASCADE, null, Line79.INK, 1.5f, j.size.height * 0.06f)
+            val n = tm.measure("NITE", trainStyle)
+            blockbuster(n, tx + 76f, wy + 44f - n.size.height * 0.9f, Line79.SILVER_LT, Line79.SILVER, Line79.RED, Line79.INK, 1.4f, n.size.height * 0.06f)
+        }
+    }
+    inkRect(wx + ww / 2f - 1.5f, wy, 3f, wh, SASH, kl * 0.6f)
+    inkRect(wx - 8f, wy + wh + 4f, ww + 16f, 5f, SASH, kl)
+    // the tag on the wall: her name, in marker
+    val tg = tm.measure("BISCUIT", tagStyle)
+    drawText(tg, Line79.CASCADE_LT, Offset(8f, 26f), drawStyle = Stroke(tg.size.height * 0.08f, join = StrokeJoin.Round))
+    drip(8f + tg.size.width * 0.18f, 26f + tg.size.height * 0.85f, tg.size.height * 0.45f, tg.size.height * 0.06f, Line79.CASCADE_LT)
+    drip(8f + tg.size.width * 0.7f, 26f + tg.size.height * 0.85f, tg.size.height * 0.3f, tg.size.height * 0.05f, Line79.CASCADE_LT)
+    // the floor
+    drawRect(FLOOR_WOOD, Offset(l, 150f), Size(r - l, b - 150f))
+    drawLine(Line79.INK, Offset(l, 150f), Offset(r, 150f), kl)
+    var fy = 158f
+    while (fy < b) { drawLine(FLOOR_SEAM, Offset(l, fy), Offset(r, fy), 1.4f); fy += 9f }
+}
+private val WALL = Color(0xFF3B3550)
+private val WALL_STRIPE = Color(0xFF342F48)
+private val SASH = Color(0xFFE7DECB)
+private val EL_STEEL = Color(0xFF4E5A55)
+private val FLOOR_WOOD = Color(0xFF6A4A34)
+private val FLOOR_SEAM = Color(0xFF563B29)
 
 /** Her beat bob (shared by the head and the tail's lag). */
 private fun bob(beat: Float, playing: Boolean) = if (playing) abs(sin(PI.toFloat() * beat)) else 0f
@@ -612,14 +698,14 @@ private fun DrawScope.pillow(cs: CatState, dl: Float, dr: Float, pl: Float, pr: 
     val dark = lerp2(base, Color.Black, 0.3f)
     val puff = 1.5f * sin(now * 1.2f) + 2f * amp
     // the pillow: puffy body, corner tufts, a seam
-    drawRoundRect(dark, Offset(26f, 134f - puff), Size(188f, 54f + puff), CornerRadius(26f))
-    drawRoundRect(base, Offset(28f, 134f - puff), Size(184f, 50f + puff), CornerRadius(24f))
+    inkRRect(28f, 134f - puff, 184f, 52f + puff, 24f, base, dark, 4f)
     for ((cx, cy) in CORNERS) {
         val p = cs.path2
         p.reset(); p.moveTo(cx, cy); p.lineTo(cx + (if (cx < 120f) -8f else 8f), cy + (if (cy < 160f) -6f else 6f)); p.lineTo(cx + (if (cx < 120f) 4f else -4f), cy + (if (cy < 160f) -2f else 2f)); p.close()
-        drawPath(p, base)
+        ink(p, base, Graff.kl * 0.7f)
     }
     drawLine(dark.copy(alpha = 0.5f), Offset(40f, 162f), Offset(200f, 162f), 1.4f)
+    shine(46f, 142f - puff, 16f, -8f, Graff.kl)
     drawOval(Color.White.copy(alpha = 0.18f), Offset(44f, 140f - puff), Size(70f, 12f))
     // dents where her paws press
     for (k in 0..1) {
@@ -632,7 +718,7 @@ private val CORNERS = listOf(30f to 138f, 210f to 138f, 30f to 182f, 210f to 182
 private fun DrawScope.waterbed(beat: Float, dl: Float, dr: Float, pl: Float, pr: Float, now: Float, amp: Float, accent: Color, cs: CatState) {
     val water = lerp2(Color(0xFF2E7BD6), accent, 0.2f)
     // wooden frame, then the mattress whose top edge sloshes with the sub
-    drawRoundRect(Color(0xFF6B3F22), Offset(22f, 150f), Size(196f, 40f), CornerRadius(5f))
+    inkRRect(22f, 150f, 196f, 40f, 5f, Color(0xFF6B3F22), Color(0xFF4E2D17), 3f)
     drawRoundRect(Color(0xFF8A5530), Offset(22f, 150f), Size(196f, 6f), CornerRadius(3f))
     val p = cs.path2; p.reset()
     p.moveTo(28f, 168f)
@@ -644,6 +730,7 @@ private fun DrawScope.waterbed(beat: Float, dl: Float, dr: Float, pl: Float, pr:
     p.lineTo(212f, 168f); p.close()
     drawPath(p, water)
     drawRect(lerp2(water, Color.Black, 0.25f), Offset(28f, 158f), Size(184f, 10f))
+    keyline(p, Graff.kl * 0.8f)
     drawOval(Color.White.copy(alpha = 0.25f), Offset(40f, 140f), Size(56f, 6f))
     // ripples ring out from each press
     for (k in 0..1) {
@@ -662,8 +749,7 @@ private fun DrawScope.waterbed(beat: Float, dl: Float, dr: Float, pl: Float, pr:
 private fun DrawScope.speaker(dl: Float, dr: Float, now: Float, amp: Float, accent: Color) {
     val cab = Color(0xFF1E1D24); val edge = Color(0xFF3A3944)
     // the cab (front face), on its back so the woofer faces up
-    drawRoundRect(cab, Offset(36f, 146f), Size(168f, 44f), CornerRadius(4f))
-    drawRoundRect(edge, Offset(36f, 146f), Size(168f, 44f), CornerRadius(4f), style = Stroke(2f))
+    inkRRect(36f, 146f, 168f, 44f, 4f, cab, Color(0xFF121116), 3f)
     for (cx in floatArrayOf(40f, 200f)) for (cy in floatArrayOf(150f, 186f)) drawCircle(Color(0xFF7D838E), 2.6f, Offset(cx, cy))   // corners
     drawCircle(Color.Black, 7f, Offset(70f, 168f)); drawCircle(edge, 7f, Offset(70f, 168f), style = Stroke(1.5f))                    // port
     drawRoundRect(accent.copy(alpha = 0.8f), Offset(150f, 164f), Size(28f, 8f), CornerRadius(2f))                                  // badge
@@ -679,14 +765,13 @@ private fun DrawScope.speaker(dl: Float, dr: Float, now: Float, amp: Float, acce
 
 private fun DrawScope.turntable(dl: Float, dr: Float, beat: Float, now: Float, amp: Float, accent: Color) {
     // plinth
-    drawRoundRect(Color(0xFF2B2A31), Offset(24f, 146f), Size(192f, 42f), CornerRadius(5f))
-    drawRoundRect(Color(0xFF474652), Offset(24f, 146f), Size(192f, 42f), CornerRadius(5f), style = Stroke(1.6f))
+    inkRRect(24f, 146f, 192f, 42f, 5f, Color(0xFF2B2A31), Color(0xFF1A191E), 3f)
     drawRect(Color(0xFF3A3942), Offset(24f, 126f), Size(192f, 20f))
     drawRoundRect(Color(0xFFC9CED6), Offset(196f, 156f), Size(10f, 24f), CornerRadius(2f))                   // pitch fader
     drawRect(Color(0xFF111116), Offset(198f, 165f), Size(6f, 4f))
     drawCircle(accent.copy(alpha = 0.9f), 4f, Offset(42f, 170f))                                                  // start/stop
     // platter + record; the label spins at 33 and scratches back on each press
-    drawOval(Color(0xFF8E939C), Offset(38f, 122f), Size(140f, 28f))
+    inkOval(38f, 122f, 140f, 28f, Line79.SILVER, Line79.SILVER_DK, 3f)
     drawOval(Color(0xFF0D0D10), Offset(42f, 123f), Size(132f, 25f))
     for (k in 1..3) drawOval(Color.White.copy(alpha = 0.06f), Offset(42f + k * 9f, 123f + k * 1.7f), Size(132f - k * 18f, 25f - k * 3.4f), style = Stroke(0.8f))
     val scratch = 0.9f * sin(2f * PI.toFloat() * beat) * (0.5f + 0.5f * amp)
@@ -695,17 +780,16 @@ private fun DrawScope.turntable(dl: Float, dr: Float, beat: Float, now: Float, a
     drawLine(Color.Black.copy(alpha = 0.6f), Offset(108f, 135.5f), Offset(108f + cos(ang) * 11f, 135.5f + sin(ang) * 4f), 1.6f)
     drawCircle(Color(0xFFC9CED6), 1.4f, Offset(108f, 135.5f))
     // tonearm from its pivot to the record
-    drawCircle(Color(0xFFC9CED6), 6f, Offset(196f, 132f))
+    inkCircle(196f, 132f, 6f, Line79.SILVER, Line79.SILVER_DK, 1.6f, Graff.kl * 0.7f); sparkle(194f, 130f, 3f)
     drawLine(Color(0xFFC9CED6), Offset(196f, 132f), Offset(170f, 138f), 2.4f, cap = StrokeCap.Round)
     drawLine(Color(0xFFC9CED6), Offset(170f, 138f), Offset(158f, 136f), 2.4f, cap = StrokeCap.Round)
     drawRoundRect(Color(0xFF1A1A20), Offset(152f, 133f), Size(8f, 5f), CornerRadius(1f))
 }
 
 private fun DrawScope.keyboard(tel: SynthTelemetry, dl: Float, dr: Float, pl: Float, pr: Float, accent: Color) {
-    drawRoundRect(Color(0xFF26252C), Offset(22f, 146f), Size(196f, 40f), CornerRadius(5f))
-    drawRoundRect(Color(0xFF26252C), Offset(22f, 124f), Size(196f, 24f), CornerRadius(3f))
+    inkRRect(22f, 124f, 196f, 62f, 5f, Color(0xFF26252C), Color(0xFF17161B), 3f)
     drawRect(Color(0xFF111116), Offset(28f, 150f), Size(184f, 5f))
-    for (k in 0 until 4) drawCircle(Color(0xFF7D838E), 3.4f, Offset(40f + k * 12f, 168f))       // knobs
+    for (k in 0 until 4) inkCircle(40f + k * 12f, 168f, 3.4f, Line79.SILVER, w = Graff.kl * 0.5f)   // knobs
     drawRoundRect(accent.copy(alpha = 0.7f), Offset(160f, 164f), Size(40f, 8f), CornerRadius(2f))   // screen
     // two octaves of keys, top face in perspective: lit when that note is held (any octave)
     val n = 14; val l = 28f; val w = 184f / n
@@ -737,10 +821,13 @@ private fun DrawScope.guitar(cs: CatState, now: Float, amp: Float, accent: Color
     drawRoundRect(neck, Offset(150f, 154f), Size(70f, 14f), CornerRadius(2f))
     for (k in 1..6) drawLine(Color(0xFFC9CED6).copy(alpha = 0.6f), Offset(150f + k * 11f, 154f), Offset(150f + k * 11f, 168f), 1f)   // frets
     drawRoundRect(woodDark, Offset(214f, 150f), Size(16f, 22f), CornerRadius(4f))                                                 // headstock
+    drawOval(Line79.INK, Offset(26f - Graff.kl, 130f - Graff.kl), Size(84f + Graff.kl * 2f, 60f + Graff.kl * 2f))
+    drawOval(Line79.INK, Offset(88f - Graff.kl, 136f - Graff.kl), Size(70f + Graff.kl * 2f, 48f + Graff.kl * 2f))
     drawOval(woodDark, Offset(26f, 130f), Size(84f, 60f))
     drawOval(woodDark, Offset(88f, 136f), Size(70f, 48f))
     drawOval(wood, Offset(28f, 132f), Size(80f, 56f))
     drawOval(wood, Offset(90f, 138f), Size(66f, 44f))
+    shine(40f, 142f, 12f, -20f, Graff.kl)
     drawCircle(Color(0xFF2A1A10), 13f, Offset(106f, 160f))                                                          // sound hole
     drawCircle(accent.copy(alpha = 0.7f), 15.5f, Offset(106f, 160f), style = Stroke(1.6f))                         // rosette
     drawRoundRect(neck, Offset(52f, 152f), Size(8f, 16f), CornerRadius(1.5f))                                    // bridge
@@ -775,7 +862,7 @@ private fun DrawScope.slime(cs: CatState, dl: Float, dr: Float, pl: Float, pr: F
     p.close()
     drawCircle(goo.copy(alpha = 0.18f + 0.15f * amp), 104f, Offset(120f, 164f))
     drawPath(p, goo.copy(alpha = 0.9f))
-    drawPath(p, lerp2(goo, Color.Black, 0.35f), style = Stroke(2f))
+    keyline(p, Graff.kl)
     drawOval(Color.White.copy(alpha = 0.35f), Offset(48f, 142f), Size(50f, 9f))
     // bubbles rising inside
     for (k in 0 until 5) {
