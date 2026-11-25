@@ -289,10 +289,12 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                     cs.twin.alpha = (0.18f + 0.35f * mix).coerceAtMost(0.5f)
                     val lag = (abs(det) / 400f).coerceAtMost(0.2f)
                     drawIntoCanvas { it.saveLayer(Rect(0f, 0f, 240f, 200f), cs.twin) }
+                    Graff.lite = true                                        // the ghost: flat fills (detail is lost under the tint anyway)
                     withTransform({ translate(drift, hop * 0.8f); scale(catSize, catSize, Offset(120f, 142f)) }) {
                         cat(cs, now - lag, (beat + 1f - lag) % 1f, playing, amp, lfo, press((beat + 1f - lag) % 1f, atk, rel),
                             press((beat + 1.5f - lag) % 1f, atk, rel), sink * depth, 82f, 108f)
                     }
+                    Graff.lite = false
                     drawIntoCanvas { it.restore() }
                 }
                 val squashL = (cs.land0 * 0.02f).coerceIn(-0.12f, 0.12f)

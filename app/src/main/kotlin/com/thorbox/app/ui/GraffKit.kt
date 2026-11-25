@@ -66,6 +66,11 @@ val ArchivoBlack = FontFamily(Font(R.font.archivo_black))
 object Graff {
     /** Keyline width for the scene being drawn, in its own units. Set per frame by [begin]. */
     @JvmField var kl = 2.4f
+    /**
+     * Flat mode: fills only, no keylines and no shadow tone. For ghost passes (the cat's translucent detune
+     * twin), where the detail is invisible under the tint and would only double the drawing cost.
+     */
+    @JvmField var lite = false
     /** Screen px per unit of the scene being drawn (set by [begin]). */
     @JvmField var scale = 1f
     internal val a = Path()
@@ -93,7 +98,7 @@ fun rrectPath(p: Path, l: Float, t: Float, w: Float, h: Float, r: Float): Path {
 // ---------------------------------------------------------------- rule 1 + 2: keyline and cel
 
 /** Stroke [p] in INK. */
-fun DrawScope.keyline(p: Path, w: Float = Graff.kl) = drawPath(p, Line79.INK, style = Stroke(w, cap = StrokeCap.Round, join = ROUND))
+fun DrawScope.keyline(p: Path, w: Float = Graff.kl) { if (!Graff.lite) drawPath(p, Line79.INK, style = Stroke(w, cap = StrokeCap.Round, join = ROUND)) }
 
 /** Fill, then keyline. */
 fun DrawScope.ink(p: Path, c: Color, w: Float = Graff.kl) { drawPath(p, c); keyline(p, w) }
@@ -103,6 +108,7 @@ fun DrawScope.ink(p: Path, c: Color, w: Float = Graff.kl) { drawPath(p, c); keyl
  * [d] (a path intersection), leaving a crescent of shadow bottom-right.
  */
 fun DrawScope.cel(p: Path, c: Color, sh: Color, d: Float) {
+    if (Graff.lite) { drawPath(p, c); return }
     drawPath(p, sh)
     val shifted = Graff.opA; shifted.reset(); shifted.addPath(p, Offset(-d, -d * 0.8f))
     val lit = Graff.opB; lit.reset()
@@ -118,6 +124,7 @@ fun DrawScope.inkCel(p: Path, c: Color, sh: Color, d: Float = Graff.kl * 1.6f, w
 // up-left and shrunk just enough to stay inside it, leaving the crescent bottom-right.
 
 fun DrawScope.inkCircle(cx: Float, cy: Float, r: Float, c: Color, sh: Color? = null, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) {
+    if (Graff.lite) { drawCircle(c, r, Offset(cx, cy)); return }
     if (sh == null) drawCircle(c, r, Offset(cx, cy))
     else {
         val dd = d.coerceAtMost(r * 0.9f)
@@ -127,6 +134,7 @@ fun DrawScope.inkCircle(cx: Float, cy: Float, r: Float, c: Color, sh: Color? = n
     drawCircle(Line79.INK, r, Offset(cx, cy), style = Stroke(w))
 }
 fun DrawScope.inkOval(l: Float, t: Float, wd: Float, ht: Float, c: Color, sh: Color? = null, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) {
+    if (Graff.lite) { drawOval(c, Offset(l, t), Size(wd, ht)); return }
     if (sh == null) drawOval(c, Offset(l, t), Size(wd, ht))
     else {
         val dx = d.coerceAtMost(wd * 0.45f); val dy = (d * 0.8f).coerceAtMost(ht * 0.45f)
@@ -137,6 +145,7 @@ fun DrawScope.inkOval(l: Float, t: Float, wd: Float, ht: Float, c: Color, sh: Co
 }
 fun DrawScope.inkRRect(l: Float, t: Float, wd: Float, ht: Float, r: Float, c: Color, sh: Color? = null, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) {
     val cr = CornerRadius(r)
+    if (Graff.lite) { drawRoundRect(c, Offset(l, t), Size(wd, ht), cr); return }
     if (sh == null) drawRoundRect(c, Offset(l, t), Size(wd, ht), cr)
     else {
         val dx = d.coerceAtMost(wd * 0.45f); val dy = (d * 0.8f).coerceAtMost(ht * 0.45f)
@@ -161,6 +170,7 @@ fun DrawScope.inkRect(l: Float, t: Float, wd: Float, ht: Float, c: Color, w: Flo
 
 /** An outlined tube (an arm, a leg, a tail, a cable): INK under, colour on top, the shadow tone on its far edge if given. */
 fun DrawScope.limb(x0: Float, y0: Float, x1: Float, y1: Float, w: Float, c: Color, sh: Color? = null) {
+    if (Graff.lite) { drawLine(c, Offset(x0, y0), Offset(x1, y1), w, cap = StrokeCap.Round); return }
     drawLine(Line79.INK, Offset(x0, y0), Offset(x1, y1), w + Graff.kl * 2f, cap = StrokeCap.Round)
     drawLine(sh ?: c, Offset(x0, y0), Offset(x1, y1), w, cap = StrokeCap.Round)
     if (sh != null) translate(-w * 0.12f, -w * 0.12f) { drawLine(c, Offset(x0, y0), Offset(x1, y1), w * 0.62f, cap = StrokeCap.Round) }
@@ -177,6 +187,7 @@ fun DrawScope.limb2(x0: Float, y0: Float, x1: Float, y1: Float, x2: Float, y2: F
 }
 /** [limb] along a path. */
 fun DrawScope.limbPath(p: Path, w: Float, c: Color, sh: Color? = null) {
+    if (Graff.lite) { drawPath(p, c, style = Stroke(w, cap = StrokeCap.Round, join = ROUND)); return }
     drawPath(p, Line79.INK, style = Stroke(w + Graff.kl * 2f, cap = StrokeCap.Round, join = ROUND))
     drawPath(p, sh ?: c, style = Stroke(w, cap = StrokeCap.Round, join = ROUND))
     if (sh != null) translate(-w * 0.12f, -w * 0.12f) { drawPath(p, c, style = Stroke(w * 0.62f, cap = StrokeCap.Round, join = ROUND)) }
