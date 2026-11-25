@@ -22,6 +22,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -125,7 +126,7 @@ fun Modifier.graffFrame(corner: Dp, active: Boolean = false, pressed: Boolean = 
         val b = block.toPx(); val lw = line.toPx()
         if (!pressed && b > 0f) drawRoundRect(Tb.BlockShadow, androidx.compose.ui.geometry.Offset(b, b), size, r)
         val d = if (pressed) b * 0.8f else 0f
-        androidx.compose.ui.graphics.drawscope.translate(d, d) {
+        translate(d, d) {
             this@drawWithContent.drawContent()
             drawRoundRect(Tb.Keyline, androidx.compose.ui.geometry.Offset(lw / 2f, lw / 2f),
                 androidx.compose.ui.geometry.Size(size.width - lw, size.height - lw),
