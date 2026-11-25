@@ -129,6 +129,15 @@ class MainActivity : ComponentActivity() {
             if (!g.stepRec.value) g.toggleStepRec()
             g.stepRecPos.intValue = 8
         }
+        if (i?.hasExtra("eqdemo") == true) {                                                // the EQ page mid-mix, for the screenshots
+            val t = i.getIntExtra("eqdemo", -1)
+            if (t >= 0 && state.trackKind(t) != com.thorbox.model.TrackKind.EMPTY) {
+                state.groove.setEq(t) { com.thorbox.app.groove.TrackEq(hpHz = 70f, hp24 = true, lowDb = 2.5f, lowHz = 110f, midDb = -4f, midHz = 420f, midQ = 1.4f,
+                    highDb = 3f, highHz = 9000f, lpHz = 15000f) }
+                state.selectTop(TopView.MIX)
+            }
+            state.mixEq.intValue = t
+        }
         if (i?.hasExtra("keylock") == true) state.setLockAll(i.getBooleanExtra("keylock", false))
         if (i?.hasExtra("keysheet") == true) state.showKeySheet.value = i.getBooleanExtra("keysheet", false)
         if (i?.hasExtra("exportsheet") == true) state.exporter.showSheet.value = i.getBooleanExtra("exportsheet", false)

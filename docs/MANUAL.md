@@ -212,11 +212,24 @@ Press **EXPORT**. A bar shows the progress on both screens; **CANCEL** (or **B**
 
 **MIXER** has a strip per track, coloured like its instrument; **+ TRACK** adds a sampler, synth or drum track (8 tracks, any instrument on any track). From the top down, each strip has:
 
-- **Name** (tap to open the track) and **⋯** (the track menu: DUCK THIS TRACK, open the DUCK page, clear, remove).
+- **Name** (tap to open the track) and **⋯** (the track menu: EQ, DUCK THIS TRACK, open the DUCK page, clear, remove).
+- **EQ**: a little picture of the track's EQ curve (a flat line until you touch it). Tap it for the EQ page.
 - **Pan** above the fader. It only follows sideways drags, so a fader move can't pan by accident. It moves relative to where you touch, and a double-tap re-centres it. The readout says C, L40 or R25.
 - **Fader** on its own, with the dB readout above it. Grab it anywhere: it moves relative to your finger and never jumps to it. The scale marks +6, 0, −6, −12, −24, −48 and −∞; a double-tap returns to 0 dB.
 - **LED meters** (left and right) with peak hold, and a **clip light** that stays on for a moment after an overload.
 - **M / S** for mute and solo. On a track that DUCK turns down, a thin bar shows how far it's ducked right now.
+
+### EQ (per track)
+
+Every track has its own EQ for getting a mix to sit: tap the curve on its strip. The page shows the track's EQ curve over 20 Hz – 20 kHz with five handles:
+
+- **LOW CUT** (HP) and **HIGH CUT** (LP): filters that roll off everything below or above their frequency, at 12 or 24 dB per octave. Both start off, at the far edges; drag them in. Cutting the lows out of everything but the kick and bass is the quickest way to a cleaner mix.
+- **LOW** and **HIGH**: shelves that lift or cut everything below / above their frequency.
+- **MID**: a bell that lifts or cuts around its frequency; **Q** sets how narrow it is (a narrow cut tames one boxy or ringing note).
+
+Drag a handle sideways for its frequency and up or down for its boost or cut (up to ±18 dB). Double-tap a handle to reset that band. The row underneath has every value exactly, and each can be dragged or reached with the D-pad. **START** sets the whole EQ to a starting point (CLEAN LOWS, MAKE ROOM, KICK, BASS, HATS, WARM, AIR, LO-FI, or FLAT) that you then adjust. **EQ ON** / **BYPASSED** compares with the dry sound, without a click. **‹ ›** steps through the tracks so you can do the whole mix from this page. UNDO (SELECT + B) takes back EQ moves too, one drag at a time.
+
+The EQ comes before the fader, pan and DUCK, like an insert, and it's in your exports and stems. A track that DUCK listens to as its KEY is heard post-EQ: a high-passed kick ducks the others without its sub.
 
 The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your finger for its X / Y, latch it to keep it on, **ALL DRY** to kill everything. TONE: filter + drive, isolator, lo-fi. TIME: looper, scatter, slicer. SPACE: tape echo, reverb, resonator. MEDIA: vinyl, cassette, tape stop. **TILT** steers held effects by leaning the Thor; shake it to dice.
 

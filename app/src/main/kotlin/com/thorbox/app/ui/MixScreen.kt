@@ -65,6 +65,7 @@ fun MixScreen(state: AppState) {
     val tracks = state.tracks.value
     var adding by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuFor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(-1) }
+    var eqFor by state.mixEq
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
     // header: name tag + what's here (same row height as every other screen's header)
@@ -72,7 +73,7 @@ fun MixScreen(state: AppState) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTag(state, Section.MIXER)
         val n = tracks.count { it.kind != com.thorbox.model.TrackKind.EMPTY }
-        Text("$n TRACK${if (n == 1) "" else "S"} · name = open · ⋯ = DUCK", style = Type.label, maxLines = 1,
+        Text("$n TRACK${if (n == 1) "" else "S"} · name = open · EQ = tone · ⋯ = DUCK", style = Type.label, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(String.format(java.util.Locale.US, "MASTER %+.1f dB", g.masterDb.floatValue), style = Type.value, maxLines = 1)
     }
@@ -90,6 +91,7 @@ fun MixScreen(state: AppState) {
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 onName = { state.selectTrack(i) }, onMenu = { menuFor = i },
                 pump = g.duck.value.let { d -> if (d.on && d.isTarget(i)) d.mix else 0f }, scIdx = i,
+                eq = ch.eq, onEq = { g.mixSelected.intValue = i; eqFor = i },
             )
         }
         Column(Modifier.width(56.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -113,7 +115,12 @@ fun MixScreen(state: AppState) {
     }
     }
     if (adding) AddTrackSheet(state, onDone = { adding = false }, modifier = Modifier.align(Alignment.Center).padding(16.dp))
-    if (menuFor >= 0) TrackMenu(state, menuFor, onDone = { menuFor = -1 }, modifier = Modifier.align(Alignment.Center).padding(16.dp))
+    if (menuFor >= 0) TrackMenu(state, menuFor, onDone = { menuFor = -1 }, onEq = { eqFor = menuFor; menuFor = -1 },
+        modifier = Modifier.align(Alignment.Center).padding(16.dp))
+    // a removed track can't keep its EQ page open
+    val eqShown = eqFor.takeIf { it >= 0 && tracks.getOrNull(it)?.kind.let { k -> k != null && k != com.thorbox.model.TrackKind.EMPTY } } ?: -1
+    if (eqShown >= 0) EqSheet(state, eqShown, onTrack = { eqFor = it; g.mixSelected.intValue = it }, onDone = { eqFor = -1 },
+        modifier = Modifier.align(Alignment.Center).padding(8.dp))
     }
 }
 
@@ -176,7 +183,7 @@ fun KindIcon(k: com.thorbox.model.TrackKind, modifier: Modifier) {
 
 /** Strip menu: DUCK target on/off (and a way to the DUCK page), open in editor, remove. */
 @Composable
-fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = Modifier) {
+fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = Modifier, onEq: (() -> Unit)? = null) {
     val g = state.groove
     val ch = g.channels.value[t]
     val tracks = state.tracks.value
@@ -186,6 +193,7 @@ fun TrackMenu(state: AppState, t: Int, onDone: () -> Unit, modifier: Modifier = 
             Text(tracks[t].name, color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 1.sp)
             Text("TRACK ${t + 1}", color = Tb.Muted, fontSize = 11.sp)
             Box(Modifier.weight(1f))
+            if (onEq != null) HwButton("EQ", minHeight = 34.dp, fontSize = 12, accent = kindColor(tracks[t].kind)) { onEq() }
             HwButton("OPEN", minHeight = 34.dp, fontSize = 12, accent = kindColor(tracks[t].kind), active = true) { state.selectTrack(t); onDone() }
             HwButton("✕", Modifier.width(44.dp), minHeight = 34.dp, fontSize = 14, onClick = onDone)
         }
@@ -227,6 +235,7 @@ private fun Strip(
     state: AppState, name: String, color: Color, selected: Boolean, db: Float, pan: Float?, mute: Boolean?, solo: Boolean?,
     meterIdx: Int, onDb: (Float) -> Unit, onPan: (Float) -> Unit, onMute: () -> Unit, onSolo: () -> Unit, modifier: Modifier,
     onName: (() -> Unit)? = null, onMenu: (() -> Unit)? = null, pump: Float = 0f, scIdx: Int = -1,
+    eq: com.thorbox.app.groove.TrackEq? = null, onEq: (() -> Unit)? = null,
 ) {
     val g = state.groove
     val tel = state.telemetry
@@ -264,6 +273,9 @@ private fun Strip(
                 modifier = Modifier.navClickable(label = "$name MENU") { Info.show("TRACK MENU"); onMenu() })
         }
 
+        // ---- EQ: its curve in miniature; tap for the EQ page ----
+        if (eq != null && onEq != null) EqThumb(eq, color, name, Modifier.fillMaxWidth().height(30.dp), onEq)
+        else Box(Modifier.height(30.dp))
         // ---- PAN: above the fader, sideways drags only ----
         if (pan != null) {
             Canvas(

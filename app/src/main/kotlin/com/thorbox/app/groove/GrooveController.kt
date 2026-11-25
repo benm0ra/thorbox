@@ -18,7 +18,7 @@ import kotlin.math.roundToInt
 /** Mixer strip state (UI side). Strip 0 = sampler, 1 = synth. */
 /** One mixer strip. scSource = the track whose level ducks this one (-1 off), scAmount 0..1 ("PUMP"). */
 data class Channel(val name: String, val volumeDb: Float = 0f, val pan: Float = 0f, val mute: Boolean = false, val solo: Boolean = false,
-                   val scSource: Int = -1, val scAmount: Float = 0f)
+                   val scSource: Int = -1, val scAmount: Float = 0f, val eq: TrackEq = TrackEq())
 
 /** The keyboard/sequencer key. With [followSample] on, the loaded sample's detected key wins. */
 data class ScaleSetting(val root: PitchClass = PitchClass.C, val mode: ScaleMode = ScaleMode.MINOR, val followSample: Boolean = true)
@@ -391,6 +391,12 @@ class GrooveController(private val app: AppState) {
     }
 
     private fun pushChannel(i: Int) {
+        pushStrip(i)
+        val v = channels.value[i].eq.values()
+        for (id in v.indices) NativeEngine.setChannel(i, NativeEngine.Ch.EQ_BASE + id, v[id])
+    }
+    /** Fader, pan, mute, solo, pump: everything but the EQ (which only changes through [setEq]). */
+    private fun pushStrip(i: Int) {
         val ch = channels.value[i]
         NativeEngine.setChannel(i, NativeEngine.Ch.VOLUME_DB, ch.volumeDb)
         NativeEngine.setChannel(i, NativeEngine.Ch.PAN, ch.pan)
@@ -615,11 +621,12 @@ class GrooveController(private val app: AppState) {
         masterDb.floatValue = master
         auto.clearAll(); auto.lanes.value = lanes
         undo.forEach { it.clear() }; canUndo.value = false
+        eqUndo.forEach { it.clear() }
         pushAll()
     }
 
     fun resetTrack(t: Int, name: String) {
-        undo[t].clear()
+        undo[t].clear(); eqUndo[t].clear()
         update(t) { it.copy(notes = emptyList(), lengthTicks = 16 * STEP_TICKS) }
         auto.clearTrack(t)
         val list = channels.value.toMutableList()
@@ -936,14 +943,46 @@ class GrooveController(private val app: AppState) {
     fun setChannel(i: Int, fromAutomation: Boolean = false, f: (Channel) -> Channel) {
         val list = channels.value.toMutableList()
         val old = list[i]
-        val new = f(old).let { it.copy(volumeDb = it.volumeDb.coerceIn(-60f, 6f), pan = it.pan.coerceIn(-1f, 1f)) }
+        val new = f(old).let { it.copy(volumeDb = it.volumeDb.coerceIn(-60f, 6f), pan = it.pan.coerceIn(-1f, 1f), eq = old.eq) }
         if (new == old) return
-        list[i] = new; channels.value = list; pushChannel(i)
+        list[i] = new; channels.value = list; pushStrip(i)
         if (!fromAutomation) {
             if (new.volumeDb != old.volumeDb) auto.touch(Automation.volKey(i), autoArmed(), loopTick, loopLen(i), new.volumeDb)
             if (new.pan != old.pan) auto.touch(Automation.panKey(i), autoArmed(), loopTick, loopLen(i), new.pan)
             if (new.scAmount != old.scAmount) auto.touch(Automation.scKey(i), autoArmed(), loopTick, loopLen(i), new.scAmount)
         }
+    }
+
+    // ================= EQ =================
+    private val eqUndo = List(com.thorbox.model.TRACK_COUNT) { ArrayDeque<TrackEq>() }
+    private val eqEditAt = LongArray(com.thorbox.model.TRACK_COUNT)
+    /** Track [i]'s EQ for the mixer's EQ page. A burst of moves (one drag) is one undo step. */
+    fun setEq(i: Int, f: (TrackEq) -> TrackEq) {
+        val list = channels.value.toMutableList()
+        val old = list[i].eq
+        val new = f(old).clamped()
+        if (new == old) return
+        val now = System.nanoTime() / 1_000_000L
+        if (now - eqEditAt[i] > 700) {
+            eqUndo[i].addLast(old); while (eqUndo[i].size > 32) eqUndo[i].removeFirst()
+            app.undoLog.note(UndoLog.EQ, i)
+        }
+        eqEditAt[i] = now
+        list[i] = list[i].copy(eq = new); channels.value = list
+        pushEqDiff(i, old, new)
+    }
+    fun canUndoEq(i: Int) = eqUndo[i].isNotEmpty()
+    fun undoEq(i: Int) {
+        val prev = eqUndo[i].removeLastOrNull() ?: return
+        val list = channels.value.toMutableList()
+        val old = list[i].eq
+        list[i] = list[i].copy(eq = prev); channels.value = list
+        eqEditAt[i] = 0L
+        pushEqDiff(i, old, prev)
+    }
+    private fun pushEqDiff(i: Int, old: TrackEq, new: TrackEq) {
+        val a = old.values(); val b = new.values()
+        for (id in b.indices) if (a[id] != b[id]) NativeEngine.setChannel(i, NativeEngine.Ch.EQ_BASE + id, b[id])
     }
 
     // ================= automation =================

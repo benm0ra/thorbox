@@ -233,7 +233,11 @@ bool AudioEngine::repeatOn(int track, int note, int rate, float vel) {
 bool AudioEngine::repeatOff(int track, int note) { return mCmds.push({CmdType::RepeatOff, track, note}); }
 bool AudioEngine::repeatVelocity(float v) { return mCmds.push({CmdType::RepeatVelocity, 0, 0, std::clamp(v, 0.f, 1.f)}); }
 bool AudioEngine::setChannel(int strip, int param, float value) {
-    if (strip < 0 || strip > kStrips || param < 0 || param > 6) return false;
+    if (strip < 0 || strip > kStrips || param < 0) return false;
+    if (param >= (int)ChannelParam::EqBase) {
+        eq::Settings probe;                                   // range check here, so bad values never reach the audio thread
+        if (strip == kStrips || !eq::set(probe, param - (int)ChannelParam::EqBase, value)) return false;
+    } else if (param > 6) return false;
     return mCmds.push({CmdType::SetChannel, strip, param, value});
 }
 

@@ -135,6 +135,8 @@ class AppState(private val app: Application) {
     init { com.thorbox.app.ui.Tb.palette = com.thorbox.app.ui.Themes.byId(uiPrefs.getString("theme", null)) }
     /** SETTINGS sheet (top screen): look, meters, start-up defaults, controls, system / debug. */
     val showSettings = mutableStateOf(false)
+    /** MIXER: the track whose EQ page is open (-1: none). */
+    val mixEq = androidx.compose.runtime.mutableIntStateOf(-1)
     val settingsTab = androidx.compose.runtime.mutableIntStateOf(0)
     /** The controller map pinned open from SETTINGS (normally it shows while SELECT is held). B closes it. */
     val showControllerMap = mutableStateOf(false)
@@ -362,11 +364,13 @@ class AppState(private val app: Application) {
                 UndoLog.PATTERN -> groove.hasUndo(t)
                 UndoLog.PATCH -> t == synthTrack.intValue && canUndoPatch.value
                 UndoLog.KIT -> drumMachines[t]?.canUndo?.value == true
+                UndoLog.EQ -> groove.canUndoEq(t)
                 else -> false } },
             undo = { k, t -> when (k) {
                 UndoLog.PATTERN -> groove.undo(t)
                 UndoLog.PATCH -> undoPatch()
-                UndoLog.KIT -> drumMachines[t]?.undoKit() } })
+                UndoLog.KIT -> drumMachines[t]?.undoKit()
+                UndoLog.EQ -> groove.undoEq(t) } })
         com.thorbox.app.ui.Info.toast("UNDO", if (kind < 0) "nothing left to undo" else "took back the last ${UndoLog.label(kind)} change")
     }
 
@@ -601,7 +605,7 @@ class AppState(private val app: Application) {
         keyLock.value = sc.keyLock
         lockAll.value = sc.lockAll
         groove.restore(groove0, scale0, p.clips,
-            p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },
+            p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount, it.eq.toTrackEq()) },
             p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.byName(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
             p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } }, p.duck)
         groove.restorePatterns(p.patterns, p.currentPattern, p.song, p.songMode, p.songLoop)

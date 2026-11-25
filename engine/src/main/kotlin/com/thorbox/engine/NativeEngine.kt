@@ -174,7 +174,9 @@ object NativeEngine {
 
     // ---- Mixer: strip 0 sampler, 1 synth, 2 drums, 3 master (volume only) ----
     object Ch { const val VOLUME_DB = 0; const val PAN = 1; const val MUTE = 2; const val SOLO = 3
-        const val SC_SOURCE = 4; const val SC_AMOUNT = 5; const val SC_RELEASE = 6 }
+        const val SC_SOURCE = 4; const val SC_AMOUNT = 5; const val SC_RELEASE = 6
+        /** The strip's EQ: EQ_BASE + eq::Param id (ChannelEq.h). Track strips only. */
+        const val EQ_BASE = 16 }
     const val STRIP_MASTER = TRACKS
 
     // ---- Drum synth: 8 slots, each a synthesis model (ordinals match drums::Model in DrumSynth.h) ----

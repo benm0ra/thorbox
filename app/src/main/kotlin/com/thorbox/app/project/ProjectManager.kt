@@ -315,7 +315,7 @@ class ProjectManager(private val app: AppState, private val ctx: Application, pr
             masterDb = g.masterDb.floatValue,
             tracks = tracks,
             clips = g.clips.value,
-            channels = g.channels.value.map { ChannelDto(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount) },
+            channels = g.channels.value.map { ChannelDto(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount, it.eq.toDto()) },
             feels = g.feels.value.map { FeelDto(it.template.name, it.amount) },
             automation = g.auto.lanes.value.mapValues { (_, pts) -> pts.map { AutoPointDto(it.tick, it.value) } },
             synths = synths, kits = kits, samplers = samplers,
