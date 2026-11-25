@@ -1,0 +1,1 @@
+    topResumedActivity=ActivityRecord{eb6c510 u0 com.clamshellbeats.app/com.thorbox.app.MainActivity} t9}
