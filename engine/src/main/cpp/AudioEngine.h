@@ -16,6 +16,7 @@
 #include "SamplerVoice.h"
 #include "SpscQueue.h"
 #include "Ducker.h"
+#include "ChannelEq.h"
 #include "Export.h"
 #include "Synth.h"
 #include "DrumSynth.h"
@@ -247,6 +248,7 @@ private:
         float peakL = 0.f, peakR = 0.f; // block peaks (post-fader)
         int scSrc = -1; float scAmount = 0.f, scReleaseMs = 150.f;   // sidechain
         float scEnv = 0.f, scGainMin = 1.f;
+        eq::ChannelEq eq;               // HP / LP / low shelf / mid bell / high shelf, pre-fader
     };
     duck::Ducker mDuck;
     std::array<float, kChunk> mDuckKey{}, mDuckGain{};

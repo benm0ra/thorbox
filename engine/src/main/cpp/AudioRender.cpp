@@ -147,6 +147,7 @@ void AudioEngine::handleCommand(const Command& c) {
                 break;
             }
             Strip& s = mStrips[c.pad];
+            if (c.i0 >= (int)ChannelParam::EqBase) { eq::set(s.eq.s, c.i0 - (int)ChannelParam::EqBase, c.f0); break; }
             switch ((ChannelParam)c.i0) {
                 case ChannelParam::VolumeDb: s.volDb = std::clamp(c.f0, -60.f, 6.f); break;
                 case ChannelParam::Pan: s.pan = std::clamp(c.f0, -1.f, 1.f); break;
@@ -155,6 +156,7 @@ void AudioEngine::handleCommand(const Command& c) {
                 case ChannelParam::ScSource: { const int src = (int)c.f0; s.scSrc = (src >= 0 && src < kStrips && src != c.pad) ? src : -1; break; }
                 case ChannelParam::ScAmount: s.scAmount = std::clamp(c.f0, 0.f, 1.f); break;
                 case ChannelParam::ScRelease: s.scReleaseMs = std::clamp(c.f0, 20.f, 1000.f); break;
+                case ChannelParam::EqBase: break;                                  // handled above
             }
             break;
         }
@@ -312,6 +314,9 @@ void AudioEngine::mixChunk(float* out, int n, float sr, double tick, double tps)
     for (auto& s : mStrips) anySolo |= s.solo;
     const float coeff = 1.f - std::exp(-1.f / (0.005f * sr));
     const float mcoeff = 1.f - std::exp(-1.f / (0.01f * sr));
+    // Each strip's EQ first, like an insert: the fader, pan, ducking and the key the others duck to
+    // all see the EQ'd track (a high-passed kick keys the sidechain without its sub).
+    for (int k = 0; k < kStrips; ++k) mStrips[k].eq.process(mBus[k].data(), n, sr);
     // DUCK: one key (a track, one drum voice, or the beat) ducks every target track. The key is read
     // from the raw buses before anything is turned down, so it never ducks itself into silence.
     if (mDuck.s.active()) {

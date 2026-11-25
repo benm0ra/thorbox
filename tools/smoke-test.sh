@@ -179,6 +179,10 @@ shots() {
   for i in 1 2 3 4; do adb exec-out screencap -p > "$d/top-duck-$i.png"; sleep 0.17; done
   adb shell am start -n $PKG/$ACT --es theme pastel >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view MIX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-mix-pastel.png"
+  adb shell am start -n $PKG/$ACT --ei eqdemo 1 >/dev/null; sleep 2; adb exec-out screencap -p > "$d/eq-pastel.png"
+  adb shell am start -n $PKG/$ACT --es theme genesis >/dev/null; sleep 2; adb exec-out screencap -p > "$d/eq-genesis.png"
+  adb shell am start -n $PKG/$ACT --ei eqdemo -1 --es view MIX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/top-mix-eq.png"
+  adb shell am start -n $PKG/$ACT --es theme pastel >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --ez toponly false --es theme genesis >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --ez play false --es synth INIT >/dev/null; sleep 1
   adb shell am start -n $PKG/$ACT --es view DRUM --es deck FX >/dev/null; sleep 2; adb exec-out screencap -p > "$d/fx.png"

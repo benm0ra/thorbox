@@ -360,6 +360,7 @@ JNIEXPORT jboolean JNICALL JNI_FN(nativeSetChannel)(JNIEnv*, jobject, jint strip
     if (param == 4 && (value < -1.f || value >= (float)AudioEngine::kTracks)) return JNI_FALSE;
     if (param == 5 && (value < 0.f || value > 1.f)) return JNI_FALSE;
     if (param == 6 && (value < 20.f || value > 1000.f)) return JNI_FALSE;
+    // EQ params (16+) are range-checked by AudioEngine::setChannel via eq::set
     return gEngine->setChannel(strip, param, value);
 }
 static inline bool unit(float v) { return finite(v) && v >= 0.f && v <= 1.f; }

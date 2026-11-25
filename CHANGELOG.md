@@ -10,6 +10,13 @@ them), not for developers.
 - The engine is split by thread (`AudioEngine.cpp` for the main thread, `AudioRender.cpp` for the audio thread, `AudioExport.cpp` for the offline bounce). There's a code map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), dead code is gone, and lint has zero findings.
 
 ### Player-facing
+- **EQ on every track.** Tap the curve on a mixer strip for its EQ:
+  - **LOW CUT** and **HIGH CUT** filters, at 12 or 24 dB per octave.
+  - Low and high **shelves**, and a **mid bell** with adjustable width.
+  - Drag the handles right on the curve, or set exact values underneath.
+  - **START** points (CLEAN LOWS, MAKE ROOM, KICK, BASS, HATS, WARM, AIR, LO-FI) to begin from.
+  - Click-free bypass for A/B, ‹ › to work through every track, and UNDO for EQ moves.
+  - It's in exports and stems, and saved with the project (older projects open flat).
 - **One art style: NIGHT LINE '79.** The whole app now follows a single house style taken from late-'70s New York subway graffiti: silver and cascade green, black keylines, one hard shadow, white shine, drips and hard 3D blocks, with Anton and Archivo Black lettering.
   - **The crew:** the rat, Big Dawg and Biscuit all live in the same night-time city and wear the crew's cascade.
   - **Biscuit:** she now kneads in her room by the El, where a train with pieces on its side rolls past, and wears Y2K white-frame chrome shades.

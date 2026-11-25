@@ -60,6 +60,13 @@ data class ProjectFile(
 @Serializable data class ChannelDto(
     val name: String, val volumeDb: Float = 0f, val pan: Float = 0f, val mute: Boolean = false, val solo: Boolean = false,
     val scSource: Int = -1, val scAmount: Float = 0f,
+    /** The strip's EQ (added later: the defaults are flat, so older projects open unchanged). */
+    val eq: EqDto = EqDto(),
+)
+@Serializable data class EqDto(
+    val on: Boolean = true, val hpHz: Float = 20f, val hp24: Boolean = false, val lpHz: Float = 20000f, val lp24: Boolean = false,
+    val lowDb: Float = 0f, val lowHz: Float = 100f, val midDb: Float = 0f, val midHz: Float = 1000f, val midQ: Float = 0.7f,
+    val highDb: Float = 0f, val highHz: Float = 8000f,
 )
 @Serializable data class FeelDto(val template: String = "STRAIGHT", val amount: Float = 1f)
 @Serializable data class AutoPointDto(val tick: Int, val value: Float)

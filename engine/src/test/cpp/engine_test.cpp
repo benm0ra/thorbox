@@ -173,6 +173,17 @@ int main() {
         render(e, 4800); auto left = render(e, 24000);
         CHECK(rms(left, 0) > 0.01 && rms(left, 1) < 1e-4, "hard-left pan: L %.3f, R %.1e", rms(left, 0), rms(left, 1));
         e.setChannel(1, 1, 0.f);
+        // strip EQ: a 24 dB/oct low-pass at 100 Hz takes most of the synth away; bad values never land
+        render(e, 2400); const double open = rms(render(e, 24000), 0);
+        CHECK(e.setChannel(1, 16 + eq::LpHz, 100.f) && e.setChannel(1, 16 + eq::LpSlope, 24.f), "EQ params accepted on a track strip");
+        CHECK(!e.setChannel(1, 16 + eq::LpHz, 5.f) && !e.setChannel(1, 16 + eq::kParams, 1.f) && !e.setChannel(AudioEngine::kTracks, 16, 1.f),
+              "EQ: out-of-range values, unknown ids and the master strip are refused");
+        render(e, 9600); const double shut = rms(render(e, 24000), 0);
+        CHECK(shut < open * 0.5, "LP 100 Hz on the synth strip: rms %.3f → %.3f", open, shut);
+        e.setChannel(1, 16 + eq::On, 0.f);              // bypass glides back to the dry sound
+        render(e, 9600); const double back = rms(render(e, 24000), 0);
+        CHECK(std::fabs(back - open) < open * 0.05, "EQ OFF: back to the dry level (%.3f vs %.3f)", back, open);
+        e.setChannel(1, 16 + eq::On, 1.f); e.setChannel(1, 16 + eq::LpHz, 20000.f);
 
         e.setPattern(1, synthLoop());                 // swap → old pattern comes back for deletion
         render(e, 512);
