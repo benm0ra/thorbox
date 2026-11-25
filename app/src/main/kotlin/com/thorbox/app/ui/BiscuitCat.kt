@@ -17,7 +17,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Paint
@@ -600,6 +599,10 @@ private fun DrawScope.cat(cs: CatState, now: Float, beat: Float, playing: Boolea
 }
 
 /** Her Y2K shades: thick white oval frames (a hard shadow inside the rim), chrome lenses (sky, steel, dark), a streak + a sweeping glint. */
+private val LENS_1 = Color(0xFFCFE8F7)   // sky
+private val LENS_2 = Color(0xFFA9B3BE)   // chrome
+private val LENS_3 = Color(0xFF4E5560)
+private val LENS_4 = Color(0xFF2A2E36)   // the ground in the mirror
 private fun DrawScope.y2kShades(cs: CatState, hx: Float, ey: Float, now: Float) {
     val kl = Graff.kl
     // bridge + the arm back to the far ear, under the frames
@@ -614,8 +617,13 @@ private fun DrawScope.y2kShades(cs: CatState, hx: Float, ey: Float, now: Float) 
         rotate(if (k == 0) -6.9f else 6.9f, Offset(cx, ey)) {
             drawOval(Line79.INK, Offset(cx - (w + 7f) / 2f, ey - (h + 6f) / 2f), Size(w + 7f, h + 6f), style = Stroke(kl * 2f))
             celOval(cx - (w + 7f) / 2f, ey - (h + 6f) / 2f, w + 7f, h + 6f, FRAME, FRAME_DK, 2.2f)
-            drawOval(Brush.verticalGradient(0f to Color(0xFFCFE8F7), 0.35f to Color(0xFFA9B3BE), 0.62f to Color(0xFF4E5560), 1f to Color(0xFF2A2E36),
-                startY = ey - h / 2f, endY = ey + h / 2f), Offset(cx - w / 2f, ey - h / 2f), Size(w, h))
+            // the chrome mirror in hard cel bands (nested ovals sharing the lens's top edge), no gradient:
+            // a gradient-filled oval under a rotation took the emulator's software GPU down
+            val l = cx - w / 2f; val t = ey - h / 2f
+            drawOval(LENS_4, Offset(l, t), Size(w, h))
+            drawOval(LENS_3, Offset(l, t), Size(w, h * 0.74f))
+            drawOval(LENS_2, Offset(l + w * 0.05f, t), Size(w * 0.9f, h * 0.46f))
+            drawOval(LENS_1, Offset(l + w * 0.16f, t + h * 0.05f), Size(w * 0.56f, h * 0.24f))
             // the streaks and the glint, kept inside the lens
             lensStreak(cx, ey, w, h, cx - w * 0.3f, ey + h * 0.5f, cx + w * 0.05f, ey - h * 0.6f, 2.4f, 1f)
             lensStreak(cx, ey, w, h, cx - w * 0.05f, ey + h * 0.6f, cx + w * 0.22f, ey - h * 0.5f, 1.2f, 0.6f)
