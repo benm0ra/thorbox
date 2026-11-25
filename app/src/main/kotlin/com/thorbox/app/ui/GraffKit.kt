@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
@@ -265,7 +266,7 @@ fun DrawScope.cachedBlockbuster(
         val h = ((t.size.height + depth + pad * 2f) * q).toInt().coerceIn(1, 4096)
         val img = androidx.compose.ui.graphics.ImageBitmap(w, h)
         androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(img), Size(w.toFloat(), h.toFloat())) {
-            androidx.compose.ui.graphics.drawscope.scale(q, q, Offset.Zero) {
+            scale(q, q, Offset.Zero) {
                 blockbuster(t, pad, pad, fill, fill2, cut, block, depth, outline, sparkles)
             }
         }
@@ -273,7 +274,7 @@ fun DrawScope.cachedBlockbuster(
     }
     val img = cache.img ?: return
     translate(x - cache.pad, y - cache.pad) {
-        androidx.compose.ui.graphics.drawscope.scale(1f / cache.q, 1f / cache.q, Offset.Zero) { drawImage(img) }
+        scale(1f / cache.q, 1f / cache.q, Offset.Zero) { drawImage(img) }
     }
 }
 
@@ -288,10 +289,10 @@ inline fun DrawScope.cachedArt(cache: PieceCache, key: Long, w: Float, h: Float,
         val iw = (w * q).toInt().coerceIn(1, 4096); val ih = (h * q).toInt().coerceIn(1, 4096)
         val img = androidx.compose.ui.graphics.ImageBitmap(iw, ih)
         androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(img), Size(iw.toFloat(), ih.toFloat())) {
-            androidx.compose.ui.graphics.drawscope.scale(q, q, Offset.Zero) { draw() }
+            scale(q, q, Offset.Zero) { draw() }
         }
         cache.img = img; cache.key = k; cache.pad = 0f; cache.q = q
     }
     val img = cache.img ?: return
-    translate(x, y) { androidx.compose.ui.graphics.drawscope.scale(1f / cache.q, 1f / cache.q, Offset.Zero) { drawImage(img) } }
+    translate(x, y) { scale(1f / cache.q, 1f / cache.q, Offset.Zero) { drawImage(img) } }
 }
