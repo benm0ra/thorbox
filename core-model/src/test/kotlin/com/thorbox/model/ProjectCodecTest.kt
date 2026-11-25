@@ -12,6 +12,7 @@ class ProjectCodecTest {
         transport = TransportDto(bpm = 87.5f, swing = 0.58f, swing16 = false, metronome = true),
         scale = ScaleDto("F_SHARP", "MAJOR", followSample = false, keyLock = false),
         masterDb = -2.5f,
+        masterBus = MasterBusDto(eq = EqDto(hpHz = 28f), glue = GlueDto(on = true, ratio = 4f, scHpHz = 90f), limit = LimitDto(inputDb = 3f, ceilingDb = -1f), targetLufs = -9f),
         tracks = listOf(TrackInfo(TrackKind.SAMPLER, "CHOPS"), TrackInfo(TrackKind.SYNTH, "808"), TrackInfo(TrackKind.DRUMS, "KIT")),
         clips = listOf(Clip(ClipId("t0"), "T1", color = 0, lengthTicks = 3840, notes = listOf(NoteEvent(tick = 240, lengthTicks = 120, note = 3, velocity = 0.8f)))),
         channels = listOf(ChannelDto("CHOPS", volumeDb = -3f, pan = 0.25f, scSource = 2, scAmount = 0.6f,
@@ -29,6 +30,14 @@ class ProjectCodecTest {
         val p = sample()
         val back = ProjectCodec.decode(ProjectCodec.encode(p))
         assertEquals(p, back)
+    }
+
+    @Test fun projectFromBeforeTheMasterBusGetsJustTheLimiter() {
+        val p = ProjectCodec.decode("""{"name":"Old mix","masterDb":-1.0}""")
+        assertNotNull(p)
+        assertEquals(MasterBusDto(), p.masterBus)
+        assertEquals(true, p.masterBus.limit.on)
+        assertEquals(false, p.masterBus.glue.on)
     }
 
     @Test fun channelWithoutEqOpensFlat() {

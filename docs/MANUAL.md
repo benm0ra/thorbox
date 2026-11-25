@@ -244,6 +244,21 @@ The EQ comes before the fader, pan and DUCK, like an insert, and it's in your ex
 
 The **FX** deck has twelve punch-in effects. Hold a tile to engage it, move your finger for its X / Y, latch it to keep it on, **ALL DRY** to kill everything. TONE: filter + drive, isolator, lo-fi. TIME: looper, scatter, slicer. SPACE: tape echo, reverb, resonator. MEDIA: vinyl, cassette, tape stop. **TILT** steers held effects by leaning the Thor; shake it to dice.
 
+### MASTER (the master bus)
+
+Tap **MASTER** (its name, or the **BUS** curve on its strip) for the master bus. Across the top is the signal chain, each stage showing what it's doing right now: **EQ → GLUE → the master fader → LIMIT = LOUDNESS**. Tap a stage to open it underneath. **CLEAN · GENTLE GLUE · PUNCHY · LOUD · OFF** set the whole bus (the EQ is left as it is); everything stays adjustable and UNDO takes moves back.
+
+- **EQ:** the same EQ as the tracks, for the whole mix. A low cut around 25–30 Hz clears rumble; a gentle high shelf adds air.
+- **GLUE:** a bus compressor that pulls the mix together.
+  - **2:1 / 4:1 / 10:1** sets the ratio. THRESHOLD, ATTACK and RELEASE work as usual; **AUTO** release lets go faster after a single hit than after a long loud stretch, so it doesn't pump.
+  - **MAKEUP** brings the level back up, and **MIX** blends in the uncompressed mix (parallel compression).
+  - **SIDECHAIN HP** stops the kick's sub from driving it.
+  - The graph shows the curve, and the meter shows the gain reduction as it happens. A couple of dB on the loud hits is the classic glue.
+- **LIMIT:** a brickwall after the master fader. Nothing gets past the **CEILING** (−0.3 dB by default), so a hot mix is caught instead of clipping. **INPUT** pushes the mix into it for loudness; RELEASE sets how fast it lets go. It looks 1.5 ms ahead to catch every peak, and adds no delay when it's off. It's on in every new project (and in older ones when you open them), and it's transparent until the mix would clip.
+- **LOUDNESS:** short-term, momentary and integrated LUFS and the peak, against a **TARGET**: −14 (STREAMING), −11 (LOUD) or −9 (CLUB). It tells you how far off you are and what to turn.
+
+The master bus is in your exports. Stems are taken before it, so they still sum to the dry mix.
+
 ### DUCK (sidechain)
 
 ![DUCK: the rat on DUCK ST](img/duck.jpg)

@@ -176,14 +176,29 @@ int main() {
         // strip EQ: a 24 dB/oct low-pass at 100 Hz takes most of the synth away; bad values never land
         render(e, 2400); const double open = rms(render(e, 24000), 0);
         CHECK(e.setChannel(1, 16 + eq::LpHz, 100.f) && e.setChannel(1, 16 + eq::LpSlope, 24.f), "EQ params accepted on a track strip");
-        CHECK(!e.setChannel(1, 16 + eq::LpHz, 5.f) && !e.setChannel(1, 16 + eq::kParams, 1.f) && !e.setChannel(AudioEngine::kTracks, 16, 1.f),
-              "EQ: out-of-range values, unknown ids and the master strip are refused");
+        CHECK(!e.setChannel(1, 16 + eq::LpHz, 5.f) && !e.setChannel(1, 16 + eq::kParams, 1.f),
+              "EQ: out-of-range values and unknown ids are refused");
+        CHECK(e.setChannel(AudioEngine::kTracks, 16 + eq::On, 1.f) && !e.setChannel(1, 32 + master::GOn, 1.f) && !e.setChannel(1, 48 + master::LOn, 1.f)
+              && !e.setChannel(AudioEngine::kTracks, 1, 0.f), "master takes EQ / GLUE / LIMIT; tracks don't take GLUE / LIMIT; master has no pan");
         render(e, 9600); const double shut = rms(render(e, 24000), 0);
         CHECK(shut < open * 0.5, "LP 100 Hz on the synth strip: rms %.3f → %.3f", open, shut);
         e.setChannel(1, 16 + eq::On, 0.f);              // bypass glides back to the dry sound
         render(e, 9600); const double back = rms(render(e, 24000), 0);
         CHECK(std::fabs(back - open) < open * 0.05, "EQ OFF: back to the dry level (%.3f vs %.3f)", back, open);
         e.setChannel(1, 16 + eq::On, 1.f); e.setChannel(1, 16 + eq::LpHz, 20000.f);
+        // master LIMIT: the master fader pushed +6 dB into a −1 dB ceiling never goes over it
+        {
+            CHECK(e.setChannel(AudioEngine::kTracks, 48 + master::LOn, 1.f) && e.setChannel(AudioEngine::kTracks, 48 + master::LCeilingDb, -1.f)
+                  && e.setChannel(AudioEngine::kTracks, 0, 6.f) && e.setChannel(AudioEngine::kTracks, 48 + master::LInputDb, 12.f), "master LIMIT on, +6 fader, +12 input");
+            render(e, 9600); auto hot = render(e, 24000);
+            float pk = 0.f; for (float v : hot) pk = std::max(pk, std::fabs(v));
+            CHECK(pk <= std::pow(10.f, -1.f / 20.f) + 1e-4f && pk > 0.8f, "master LIMIT holds the ceiling: peak %.2f dBFS", 20.f * std::log10(pk));
+            float gr[2]; e.getMasterGr(gr);
+            CHECK(gr[1] > 1.f, "limiter gain reduction reported (%.1f dB)", gr[1]);
+            e.setChannel(AudioEngine::kTracks, 48 + master::LOn, 0.f); e.setChannel(AudioEngine::kTracks, 48 + master::LInputDb, 0.f);
+            e.setChannel(AudioEngine::kTracks, 0, 0.f);
+            render(e, 9600);
+        }
 
         e.setPattern(1, synthLoop());                 // swap → old pattern comes back for deletion
         render(e, 512);

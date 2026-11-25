@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.thorbox.app
 
+import com.thorbox.app.groove.toMasterBus
 import com.thorbox.app.groove.toTrackEq
 import android.app.Application
 import android.net.Uri
@@ -138,6 +139,8 @@ class AppState(private val app: Application) {
     val showSettings = mutableStateOf(false)
     /** MIXER: the track whose EQ page is open (-1: none). */
     val mixEq = androidx.compose.runtime.mutableIntStateOf(-1)
+    /** MIXER: the MASTER page (EQ, GLUE, LIMIT, LOUDNESS) is open. */
+    val showMaster = mutableStateOf(false)
     val settingsTab = androidx.compose.runtime.mutableIntStateOf(0)
     /** The controller map pinned open from SETTINGS (normally it shows while SELECT is held). B closes it. */
     val showControllerMap = mutableStateOf(false)
@@ -366,12 +369,14 @@ class AppState(private val app: Application) {
                 UndoLog.PATCH -> t == synthTrack.intValue && canUndoPatch.value
                 UndoLog.KIT -> drumMachines[t]?.canUndo?.value == true
                 UndoLog.EQ -> groove.canUndoEq(t)
+                UndoLog.MASTER -> groove.canUndoMaster()
                 else -> false } },
             undo = { k, t -> when (k) {
                 UndoLog.PATTERN -> groove.undo(t)
                 UndoLog.PATCH -> undoPatch()
                 UndoLog.KIT -> drumMachines[t]?.undoKit()
-                UndoLog.EQ -> groove.undoEq(t) } })
+                UndoLog.EQ -> groove.undoEq(t)
+                UndoLog.MASTER -> groove.undoMaster() } })
         com.thorbox.app.ui.Info.toast("UNDO", if (kind < 0) "nothing left to undo" else "took back the last ${UndoLog.label(kind)} change")
     }
 
@@ -608,7 +613,8 @@ class AppState(private val app: Application) {
         groove.restore(groove0, scale0, p.clips,
             p.channels.map { com.thorbox.app.groove.Channel(it.name, it.volumeDb, it.pan, it.mute, it.solo, it.scSource, it.scAmount, it.eq.toTrackEq()) },
             p.feels.map { com.thorbox.app.groove.TrackFeel(runCatching { com.thorbox.app.groove.GrooveTemplate.byName(it.template) }.getOrDefault(com.thorbox.app.groove.GrooveTemplate.STRAIGHT), it.amount) },
-            p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } }, p.duck)
+            p.masterDb, p.automation.mapValues { (_, v) -> v.map { com.thorbox.app.groove.Automation.Point(it.tick, it.value) } }, p.duck,
+            p.masterBus.toMasterBus())
         groove.restorePatterns(p.patterns, p.currentPattern, p.song, p.songMode, p.songLoop)
 
         val f = p.focus
