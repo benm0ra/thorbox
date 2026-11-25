@@ -719,8 +719,7 @@ private fun DrawScope.denimLeg(hip: Offset, knee: Offset, ankle: Offset) {
 private fun DrawScope.sneaker(x: Float, y: Float, angle: Float) {
     rotate(angle, Offset(x - 6f, y)) {
         inkRRect(x - 14f, y + 3f, 28f, 5.5f, 2.5f, GUM, w = Graff.kl * 0.7f)
-        val p = rrectPath(Graff.b, x - 13f, y - 8f, 26f, 12.5f, 6f)
-        inkCel(p, Line79.WHITE, Line79.WHITE_DK, 2f)
+        inkRRect(x - 13f, y - 8f, 26f, 12.5f, 6f, Line79.WHITE, Line79.WHITE_DK, 2f)
         limb(x - 9f, y + 1f, x + 6f, y - 4f, 2.2f, Line79.CASCADE)
         for (i in 0 until 3) drawLine(Line79.INK, Offset(x - 6f + i * 3.5f, y - 7f), Offset(x - 4f + i * 3.5f, y - 4f), Graff.kl * 0.4f)   // laces
         shine(x + 5f, y - 6f, 4f, -15f, Graff.kl * 0.7f)
@@ -777,13 +776,12 @@ private fun DrawScope.head(st: DrummerState, now: Float, y: Float, sleepy: Boole
         drawOval(MASK, Offset(cx + 36f, cy - 36f), Size(12f, 8f))
     }
     // big square-ish head + two round jowls: one keylined silhouette (outline all three, then fill them)
-    val skull = rrectPath(Graff.b, cx - 44f, cy - 40f, 88f, 74f, 30f)
-    val jl = ovalPath(Graff.c, cx - 46f, cy + 2f + jowl, 40f, 32f)
-    keyline(skull, kl * 2f); keyline(jl, kl * 2f)
-    val jr = ovalPath(Graff.a, cx + 6f, cy + 2f + jowl, 40f, 32f); keyline(jr, kl * 2f)
-    cel(skull, COAT, COAT_DARK, 6f)
-    cel(ovalPath(Graff.c, cx - 46f, cy + 2f + jowl, 40f, 32f), COAT, COAT_DARK, 4f)
-    cel(ovalPath(Graff.a, cx + 6f, cy + 2f + jowl, 40f, 32f), COAT, COAT_DARK, 4f)
+    drawRoundRect(Line79.INK, Offset(cx - 44f, cy - 40f), Size(88f, 74f), CornerRadius(30f), style = Stroke(kl * 2f))
+    drawOval(Line79.INK, Offset(cx - 46f, cy + 2f + jowl), Size(40f, 32f), style = Stroke(kl * 2f))
+    drawOval(Line79.INK, Offset(cx + 6f, cy + 2f + jowl), Size(40f, 32f), style = Stroke(kl * 2f))
+    celRRect(cx - 44f, cy - 40f, 88f, 74f, 30f, COAT, COAT_DARK, 6f)
+    celOval(cx - 46f, cy + 2f + jowl, 40f, 32f, COAT, COAT_DARK, 4f)
+    celOval(cx + 6f, cy + 2f + jowl, 40f, 32f, COAT, COAT_DARK, 4f)
     shine(cx - 34f, cy - 22f, 9f, -70f, kl)
     // brow wrinkles
     drawLine(COAT_DARK, Offset(cx - 14f, cy - 26f), Offset(cx + 14f, cy - 26f), 2.5f, cap = StrokeCap.Round)

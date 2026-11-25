@@ -112,17 +112,51 @@ fun DrawScope.cel(p: Path, c: Color, sh: Color, d: Float) {
 /** Cel + keyline: the house fill for anything round or solid. */
 fun DrawScope.inkCel(p: Path, c: Color, sh: Color, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) { cel(p, c, sh, d); keyline(p, w) }
 
+// The common shapes are drawn with the GPU's native primitives (circles, ovals, round rects), never as
+// general Paths: a filled or stroked Path is rasterised into a mask every frame, which on a busy scene is
+// hundreds of masks. Their hard shadow is two primitives: the shadow shape, then the lit shape nudged
+// up-left and shrunk just enough to stay inside it, leaving the crescent bottom-right.
+
 fun DrawScope.inkCircle(cx: Float, cy: Float, r: Float, c: Color, sh: Color? = null, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) {
-    val p = circlePath(Graff.a, cx, cy, r); if (sh == null) ink(p, c, w) else inkCel(p, c, sh, d, w)
+    if (sh == null) drawCircle(c, r, Offset(cx, cy))
+    else {
+        val dd = d.coerceAtMost(r * 0.9f)
+        drawCircle(sh, r, Offset(cx, cy))
+        drawCircle(c, r - dd * 0.64f, Offset(cx - dd * 0.5f, cy - dd * 0.4f))
+    }
+    drawCircle(Line79.INK, r, Offset(cx, cy), style = Stroke(w))
 }
 fun DrawScope.inkOval(l: Float, t: Float, wd: Float, ht: Float, c: Color, sh: Color? = null, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) {
-    val p = ovalPath(Graff.a, l, t, wd, ht); if (sh == null) ink(p, c, w) else inkCel(p, c, sh, d, w)
+    if (sh == null) drawOval(c, Offset(l, t), Size(wd, ht))
+    else {
+        val dx = d.coerceAtMost(wd * 0.45f); val dy = (d * 0.8f).coerceAtMost(ht * 0.45f)
+        drawOval(sh, Offset(l, t), Size(wd, ht))
+        drawOval(c, Offset(l, t), Size(wd - dx, ht - dy))                  // anchored top-left: the crescent is bottom-right
+    }
+    drawOval(Line79.INK, Offset(l, t), Size(wd, ht), style = Stroke(w))
 }
 fun DrawScope.inkRRect(l: Float, t: Float, wd: Float, ht: Float, r: Float, c: Color, sh: Color? = null, d: Float = Graff.kl * 1.6f, w: Float = Graff.kl) {
-    val p = rrectPath(Graff.a, l, t, wd, ht, r); if (sh == null) ink(p, c, w) else inkCel(p, c, sh, d, w)
+    val cr = CornerRadius(r)
+    if (sh == null) drawRoundRect(c, Offset(l, t), Size(wd, ht), cr)
+    else {
+        val dx = d.coerceAtMost(wd * 0.45f); val dy = (d * 0.8f).coerceAtMost(ht * 0.45f)
+        drawRoundRect(sh, Offset(l, t), Size(wd, ht), cr)
+        drawRoundRect(c, Offset(l, t), Size(wd - dx, ht - dy), cr)
+    }
+    drawRoundRect(Line79.INK, Offset(l, t), Size(wd, ht), cr, style = Stroke(w))
+}
+/** The hard shadow on an oval, fill only (for silhouettes keylined separately). */
+fun DrawScope.celOval(l: Float, t: Float, wd: Float, ht: Float, c: Color, sh: Color, d: Float) {
+    drawOval(sh, Offset(l, t), Size(wd, ht))
+    drawOval(c, Offset(l, t), Size(wd - d.coerceAtMost(wd * 0.45f), ht - (d * 0.8f).coerceAtMost(ht * 0.45f)))
+}
+/** The hard shadow on a round rect, fill only. */
+fun DrawScope.celRRect(l: Float, t: Float, wd: Float, ht: Float, r: Float, c: Color, sh: Color, d: Float) {
+    drawRoundRect(sh, Offset(l, t), Size(wd, ht), CornerRadius(r))
+    drawRoundRect(c, Offset(l, t), Size(wd - d.coerceAtMost(wd * 0.45f), ht - (d * 0.8f).coerceAtMost(ht * 0.45f)), CornerRadius(r))
 }
 fun DrawScope.inkRect(l: Float, t: Float, wd: Float, ht: Float, c: Color, w: Float = Graff.kl) {
-    drawRect(c, Offset(l, t), Size(wd, ht)); drawRect(Line79.INK, Offset(l, t), Size(wd, ht), style = Stroke(w, join = ROUND))
+    drawRect(c, Offset(l, t), Size(wd, ht)); drawRect(Line79.INK, Offset(l, t), Size(wd, ht), style = Stroke(w))
 }
 
 /** An outlined tube (an arm, a leg, a tail, a cable): INK under, colour on top, the shadow tone on its far edge if given. */
@@ -178,27 +212,21 @@ fun DrawScope.block(p: Path, depth: Float, c: Color, step: Float = 0.75f) {
 fun DrawScope.crewEye(cx: Float, cy: Float, w: Float, h: Float, lidColor: Color, lid: Float = 0.45f, look: Float = 0f, blink: Float = 0f) {
     val l = cx - w / 2f; val t = cy - h / 2f
     if (blink >= 0.6f) { drawLine(Line79.INK, Offset(l, cy), Offset(l + w, cy), Graff.kl, cap = StrokeCap.Round); return }
-    val ball = ovalPath(Graff.b, l, t, w, h)
-    drawPath(ball, Line79.WHITE)
-    // the pupil and the lid are cut to the eyeball with path intersections (no clip)
-    val pr = minOf(w, h) * 0.36f
-    val px = cx + look * w * 0.18f; val py = cy + h * 0.08f
-    val cut = Graff.opB
-    circlePath(Graff.opA, px, py, pr)
-    if (cut.op(Graff.opA, ball, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(cut, Line79.INK)
+    // all primitives: the white, the pupil (kept inside the white), the lid as a chord segment of the same oval
+    drawOval(Line79.WHITE, Offset(l, t), Size(w, h))
+    val pr = minOf(w, h) * 0.34f
+    val px = cx + look.coerceIn(-1f, 1f) * w * 0.12f; val py = cy + h * 0.08f
+    drawCircle(Line79.INK, pr, Offset(px, py))
     drawCircle(Line79.WHITE, pr * 0.32f, Offset(px + pr * 0.35f, py - pr * 0.4f))
     val ly = t + h * (lid + 0.5f * blink).coerceIn(0f, 1f)
-    if (ly > t) {
-        rrectPath(Graff.opA, l - 2f, t - 2f, w + 4f, ly - t + 2f, 0f)
-        if (cut.op(Graff.opA, ball, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(cut, lidColor)
-        // the lid's edge: a chord across the eyeball at ly
-        val ry = h / 2f; val dy = (ly - cy) / ry
-        if (dy > -1f && dy < 1f) {
-            val hx = w / 2f * kotlin.math.sqrt(1f - dy * dy)
-            drawLine(Line79.INK, Offset(cx - hx, ly), Offset(cx + hx, ly), Graff.kl * 0.9f, cap = StrokeCap.Round)
-        }
+    val dy = ((ly - cy) / (h / 2f)).coerceIn(-1f, 1f)
+    if (dy > -0.99f) {
+        val a = Math.toDegrees(kotlin.math.asin(dy).toDouble()).toFloat()
+        drawArc(lidColor, 180f - a, 180f + 2f * a, false, Offset(l, t), Size(w, h))      // the part of the eye above the lid line
+        val hx = w / 2f * kotlin.math.sqrt(1f - dy * dy)
+        drawLine(Line79.INK, Offset(cx - hx, ly), Offset(cx + hx, ly), Graff.kl * 0.9f, cap = StrokeCap.Round)
     }
-    keyline(ball)
+    drawOval(Line79.INK, Offset(l, t), Size(w, h), style = Stroke(Graff.kl))
 }
 
 // ---------------------------------------------------------------- lettering

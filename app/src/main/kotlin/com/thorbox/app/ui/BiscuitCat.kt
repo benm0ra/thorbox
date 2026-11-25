@@ -115,7 +115,7 @@ private class CatState {
     val land = Spring(9f, 0.3f)           // landing squash after a hop
     var wasUp = false
     var peekAt = 9f                       // she lowers her shades for a look now and then
-    val trainJam = PieceCache(); val trainNite = PieceCache()
+    val trainJam = PieceCache(); val trainNite = PieceCache(); val tag = PieceCache()
     var lean0 = 0f; var head0 = 0f; var ear0 = 0f; var tail0 = 0f; var land0 = 0f; var peek = 0f; var peekBlink = 0f
 }
 
@@ -608,35 +608,33 @@ private fun DrawScope.y2kShades(cs: CatState, hx: Float, ey: Float, now: Float) 
         val cx = if (k == 0) hx - 15f else hx + 15f
         val w = if (k == 0) 20f else 18f; val h = if (k == 0) 11f else 10.5f
         rotate(if (k == 0) -6.9f else 6.9f, Offset(cx, ey)) {
-            val outer = ovalPath(cs.path2, cx - (w + 7f) / 2f, ey - (h + 6f) / 2f, w + 7f, h + 6f)
-            keyline(outer, kl * 2f)
-            cel(outer, FRAME, FRAME_DK, 2.2f)
-            val lens = ovalPath(cs.path, cx - w / 2f, ey - h / 2f, w, h)
-            drawPath(lens, Brush.verticalGradient(0f to Color(0xFFCFE8F7), 0.35f to Color(0xFFA9B3BE), 0.62f to Color(0xFF4E5560), 1f to Color(0xFF2A2E36),
-                startY = ey - h / 2f, endY = ey + h / 2f))
-            // the streaks and the glint, cut to the lens (path intersections, no clip)
-            lensStreak(lens, cx - w * 0.3f, ey + h * 0.5f, cx + w * 0.05f, ey - h * 0.6f, 2.4f, 1f)
-            lensStreak(lens, cx - w * 0.05f, ey + h * 0.6f, cx + w * 0.22f, ey - h * 0.5f, 1.2f, 0.6f)
+            drawOval(Line79.INK, Offset(cx - (w + 7f) / 2f, ey - (h + 6f) / 2f), Size(w + 7f, h + 6f), style = Stroke(kl * 2f))
+            celOval(cx - (w + 7f) / 2f, ey - (h + 6f) / 2f, w + 7f, h + 6f, FRAME, FRAME_DK, 2.2f)
+            drawOval(Brush.verticalGradient(0f to Color(0xFFCFE8F7), 0.35f to Color(0xFFA9B3BE), 0.62f to Color(0xFF4E5560), 1f to Color(0xFF2A2E36),
+                startY = ey - h / 2f, endY = ey + h / 2f), Offset(cx - w / 2f, ey - h / 2f), Size(w, h))
+            // the streaks and the glint, kept inside the lens
+            lensStreak(cx, ey, w, h, cx - w * 0.3f, ey + h * 0.5f, cx + w * 0.05f, ey - h * 0.6f, 2.4f, 1f)
+            lensStreak(cx, ey, w, h, cx - w * 0.05f, ey + h * 0.6f, cx + w * 0.22f, ey - h * 0.5f, 1.2f, 0.6f)
             if (glint < 0.2f) {
                 val gx = hx - 26f + glint / 0.2f * 52f
-                lensStreak(lens, gx, ey + h * 0.6f, gx + 5f, ey - h * 0.6f, 2f, 0.8f)
+                if (kotlin.math.abs(gx - cx) < w * 0.4f) lensStreak(cx, ey, w, h, gx, ey + h * 0.6f, gx + 5f, ey - h * 0.6f, 2f, 0.8f)
             }
-            keyline(lens, kl * 0.8f)
+            drawOval(Line79.INK, Offset(cx - w / 2f, ey - h / 2f), Size(w, h), style = Stroke(kl * 0.8f))
             shine(cx - w * 0.42f, ey - h * 0.62f, 3.5f, -15f, 1.6f)
         }
     }
     sparkle(hx - 21f, ey - 6f, 3.5f)
 }
-/** A straight white streak [w] wide from (x0, y0) to (x1, y1), cut to [lens]. */
-private fun DrawScope.lensStreak(lens: Path, x0: Float, y0: Float, x1: Float, y1: Float, w: Float, alpha: Float) {
-    val dx = x1 - x0; val dy = y1 - y0; val l = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(0.01f)
-    val nx = -dy / l * w / 2f; val ny = dx / l * w / 2f
-    val q = STREAK_Q; q.reset()
-    q.moveTo(x0 + nx, y0 + ny); q.lineTo(x1 + nx, y1 + ny); q.lineTo(x1 - nx, y1 - ny); q.lineTo(x0 - nx, y0 - ny); q.close()
-    if (STREAK_CUT.op(q, lens, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(STREAK_CUT, Color.White, alpha = alpha)
+/** A white streak [sw] wide from (x0, y0) to (x1, y1), its ends pulled in so it stays inside the lens (centre cx, ey; w × h). */
+private fun DrawScope.lensStreak(cx: Float, ey: Float, w: Float, h: Float, x0: Float, y0: Float, x1: Float, y1: Float, sw: Float, alpha: Float) {
+    fun inside(x: Float, y: Float): Offset {
+        val ux = (x - cx) / (w / 2f); val uy = (y - ey) / (h / 2f)
+        val e = ux * ux + uy * uy
+        val k = if (e > 0.62f) kotlin.math.sqrt(0.62f / e) else 1f
+        return Offset(cx + (x - cx) * k, ey + (y - ey) * k)
+    }
+    drawLine(Color.White.copy(alpha = alpha), inside(x0, y0), inside(x1, y1), sw, cap = StrokeCap.Round)
 }
-private val STREAK_Q = Path()
-private val STREAK_CUT = Path()
 private val FRAME = Color(0xFFF7F5F0)
 private val FRAME_DK = Color(0xFFD9D6D0)
 
@@ -682,9 +680,12 @@ private fun DrawScope.room(cs: CatState, l: Float, r: Float, t: Float, b: Float,
     inkRect(wx - 8f, wy + wh + 4f, ww + 16f, 5f, SASH, kl)
     // the tag on the wall: her name, in marker
     val tg = tm.measure("BISCUIT", tagStyle)
-    drawText(tg, Line79.CASCADE_LT, Offset(8f, 26f), drawStyle = Stroke(tg.size.height * 0.08f, join = StrokeJoin.Round))
-    drip(8f + tg.size.width * 0.18f, 26f + tg.size.height * 0.85f, tg.size.height * 0.45f, tg.size.height * 0.06f, Line79.CASCADE_LT)
-    drip(8f + tg.size.width * 0.7f, 26f + tg.size.height * 0.85f, tg.size.height * 0.3f, tg.size.height * 0.05f, Line79.CASCADE_LT)
+    val th = tg.size.height.toFloat()
+    cachedArt(cs.tag, (tg.size.width * 31L + th.toLong()), tg.size.width + 4f, th * 1.5f + 4f, Graff.scale, 6f, 24f) {
+        drawText(tg, Line79.CASCADE_LT, Offset(2f, 2f), drawStyle = Stroke(th * 0.08f, join = StrokeJoin.Round))
+        drip(2f + tg.size.width * 0.18f, 2f + th * 0.85f, th * 0.45f, th * 0.06f, Line79.CASCADE_LT)
+        drip(2f + tg.size.width * 0.7f, 2f + th * 0.85f, th * 0.3f, th * 0.05f, Line79.CASCADE_LT)
+    }
     // the floor
     drawRect(FLOOR_WOOD, Offset(l, 150f), Size(r - l, b - 150f))
     drawLine(Line79.INK, Offset(l, 150f), Offset(r, 150f), kl)

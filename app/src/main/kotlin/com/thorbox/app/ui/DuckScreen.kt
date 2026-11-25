@@ -737,14 +737,14 @@ private fun DrawScope.rat(pose: RatPose, now: Float, path: Path, tail: Path): Fl
     }
     // head and snout: one keylined silhouette (outline both, then fill both, so there's no seam)
     val sn = pose.sniff * 1.2f
-    val head = circlePath(Graff.b, headX, headY, 15f)
     path.reset()
     path.moveTo(headX + 6f, headY - 8f)
     path.quadraticTo(headX + 27f + sn, headY - 3f, headX + 26f + sn, headY + 3f)
     path.quadraticTo(headX + 18f, headY + 9f, headX + 4f, headY + 8f)
     path.close()
-    keyline(head, kl * 2f); keyline(path, kl * 2f)
-    cel(head, FUR, FUR_DK, 3f); cel(path, FUR, FUR_DK, 2f)
+    drawCircle(INK, 15f, Offset(headX, headY), style = Stroke(kl * 2f)); keyline(path, kl * 2f)
+    drawCircle(FUR_DK, 15f, Offset(headX, headY)); drawCircle(FUR, 15f - 1.9f, Offset(headX - 1.5f, headY - 1.2f))
+    cel(path, FUR, FUR_DK, 2f)
     inkCircle(headX + 26f + sn, headY + 1.5f, 3.4f, PINK, w = kl * 0.8f)
     shineDot(headX + 25f + sn, headY + 0.2f, 0.9f)
     for (k in -1..1) drawLine(INK, Offset(headX + 21f, headY + 4f), Offset(headX + 35f, headY + 2f + k * 4f + sqp * 2f + pose.sniff * 1.5f * k), kl * 0.35f)
