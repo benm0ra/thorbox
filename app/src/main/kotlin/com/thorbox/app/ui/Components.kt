@@ -31,6 +31,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.getValue
 
@@ -62,7 +63,7 @@ fun HwButton(
         // shrinks to fit rather than being cut off ("DRUMS" not "DRU") on narrow screens
         FitText(text, TextStyle(color = when { !enabled -> Tb.Dim; active -> Tb.on(accent); else -> Tb.Text },
             fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal,
-            fontSize = (fontSize + 1).sp, letterSpacing = 0.5.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
+            fontSize = (fontSize + 1).sp, letterSpacing = 0.5.sp, lineHeight = 1.15.em, lineHeightStyle = Tb.DisplayLines), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
     }
 }
 
@@ -161,7 +162,8 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal, fontSize = 14.sp, maxLines = 1)
+        Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal, fontSize = 14.sp, maxLines = 1,
+            lineHeight = 1.15.em, style = androidx.compose.ui.text.TextStyle(lineHeightStyle = Tb.DisplayLines))
     }
 }
 

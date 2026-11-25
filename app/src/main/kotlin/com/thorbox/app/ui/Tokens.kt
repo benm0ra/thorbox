@@ -27,6 +27,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.thorbox.app.AppState
 import com.thorbox.app.TopView
@@ -82,7 +83,7 @@ object Heights {
 object Type {
     val label get() = Tb.Label
     val title get() = TextStyle(color = Tb.Text, fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal,
-        fontSize = 16.sp, letterSpacing = 1.sp,
+        fontSize = 16.sp, letterSpacing = 1.sp, lineHeight = 1.15.em, lineHeightStyle = Tb.DisplayLines,
         // the hard block under a header; on paper (light themes) dark-on-dark doubles up, so it's left off there
         shadow = if (Tb.palette.light) null else androidx.compose.ui.graphics.Shadow(Tb.BlockShadow, androidx.compose.ui.geometry.Offset(2.5f, 2.5f), 0f))
     val body get() = TextStyle(color = Tb.Text, fontSize = 12.sp)
