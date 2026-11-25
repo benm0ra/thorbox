@@ -72,6 +72,10 @@ object Graff {
     internal val b = Path()
     internal val c = Path()
     internal val star = Path()
+    // scratch for path intersections (cel shading and the eye are done with path ops, not per-frame clips:
+    // an anti-aliased clipPath makes the GPU build a mask every draw)
+    internal val opA = Path()
+    internal val opB = Path()
     /** Lines ≈ [dp] dp on screen in a scene drawn at [scale] px per unit. */
     fun begin(density: Float, scale: Float, dp: Float = 1.6f) { kl = dp * density / scale.coerceAtLeast(0.01f); this.scale = scale }
 }
@@ -94,12 +98,15 @@ fun DrawScope.keyline(p: Path, w: Float = Graff.kl) = drawPath(p, Line79.INK, st
 /** Fill, then keyline. */
 fun DrawScope.ink(p: Path, c: Color, w: Float = Graff.kl) { drawPath(p, c); keyline(p, w) }
 
-/** The hard shadow: [sh] fills the shape, [c] is laid over it shifted up-left by [d], leaving a crescent bottom-right. */
+/**
+ * The hard shadow: [sh] fills the shape, then [c] fills where the shape overlaps itself shifted up-left by
+ * [d] (a path intersection), leaving a crescent of shadow bottom-right.
+ */
 fun DrawScope.cel(p: Path, c: Color, sh: Color, d: Float) {
-    clipPath(p) {
-        drawPath(p, sh)
-        translate(-d, -d * 0.8f) { drawPath(p, c) }
-    }
+    drawPath(p, sh)
+    val shifted = Graff.opA; shifted.reset(); shifted.addPath(p, Offset(-d, -d * 0.8f))
+    val lit = Graff.opB; lit.reset()
+    if (lit.op(p, shifted, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(lit, c) else drawPath(p, c)
 }
 
 /** Cel + keyline: the house fill for anything round or solid. */
@@ -173,14 +180,23 @@ fun DrawScope.crewEye(cx: Float, cy: Float, w: Float, h: Float, lidColor: Color,
     if (blink >= 0.6f) { drawLine(Line79.INK, Offset(l, cy), Offset(l + w, cy), Graff.kl, cap = StrokeCap.Round); return }
     val ball = ovalPath(Graff.b, l, t, w, h)
     drawPath(ball, Line79.WHITE)
-    clipPath(ball) {
-        val pr = minOf(w, h) * 0.36f
-        val px = cx + look * w * 0.18f; val py = cy + h * 0.08f
-        drawCircle(Line79.INK, pr, Offset(px, py))
-        drawCircle(Line79.WHITE, pr * 0.32f, Offset(px + pr * 0.35f, py - pr * 0.4f))
-        val ly = t + h * (lid + 0.5f * blink).coerceIn(0f, 1f)
-        drawRect(lidColor, Offset(l - 2f, t - 2f), Size(w + 4f, ly - t + 2f))
-        drawLine(Line79.INK, Offset(l - 2f, ly), Offset(l + w + 2f, ly), Graff.kl * 0.9f)
+    // the pupil and the lid are cut to the eyeball with path intersections (no clip)
+    val pr = minOf(w, h) * 0.36f
+    val px = cx + look * w * 0.18f; val py = cy + h * 0.08f
+    val cut = Graff.opB
+    circlePath(Graff.opA, px, py, pr)
+    if (cut.op(Graff.opA, ball, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(cut, Line79.INK)
+    drawCircle(Line79.WHITE, pr * 0.32f, Offset(px + pr * 0.35f, py - pr * 0.4f))
+    val ly = t + h * (lid + 0.5f * blink).coerceIn(0f, 1f)
+    if (ly > t) {
+        rrectPath(Graff.opA, l - 2f, t - 2f, w + 4f, ly - t + 2f, 0f)
+        if (cut.op(Graff.opA, ball, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(cut, lidColor)
+        // the lid's edge: a chord across the eyeball at ly
+        val ry = h / 2f; val dy = (ly - cy) / ry
+        if (dy > -1f && dy < 1f) {
+            val hx = w / 2f * kotlin.math.sqrt(1f - dy * dy)
+            drawLine(Line79.INK, Offset(cx - hx, ly), Offset(cx + hx, ly), Graff.kl * 0.9f, cap = StrokeCap.Round)
+        }
     }
     keyline(ball)
 }

@@ -19,7 +19,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +51,6 @@ fun Encoder(
     val start by rememberUpdatedState(onDragStart)
     val end by rememberUpdatedState(onDragEnd)
     val reset by rememberUpdatedState(onReset)
-    val capPath = androidx.compose.runtime.remember { androidx.compose.ui.graphics.Path() }
 
     // NAV cursor: focus the knob, then the right stick (or A + D-pad) turns it.
     Column(modifier.navAdjustable(label, onReset = { reset() }, corner = com.thorbox.app.input.NavTarget.ROUND) { d -> start(); delta(d); end() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -88,11 +86,9 @@ fun Encoder(
             val capR = r * (if (active) 0.66f else 0.6f)
             val bd = 3.dp.toPx()
             drawCircle(Tb.BlockShadow, capR, c + Offset(bd, bd))
-            val cap = capPath.apply { reset(); addOval(androidx.compose.ui.geometry.Rect(c.x - capR, c.y - capR, c.x + capR, c.y + capR)) }
-            clipPath(cap) {
-                drawCircle(androidx.compose.ui.graphics.lerp(color, Color.Black, 0.28f), capR, c)
-                drawCircle(color, capR, c - Offset(capR * 0.12f, capR * 0.1f))
-            }
+            // one hard shadow: the shadow disc, then the lit disc nudged up-left and just small enough to stay inside it
+            drawCircle(androidx.compose.ui.graphics.lerp(color, Color.Black, 0.28f), capR, c)
+            drawCircle(color, capR * 0.84f, c - Offset(capR * 0.12f, capR * 0.1f))
             drawCircle(Tb.Keyline, capR, c, style = Stroke(kl))
             drawLine(Color.White.copy(alpha = 0.9f), c + Offset(-capR * 0.55f, -capR * 0.12f), c + Offset(-capR * 0.42f, -capR * 0.45f), kl * 1.6f, cap = StrokeCap.Round)
             // Notch

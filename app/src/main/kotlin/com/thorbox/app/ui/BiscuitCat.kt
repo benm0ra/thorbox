@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
@@ -613,13 +614,12 @@ private fun DrawScope.y2kShades(cs: CatState, hx: Float, ey: Float, now: Float) 
             val lens = ovalPath(cs.path, cx - w / 2f, ey - h / 2f, w, h)
             drawPath(lens, Brush.verticalGradient(0f to Color(0xFFCFE8F7), 0.35f to Color(0xFFA9B3BE), 0.62f to Color(0xFF4E5560), 1f to Color(0xFF2A2E36),
                 startY = ey - h / 2f, endY = ey + h / 2f))
-            clipPath(lens) {
-                drawLine(Color.White, Offset(cx - w * 0.3f, ey + h * 0.5f), Offset(cx + w * 0.05f, ey - h * 0.6f), 2.4f)
-                drawLine(Color.White.copy(alpha = 0.6f), Offset(cx - w * 0.05f, ey + h * 0.6f), Offset(cx + w * 0.22f, ey - h * 0.5f), 1.2f)
-                if (glint < 0.2f) {
-                    val gx = hx - 26f + glint / 0.2f * 52f
-                    drawLine(Color.White.copy(alpha = 0.8f), Offset(gx, ey + h * 0.6f), Offset(gx + 5f, ey - h * 0.6f), 2f)
-                }
+            // the streaks and the glint, cut to the lens (path intersections, no clip)
+            lensStreak(lens, cx - w * 0.3f, ey + h * 0.5f, cx + w * 0.05f, ey - h * 0.6f, 2.4f, 1f)
+            lensStreak(lens, cx - w * 0.05f, ey + h * 0.6f, cx + w * 0.22f, ey - h * 0.5f, 1.2f, 0.6f)
+            if (glint < 0.2f) {
+                val gx = hx - 26f + glint / 0.2f * 52f
+                lensStreak(lens, gx, ey + h * 0.6f, gx + 5f, ey - h * 0.6f, 2f, 0.8f)
             }
             keyline(lens, kl * 0.8f)
             shine(cx - w * 0.42f, ey - h * 0.62f, 3.5f, -15f, 1.6f)
@@ -627,6 +627,16 @@ private fun DrawScope.y2kShades(cs: CatState, hx: Float, ey: Float, now: Float) 
     }
     sparkle(hx - 21f, ey - 6f, 3.5f)
 }
+/** A straight white streak [w] wide from (x0, y0) to (x1, y1), cut to [lens]. */
+private fun DrawScope.lensStreak(lens: Path, x0: Float, y0: Float, x1: Float, y1: Float, w: Float, alpha: Float) {
+    val dx = x1 - x0; val dy = y1 - y0; val l = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(0.01f)
+    val nx = -dy / l * w / 2f; val ny = dx / l * w / 2f
+    val q = STREAK_Q; q.reset()
+    q.moveTo(x0 + nx, y0 + ny); q.lineTo(x1 + nx, y1 + ny); q.lineTo(x1 - nx, y1 - ny); q.lineTo(x0 - nx, y0 - ny); q.close()
+    if (STREAK_CUT.op(q, lens, androidx.compose.ui.graphics.PathOperation.Intersect)) drawPath(STREAK_CUT, Color.White, alpha = alpha)
+}
+private val STREAK_Q = Path()
+private val STREAK_CUT = Path()
 private val FRAME = Color(0xFFF7F5F0)
 private val FRAME_DK = Color(0xFFD9D6D0)
 
@@ -644,8 +654,7 @@ private fun DrawScope.room(cs: CatState, l: Float, r: Float, t: Float, b: Float,
     // the window onto the El
     val wx = 134f; val wy = 14f; val ww = 96f; val wh = 78f
     inkRRect(wx - 6f, wy - 6f, ww + 12f, wh + 12f, 3f, SASH, w = kl)
-    val pane = rrectPath(cs.path2, wx, wy, ww, wh, 2f)
-    clipPath(pane) {
+    clipRect(wx, wy, wx + ww, wy + wh) {                                // a rectangle clip is a scissor: cheap
         drawRect(Line79.NIGHT, Offset(wx, wy), Size(ww, wh))
         for (i in 0 until 6) {                                       // the block across the street, lit windows
             val bx = wx + i * 17f - 4f; val bh = 20f + (i * 37 % 26)
