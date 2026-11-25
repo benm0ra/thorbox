@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
@@ -161,7 +162,7 @@ fun AuroraBackground(state: AppState, modifier: Modifier = Modifier, content: @C
  */
 fun Modifier.glass(state: AppState, corner: Dp = 12.dp, fallback: Color = Tb.Panel): Modifier = composed {
     val level = state.glass.value
-    if (level == GlassLevel.OFF) return@composed this.background(fallback, androidx.compose.foundation.shape.RoundedCornerShape(corner))
+    if (level == GlassLevel.OFF) return@composed this.graffFrame(corner, block = 4.dp).background(fallback, androidx.compose.foundation.shape.RoundedCornerShape(corner))
     val shader = remember { RuntimeShader(AURORA_AGSL) }
     val brush = remember(shader) { ShaderBrush(shader) }
     val origin = remember { FloatArray(2) }
@@ -176,6 +177,7 @@ fun Modifier.glass(state: AppState, corner: Dp = 12.dp, fallback: Color = Tb.Pan
             val rim = Brush.linearGradient(listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.04f), Color.White.copy(alpha = 0.14f)),
                 start = Offset.Zero, end = Offset(size.width, size.height))
             val stroke = Stroke(1.dp.toPx())
+            val kl = 1.5.dp.toPx(); val keyStroke = Stroke(kl); val block = 4.dp.toPx()
             onDrawBehind {
                 tel.glassFrame.longValue
                 shader.common(root.width.toFloat().coerceAtLeast(1f), root.height.toFloat().coerceAtLeast(1f), level)
@@ -183,8 +185,11 @@ fun Modifier.glass(state: AppState, corner: Dp = 12.dp, fallback: Color = Tb.Pan
                 shader.setFloatUniform("iPanel", size.width, size.height)
                 shader.setFloatUniform("iGlass", 1f)
                 shader.setFloatUniform("iRadius", r)
+                // NIGHT LINE '79: a hard block under the panel, the glass, a keyline round it, light caught on the bevel
+                drawRoundRect(Tb.BlockShadow, Offset(block, block), size, cr)
                 drawRoundRect(brush, cornerRadius = cr)
-                drawRoundRect(rim, cornerRadius = cr, style = stroke)   // light caught on the bevel
+                drawRoundRect(rim, cornerRadius = cr, style = stroke)
+                drawRoundRect(Tb.Keyline, Offset(kl / 2f, kl / 2f), Size(size.width - kl, size.height - kl), CornerRadius((r - kl / 2f).coerceAtLeast(0f)), style = keyStroke)
             }
         }
 }

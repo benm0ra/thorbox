@@ -80,7 +80,9 @@ object Heights {
 /** Type roles. Labels are bold caps with tracking; values are mono. */
 object Type {
     val label get() = Tb.Label
-    val title get() = TextStyle(color = Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
+    val title get() = TextStyle(color = Tb.Text, fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal,
+        fontSize = 16.sp, letterSpacing = 1.sp,
+        shadow = androidx.compose.ui.graphics.Shadow(Tb.BlockShadow, androidx.compose.ui.geometry.Offset(2.5f, 2.5f), 0f))
     val body get() = TextStyle(color = Tb.Text, fontSize = 12.sp)
     val value get() = TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
     val valueLg get() = TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
@@ -110,7 +112,32 @@ val TrackKind.section: Section? get() = when (this) {
  * panel. Waveforms, grids, the synth's scope and the drummer all sit in one.
  */
 fun Modifier.bezel(corner: Dp = Radius.panel): Modifier =
-    clip(RoundedCornerShape(corner)).background(Tb.Void.copy(alpha = 0.82f)).border(2.dp, Tb.Line, RoundedCornerShape(corner))
+    graffFrame(corner, block = 4.dp).clip(RoundedCornerShape(corner)).background(Tb.Void.copy(alpha = 0.82f))
+
+/**
+ * NIGHT LINE '79 chrome (docs/ART_STYLE.md): a hard [block] down-right behind the element, a keyline round
+ * it, and, when [active], a white shine tick in its top-left corner. Put it BEFORE the element's clip, so
+ * the block can sit outside the bounds. [pressed] drops the element onto its block.
+ */
+fun Modifier.graffFrame(corner: Dp, active: Boolean = false, pressed: Boolean = false, block: Dp = 3.dp, line: Dp = 1.5.dp): Modifier =
+    this.drawWithContent {
+        val r = androidx.compose.ui.geometry.CornerRadius(corner.toPx())
+        val b = block.toPx(); val lw = line.toPx()
+        if (!pressed && b > 0f) drawRoundRect(Tb.BlockShadow, androidx.compose.ui.geometry.Offset(b, b), size, r)
+        val d = if (pressed) b * 0.8f else 0f
+        androidx.compose.ui.graphics.drawscope.translate(d, d) {
+            this@drawWithContent.drawContent()
+            drawRoundRect(Tb.Keyline, androidx.compose.ui.geometry.Offset(lw / 2f, lw / 2f),
+                androidx.compose.ui.geometry.Size(size.width - lw, size.height - lw),
+                androidx.compose.ui.geometry.CornerRadius((corner.toPx() - lw / 2f).coerceAtLeast(0f)),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(lw))
+            if (active && size.minDimension > 20.dp.toPx()) {
+                val x = 7.dp.toPx(); val y = 9.dp.toPx(); val l = 6.dp.toPx()
+                drawLine(Color.White.copy(alpha = 0.9f), androidx.compose.ui.geometry.Offset(x, y),
+                    androidx.compose.ui.geometry.Offset(x + l * 0.77f, y - l * 0.64f), 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+        }
+    }
 
 /** A sheet / dialog panel: same backing, corner and edge everywhere, and B closes it ([onClose]). */
 fun Modifier.sheet(corner: Dp = Radius.sheet, onClose: (() -> Unit)?): Modifier =

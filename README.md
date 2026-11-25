@@ -197,7 +197,7 @@ app/         Android: AppState + controllers (groove, sampler, drums, export, pr
 - **Audio thread:** never allocates, locks or logs.
 - **Between them:** commands cross on a lock-free queue, and telemetry comes back through atomics.
 
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** is the full map: which file owns what, how a frame runs, how to add an engine feature or a page, and how the tests and CI fit together.
+**[docs/ART_STYLE.md](docs/ART_STYLE.md)** is the house art style (NIGHT LINE '79), which every illustration and the UI chrome follow. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** is the full map: which file owns what, how a frame runs, how to add an engine feature or a page, and how the tests and CI fit together.
 
 ## Performance
 

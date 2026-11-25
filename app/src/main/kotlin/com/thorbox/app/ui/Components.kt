@@ -51,6 +51,7 @@ fun HwButton(
         modifier
             .heightIn(min = minHeight)
             .widthIn(min = 44.dp)
+            .graffFrame(Radius.control, active = active)
             .clip(RoundedCornerShape(Radius.control))
             .background(if (active) accent else Tb.Raised)
             // NAV cursor: reachable with the D-pad on either screen; A presses it (and landing explains it).
@@ -60,7 +61,8 @@ fun HwButton(
     ) {
         // shrinks to fit rather than being cut off ("DRUMS" not "DRU") on narrow screens
         FitText(text, TextStyle(color = when { !enabled -> Tb.Dim; active -> Tb.on(accent); else -> Tb.Text },
-            fontWeight = FontWeight.Black, fontSize = fontSize.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
+            fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal,
+            fontSize = (fontSize + 1).sp, letterSpacing = 0.5.sp), minSize = (fontSize * 0.6f).coerceAtLeast(7f))
     }
 }
 
@@ -102,6 +104,7 @@ fun DragValue(
     if (compact) {
         Row(
             modifier
+                .graffFrame(Radius.control)
                 .clip(RoundedCornerShape(Radius.control))
                 .background(Tb.Raised)
                 .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
@@ -118,6 +121,7 @@ fun DragValue(
     androidx.compose.foundation.layout.Column(
         modifier
             .heightIn(min = 44.dp)
+            .graffFrame(6.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(Tb.Raised)
             .androidxPointer(pxPerUnit, { Info.show(label); delta(it) }, { reset?.invoke() })
@@ -145,7 +149,7 @@ private fun Modifier.androidxPointer(pxPerUnit: Float, onDelta: (Float) -> Unit,
 fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = Modifier, onHold: (Boolean) -> Unit) {
     val cb by androidx.compose.runtime.rememberUpdatedState(onHold)
     Box(
-        modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
+        modifier.heightIn(min = 44.dp).graffFrame(6.dp, active = held, pressed = held).clip(RoundedCornerShape(6.dp))
             .background(if (held) accent else Tb.Raised)
             .pointerInteropFilter { ev ->
                 when (ev.actionMasked) {
@@ -157,7 +161,7 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
+        Text(text, color = if (held) Tb.on(accent) else Tb.Text, fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal, fontSize = 14.sp, maxLines = 1)
     }
 }
 
@@ -165,7 +169,7 @@ fun HoldButton(text: String, held: Boolean, accent: Color, modifier: Modifier = 
 @Composable
 fun GearButton(active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.height(36.dp).clip(RoundedCornerShape(6.dp)).background(if (active) Tb.Key else Tb.Raised)
+        modifier.height(36.dp).graffFrame(6.dp, active = active).clip(RoundedCornerShape(6.dp)).background(if (active) Tb.Key else Tb.Raised)
             .navClickable(label = "SETTINGS") { Info.show("SETTINGS"); onClick() },
         contentAlignment = Alignment.Center,
     ) {

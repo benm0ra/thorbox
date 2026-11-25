@@ -200,8 +200,14 @@ object Tb {
     }
 
     val Mono = FontFamily.Monospace
+    /** The display face (NIGHT LINE '79): Anton for labels, buttons and headers; monospace on a mono theme (TERMINAL). */
+    val Display get() = if (palette.monoUi) Mono else Anton
+    /** The chrome's keyline: black on dark themes, the text colour on light ones (house style rule 1). */
+    val Keyline get() = if (palette.light) palette.text else Color(0xFF000000)
+    /** The hard block under buttons and panels (house style rule 5). */
+    val BlockShadow get() = if (palette.light) androidx.compose.ui.graphics.lerp(palette.text, palette.bg, 0.18f) else Color(0xFF000000)
     val Readout get() = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Black, fontSize = 30.sp, letterSpacing = 0.sp)
-    val Label get() = TextStyle(fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.2.sp, color = Muted)
+    val Label get() = TextStyle(fontFamily = Display, fontWeight = if (palette.monoUi) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, letterSpacing = 1.sp, color = Muted)
 }
 
 @Composable
