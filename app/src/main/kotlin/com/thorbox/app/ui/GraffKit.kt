@@ -165,6 +165,16 @@ fun DrawScope.limb(x0: Float, y0: Float, x1: Float, y1: Float, w: Float, c: Colo
     drawLine(sh ?: c, Offset(x0, y0), Offset(x1, y1), w, cap = StrokeCap.Round)
     if (sh != null) translate(-w * 0.12f, -w * 0.12f) { drawLine(c, Offset(x0, y0), Offset(x1, y1), w * 0.62f, cap = StrokeCap.Round) }
 }
+/** A two-segment limb (shoulder → elbow → wrist) with one outline and no seam at the joint; lines only, no Path. */
+fun DrawScope.limb2(x0: Float, y0: Float, x1: Float, y1: Float, x2: Float, y2: Float, w: Float, c: Color, sh: Color? = null) {
+    val a = Offset(x0, y0); val b = Offset(x1, y1); val e = Offset(x2, y2)
+    val ow = w + Graff.kl * 2f
+    drawLine(Line79.INK, a, b, ow, cap = StrokeCap.Round); drawLine(Line79.INK, b, e, ow, cap = StrokeCap.Round)
+    drawLine(sh ?: c, a, b, w, cap = StrokeCap.Round); drawLine(sh ?: c, b, e, w, cap = StrokeCap.Round)
+    if (sh != null) translate(-w * 0.12f, -w * 0.12f) {
+        drawLine(c, a, b, w * 0.62f, cap = StrokeCap.Round); drawLine(c, b, e, w * 0.62f, cap = StrokeCap.Round)
+    }
+}
 /** [limb] along a path. */
 fun DrawScope.limbPath(p: Path, w: Float, c: Color, sh: Color? = null) {
     drawPath(p, Line79.INK, style = Stroke(w + Graff.kl * 2f, cap = StrokeCap.Round, join = ROUND))

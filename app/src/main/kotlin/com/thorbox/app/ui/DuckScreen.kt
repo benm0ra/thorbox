@@ -721,8 +721,7 @@ private fun DrawScope.rat(pose: RatPose, now: Float, path: Path, tail: Path): Fl
         val sx = fx + s * (hw - 4f); val sy = shoulderY + 6f
         val ex = fx + s * (hw + elbowOut); val ey = (sy + sliceY) / 2f + 4f + 6f * sqp
         val px = fx + s * 20f; val py = sliceY + 4f + s * pose.tilt * 0.12f
-        path.reset(); path.moveTo(sx, sy); path.lineTo(ex, ey); path.lineTo(px, py + 5f)
-        limbPath(path, 9f, Line79.CASCADE, Line79.CASCADE_DK)
+        limb2(sx, sy, ex, ey, px, py + 5f, 9f, Line79.CASCADE, Line79.CASCADE_DK)
         inkCircle(px, py, 3.8f, PINK, w = kl * 0.8f)
     }
 

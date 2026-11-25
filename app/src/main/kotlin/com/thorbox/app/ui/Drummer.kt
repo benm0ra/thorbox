@@ -710,8 +710,7 @@ private fun DrawScope.legs(y: Float, footLift: Float, kickK: Float, hats: Boolea
 
 /** One leg of baggy jeans: an outlined tube (thigh, shin) with its shadow side, and the stacked hem. */
 private fun DrawScope.denimLeg(hip: Offset, knee: Offset, ankle: Offset) {
-    val p = Graff.c; p.reset(); p.moveTo(hip.x, hip.y); p.lineTo(knee.x, knee.y); p.lineTo(ankle.x, ankle.y)
-    limbPath(p, 22f, Line79.DENIM, Line79.DENIM_DK)
+    limb2(hip.x, hip.y, knee.x, knee.y, ankle.x, ankle.y, 22f, Line79.DENIM, Line79.DENIM_DK)
     inkOval(ankle.x - 12f, ankle.y - 7f, 24f, 10f, Line79.DENIM_LT, w = Graff.kl * 0.7f)
 }
 
@@ -883,8 +882,7 @@ private fun DrawScope.arm(sx: Float, sy: Float, hx: Float, hy: Float, mirror: Bo
     val pick1 = (e1x - hx0) * (e1x - hx0) + (e1y - hy0) * (e1y - hy0) <= (e2x - hx0) * (e2x - hx0) + (e2y - hy0) * (e2y - hy0)
     val ex = if (pick1) e1x else e2x; val ey = if (pick1) e1y else e2y
     // a cascade sleeve: one outlined tube through the elbow, its shadow side, a darker ribbed cuff
-    val p = Graff.c; p.reset(); p.moveTo(sx, sy); p.lineTo(ex, ey); p.lineTo(hx, hy)
-    limbPath(p, 14f, Line79.CASCADE, Line79.CASCADE_DK)
+    limb2(sx, sy, ex, ey, hx, hy, 14f, Line79.CASCADE, Line79.CASCADE_DK)
     val fx = hx - ex; val fy = hy - ey; val fl = max(1f, sqrt(fx * fx + fy * fy))
     val cx0 = hx - fx / fl * 9f; val cy0 = hy - fy / fl * 9f
     drawLine(Line79.CASCADE_DK, Offset(cx0, cy0), Offset(hx - fx / fl * 3f, hy - fy / fl * 3f), 13f, cap = StrokeCap.Butt)
