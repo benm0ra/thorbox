@@ -114,6 +114,7 @@ private class CatState {
     val land = Spring(9f, 0.3f)           // landing squash after a hop
     var wasUp = false
     var peekAt = 9f                       // she lowers her shades for a look now and then
+    val trainJam = PieceCache(); val trainNite = PieceCache()
     var lean0 = 0f; var head0 = 0f; var ear0 = 0f; var tail0 = 0f; var land0 = 0f; var peek = 0f; var peekBlink = 0f
 }
 
@@ -663,9 +664,9 @@ private fun DrawScope.room(cs: CatState, l: Float, r: Float, t: Float, b: Float,
             inkRRect(tx, wy + 16f, 190f, 30f, 4f, Line79.SILVER, w = kl)
             for (k in 0 until 6) inkRRect(tx + 8f + k * 30f, wy + 19f, 16f, 9f, 2f, Line79.NIGHT_DK, w = kl * 0.7f)
             val j = tm.measure("JAM", trainStyle)
-            blockbuster(j, tx + 14f, wy + 44f - j.size.height * 0.9f, Line79.CASCADE_LT, Line79.CASCADE, null, Line79.INK, 1.5f, j.size.height * 0.06f)
+            cachedBlockbuster(cs.trainJam, j, tx + 14f, wy + 44f - j.size.height * 0.9f, Graff.scale, Line79.CASCADE_LT, Line79.CASCADE, null, Line79.INK, 1.5f, j.size.height * 0.06f)
             val n = tm.measure("NITE", trainStyle)
-            blockbuster(n, tx + 76f, wy + 44f - n.size.height * 0.9f, Line79.SILVER_LT, Line79.SILVER, Line79.RED, Line79.INK, 1.4f, n.size.height * 0.06f)
+            cachedBlockbuster(cs.trainNite, n, tx + 76f, wy + 44f - n.size.height * 0.9f, Graff.scale, Line79.SILVER_LT, Line79.SILVER, Line79.RED, Line79.INK, 1.4f, n.size.height * 0.06f)
         }
     }
     inkRect(wx + ww / 2f - 1.5f, wy, 3f, wh, SASH, kl * 0.6f)

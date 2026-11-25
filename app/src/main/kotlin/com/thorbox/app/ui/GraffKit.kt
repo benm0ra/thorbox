@@ -65,12 +65,14 @@ val ArchivoBlack = FontFamily(Font(R.font.archivo_black))
 object Graff {
     /** Keyline width for the scene being drawn, in its own units. Set per frame by [begin]. */
     @JvmField var kl = 2.4f
+    /** Screen px per unit of the scene being drawn (set by [begin]). */
+    @JvmField var scale = 1f
     internal val a = Path()
     internal val b = Path()
     internal val c = Path()
     internal val star = Path()
     /** Lines ≈ [dp] dp on screen in a scene drawn at [scale] px per unit. */
-    fun begin(density: Float, scale: Float, dp: Float = 1.6f) { kl = dp * density / scale.coerceAtLeast(0.01f) }
+    fun begin(density: Float, scale: Float, dp: Float = 1.6f) { kl = dp * density / scale.coerceAtLeast(0.01f); this.scale = scale }
 }
 
 private val ROUND = StrokeJoin.Round
@@ -229,4 +231,67 @@ fun DrawScope.chromeCell(c: Color, o: Offset, s: Size, r: CornerRadius, pressed:
         val x = p.x + 8f * density; val y = p.y + 10f * density; val l = 7f * density
         drawLine(Color.White.copy(alpha = 0.9f), Offset(x, y), Offset(x + l * 0.77f, y - l * 0.64f), 2f * density, cap = StrokeCap.Round)
     }
+}
+
+// ---------------------------------------------------------------- cached pieces
+
+/**
+ * A blockbuster is ~20 text draws (the block, the keyline, the face); painting that every frame is wasted
+ * work (and stroked text under a changing transform churns the GPU's glyph cache). [cachedBlockbuster]
+ * paints it once into a bitmap at the on-screen resolution and reuses it until the text, colours or scale
+ * change. One cache per piece.
+ */
+class PieceCache {
+    var key = 0L
+    var img: androidx.compose.ui.graphics.ImageBitmap? = null
+    var pad = 0f
+    var q = 1f
+}
+
+/** [blockbuster] through [cache]. [pxPerUnit] = how many screen px one unit of the current transform is (for a sharp bitmap). */
+fun DrawScope.cachedBlockbuster(
+    cache: PieceCache, t: TextLayoutResult, x: Float, y: Float, pxPerUnit: Float,
+    fill: Color, fill2: Color = fill, cut: Color? = null, block: Color, depth: Float, outline: Float, sparkles: Boolean = false,
+) {
+    val q = (kotlin.math.round(pxPerUnit * 4f) / 4f).coerceIn(0.25f, 8f)
+    var k = t.layoutInput.text.text.hashCode().toLong()
+    k = k * 31 + t.size.width; k = k * 31 + t.size.height
+    k = k * 31 + (q * 100f).toLong(); k = k * 31 + fill.value.toLong(); k = k * 31 + fill2.value.toLong()
+    k = k * 31 + (cut?.value?.toLong() ?: 7L); k = k * 31 + block.value.toLong()
+    k = k * 31 + (depth * 100f).toLong(); k = k * 31 + (outline * 100f).toLong(); k = k * 31 + (if (sparkles) 1 else 0)
+    if (cache.img == null || cache.key != k) {
+        val pad = outline * 2f + t.size.height * 0.15f + 2f
+        val w = ((t.size.width + depth + pad * 2f) * q).toInt().coerceIn(1, 4096)
+        val h = ((t.size.height + depth + pad * 2f) * q).toInt().coerceIn(1, 4096)
+        val img = androidx.compose.ui.graphics.ImageBitmap(w, h)
+        androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(img), Size(w.toFloat(), h.toFloat())) {
+            androidx.compose.ui.graphics.drawscope.scale(q, q, Offset.Zero) {
+                blockbuster(t, pad, pad, fill, fill2, cut, block, depth, outline, sparkles)
+            }
+        }
+        cache.img = img; cache.key = k; cache.pad = pad; cache.q = q
+    }
+    val img = cache.img ?: return
+    translate(x - cache.pad, y - cache.pad) {
+        androidx.compose.ui.graphics.drawscope.scale(1f / cache.q, 1f / cache.q, Offset.Zero) { drawImage(img) }
+    }
+}
+
+/**
+ * Any static bit of art (a tag, a sign) painted once into a bitmap and reused: [draw] paints it with its
+ * top-left at (0, 0), [w] × [h] units; it lands at ([x], [y]). Repainted only when [key] or the scale changes.
+ */
+inline fun DrawScope.cachedArt(cache: PieceCache, key: Long, w: Float, h: Float, pxPerUnit: Float, x: Float, y: Float, crossinline draw: DrawScope.() -> Unit) {
+    val q = (kotlin.math.round(pxPerUnit * 4f) / 4f).coerceIn(0.25f, 8f)
+    val k = key * 31 + (q * 100f).toLong()
+    if (cache.img == null || cache.key != k) {
+        val iw = (w * q).toInt().coerceIn(1, 4096); val ih = (h * q).toInt().coerceIn(1, 4096)
+        val img = androidx.compose.ui.graphics.ImageBitmap(iw, ih)
+        androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(img), Size(iw.toFloat(), ih.toFloat())) {
+            androidx.compose.ui.graphics.drawscope.scale(q, q, Offset.Zero) { draw() }
+        }
+        cache.img = img; cache.key = k; cache.pad = 0f; cache.q = q
+    }
+    val img = cache.img ?: return
+    translate(x, y) { androidx.compose.ui.graphics.drawscope.scale(1f / cache.q, 1f / cache.q, Offset.Zero) { drawImage(img) } }
 }

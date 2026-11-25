@@ -111,6 +111,8 @@ private class DrummerState {
     val chainS = Spring(1.3f, 0.15f)      // the chain is a pendulum
     val leanS = Spring(2.8f, 0.55f)       // leans into the side of the kit he's playing
     var chainFlip = false
+    val gatePiece = PieceCache()
+    val kickLogo = PieceCache()
 }
 
 // Big Dawg's colours: his own, not the theme's (he looks the same on every theme).
@@ -561,10 +563,10 @@ private fun DrawScope.kick(st: DrummerState, now: Float, k: Float, tm: TextMeasu
     sparkle(cx - r * 0.62f, cy - r * 0.62f, r * 0.12f)
     // the band name on the front head, like every proper kick: a silver blockbuster on a cascade block
     val t = tm.measure("BIG DAWG", logo)
-    val fit = min(1f, (1.3f * r) / (t.size.width + 6f))
+    val fit = min(1f, (1.3f * 42f * s) / (t.size.width + 6f))                 // from the drum's resting size, so the cache holds
     withTransform({ scale(fit, fit, Offset(cx, cy - r * 0.08f)) }) {
-        blockbuster(t, cx - t.size.width / 2f, cy - r * 0.08f - t.size.height / 2f, Line79.SILVER_LT, Line79.SILVER, null,
-            Line79.INK, t.size.height * 0.06f, t.size.height * 0.03f)
+        cachedBlockbuster(st.kickLogo, t, cx - t.size.width / 2f, cy - r * 0.08f - t.size.height / 2f, Graff.scale * fit,
+            Line79.SILVER_LT, Line79.SILVER, null, Line79.INK, t.size.height * 0.06f, t.size.height * 0.03f)
     }
     // the beater is behind the drum (his side): the front head bulges a touch as it's about to land
     val toGo = st.kickNext - now
@@ -1004,7 +1006,7 @@ private fun DrawScope.street(
     withTransform({ translate(gx, gy); rotate(-5f, Offset.Zero); scale(fit, fit, Offset.Zero) }) {
         val glow = 0.35f * kickK + 0.15f * level
         if (glow > 0.02f) drawText(gl, color = Line79.CASCADE_LT.copy(alpha = glow), drawStyle = NEON_GLOW)
-        blockbuster(gl, 0f, 0f, back(Line79.SILVER_LT, 0.15f), back(Line79.SILVER, 0.2f), back(Line79.CASCADE, 0.2f),
+        cachedBlockbuster(st.gatePiece, gl, 0f, 0f, Graff.scale * fit, back(Line79.SILVER_LT, 0.15f), back(Line79.SILVER, 0.2f), back(Line79.CASCADE, 0.2f),
             back(Line79.CASCADE_DK, 0.15f), gl.size.height * 0.09f, gl.size.height * 0.05f, sparkles = true)
     }
     for (k in 0 until 5) {                                      // drips under the letters

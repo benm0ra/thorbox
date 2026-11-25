@@ -461,8 +461,8 @@ private fun DrawScope.platform(now: Float, tm: androidx.compose.ui.text.TextMeas
     val st = tm.measure("DUCK ST", sign)
     drawText(st, topLeft = Offset(45f, 31f - st.size.height / 2f))
     // the regulars' marker tags (outlined strokes, a drip off each)
-    tagAt(tm, "NITE", tag, 132f, 27f, Line79.SILVER, 0.8f)
-    tagAt(tm, "RAT 79", tag, -24f, 70f, INK, 1f)
+    tagAt(TAG_NITE, tm, "NITE", tag, 132f, 27f, Line79.SILVER, 0.8f)
+    tagAt(TAG_RAT, tm, "RAT 79", tag, -24f, 70f, INK, 1f)
     // the tunnel: an arched portal (stone, keylined), a signal lamp inside, a train's lights now and then
     val tx = 198f; val tw = 76f; val ty = 66f; val tr = tw / 2f
     archPath(Graff.a, tx, ty, tw, 6f); ink(Graff.a, ARCH, kl)
@@ -506,13 +506,19 @@ private fun archPath(p: Path, tx: Float, ty: Float, tw: Float, inset: Float) {
 }
 
 /** A marker tag: the word as a slanted outline stroke (the tag style is fake-italic Anton), drips off two downstrokes. */
-private fun DrawScope.tagAt(tm: androidx.compose.ui.text.TextMeasurer, word: String, style: TextStyle, x: Float, y: Float, c: Color, alpha: Float) {
+private fun DrawScope.tagAt(cache: PieceCache, tm: androidx.compose.ui.text.TextMeasurer, word: String, style: TextStyle, x: Float, y: Float, c: Color, alpha: Float) {
     val t = tm.measure(word, style)
-    drawText(t, c, Offset(x, y), alpha = alpha, drawStyle = Stroke(t.size.height * 0.08f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-    val base = y + t.size.height * 0.86f
-    drip(x + t.size.width * 0.2f, base, t.size.height * 0.45f, t.size.height * 0.06f, c.copy(alpha = alpha))
-    drip(x + t.size.width * 0.72f, base, t.size.height * 0.28f, t.size.height * 0.05f, c.copy(alpha = alpha))
+    val th = t.size.height.toFloat(); val pad = th * 0.1f
+    // painted once into a bitmap (a stroked word every frame is wasted work)
+    cachedArt(cache, word.hashCode().toLong() * 31 + c.value.toLong() + (th * 10f).toLong(), t.size.width + pad * 2f, th * 1.5f + pad * 2f, Graff.scale, x - pad, y - pad) {
+        drawText(t, c, Offset(pad, pad), alpha = alpha, drawStyle = Stroke(th * 0.08f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        val base = pad + th * 0.86f
+        drip(pad + t.size.width * 0.2f, base, th * 0.45f, th * 0.06f, c.copy(alpha = alpha))
+        drip(pad + t.size.width * 0.72f, base, th * 0.28f, th * 0.05f, c.copy(alpha = alpha))
+    }
 }
+private val TAG_NITE = PieceCache()
+private val TAG_RAT = PieceCache()
 
 /** A silver boombox on the platform; the woofers push out with the key (a spring, so they flex past and back). */
 private fun DrawScope.boombox(cone: Float) {
