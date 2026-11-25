@@ -326,11 +326,11 @@ fun BiscuitCat(state: AppState, family: SynthCategory, accent: Color, patch: Syn
                 }
             }
         }
-        // light themes: the family colour pulled toward the text colour, so it reads on cream
-        val tagColor = if (Tb.palette.light) androidx.compose.ui.graphics.lerp(accent, Tb.Text, 0.45f) else accent.copy(alpha = 0.85f)
+        // her room is night on every theme: the family colour lifted toward white so it reads on the dark wall
+        val tagColor = androidx.compose.ui.graphics.lerp(accent, Color.White, 0.45f)
         Text("${family.label} · ${kneadObjectName(family)}", color = tagColor, fontSize = 10.sp,
             fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 2.dp))
-        if (hint.isNotEmpty()) Text(hint, color = Tb.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1,
+        if (hint.isNotEmpty()) Text(hint, color = Line79.WHITE, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1,
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 4.dp).alpha(hintAlpha))
     }
 }

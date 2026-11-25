@@ -83,7 +83,8 @@ object Type {
     val label get() = Tb.Label
     val title get() = TextStyle(color = Tb.Text, fontFamily = Tb.Display, fontWeight = if (Tb.palette.monoUi) FontWeight.Black else FontWeight.Normal,
         fontSize = 16.sp, letterSpacing = 1.sp,
-        shadow = androidx.compose.ui.graphics.Shadow(Tb.BlockShadow, androidx.compose.ui.geometry.Offset(2.5f, 2.5f), 0f))
+        // the hard block under a header; on paper (light themes) dark-on-dark doubles up, so it's left off there
+        shadow = if (Tb.palette.light) null else androidx.compose.ui.graphics.Shadow(Tb.BlockShadow, androidx.compose.ui.geometry.Offset(2.5f, 2.5f), 0f))
     val body get() = TextStyle(color = Tb.Text, fontSize = 12.sp)
     val value get() = TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 13.sp)
     val valueLg get() = TextStyle(color = Tb.Text, fontFamily = Tb.Mono, fontWeight = FontWeight.Black, fontSize = 15.sp)
